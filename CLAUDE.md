@@ -22,8 +22,14 @@ the same shape — **never by editing an engine skill**. Current seams:
 
 | Seam | Data | Schema |
 |------|------|--------|
+| **Per-repo consumer config** (how the engine runs in one repo — repos, CI, branching) | `<consumer>/.claude/ai-ops.yml` | `ai-ops.schema.json` (+ `ai-ops.example.yml`) |
 | Event → loop routing | `loop-dispatch/.../scripts/route-map.json` | `route-map.schema.json` |
 | GitHub/CI provider interface | `github-ops/.../operation-catalog.json` | `operation-catalog.schema.json` |
+
+`ai-ops.yml` is the central seam: `/umbraco-ops-setup` writes it (detect + ask), and every
+loop reads it for repo facts, CI provider, and the branching model. Anything the repo does
+differently from the built-in models is handed to an applied-repo skill named in
+`branching.release_skill`.
 
 When you add a seam, follow the same pattern (data file + schema alongside the code that
 reads it) and document it here.

@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/umbraco/umbraco-ai-ops/ai-ops.schema.json",
+  "title": "umbraco-ai-ops consumer config",
+  "description": "How the engine runs in ONE repo. Lives at the consumer repo's `.claude/ai-ops.yml`. Every loop reads it; `/umbraco-ops-setup` writes it (detecting what it can, asking the rest). Where a field is omitted, the engine auto-detects or uses the documented default — so a plain gitflow, same-repo, GitHub-checks repo may need almost nothing.",
+  "type": "object",
+  "required": ["version", "repos"],
+  "additionalProperties": false,
+  "properties": {
+    "version": { "type": "integer", "const": 1 },
+
+    "repos": {
+      "type": "object",
+      "required": ["source"],
+      "additionalProperties": false,
+      "properties": {
+        "source": { "type": "string", "description": "owner/name the routine works in and opens PRs on. Auto-detected from `git remote origin`.", "pattern": "^[^/]+/[^/]+$" },
+        "inbox":  { "type": "string", "description": "owner/name where `ready-for-ai` issues live. Defaults to `source`. Set to a different repo for split issues (e.g. Umbraco.Forms.Issues).", "pattern": "^[^/]+/[^/]+$" },
+        "issue_link": { "type": "string", "enum": ["same-repo-closes", "cross-repo-full-url"], "description": "How PRs reference the issue. Auto: `same-repo-closes` when inbox==source, else `cross-repo-full-url` (full URL; never `#N` across repos)." }
+      }
+    },
+
+    "ci": {
+      "type": "object",
+      "required": ["provider"],
+      "additionalProperties": false,
+      "properties": {
+        "provider": { "type": "string", "enum": ["github-checks", "azure-pipelines"], "description": "Which CI github-ops reads. Auto: `azure-pipelines` if an azure-pipelines.yml / .azure-pipelines exists, else `github-checks`." },
+        "ado_org":     { "type": "string", "description": "azure-pipelines only: DevOps organization." },
+        "ado_project": { "type": "string", "description": "azure-pipelines only: DevOps project." },
+        "gh_repo":     { "type": "string", "description": "azure-pipelines only: the GitHub repo builds are wired to. Defaults to repos.source.", "pattern": "^[^/]+/[^/]+$" }
+      }
+    },
+
+    "branching": {
+      "type": "object",
+      "description": "The repo's branch/merge/release model. `model` picks built-in behaviour; `release_skill` hands anything bespoke to a skill the applied repo owns.",
+      "additionalProperties": false,
+      "properties": {
+        "model": {
+          "type": "string",
+          "enum": ["gitflow", "main-only", "versioned-gitflow", "custom"],
+          "description": "gitflow = dev+main; main-only = main; versioned-gitflow = vN/dev+vN/main per major (Forms, Automate); custom = fully defined by release_skill. Auto-detected from `git branch -a`."
+        },
+        "base":         { "type": "string", "description": "Integration branch PRs target. Auto: `dev`, or the highest `vN/dev` for versioned-gitflow. NOTE: routines clone the default branch — keep the canonical consumer skill there." },
+        "release_base": { "type": "string", "description": "Where releases land (gitflow/versioned-gitflow), e.g. `main` or `vN/main`." },
+        "merge_strategy": { "type": "string", "enum": ["squash", "merge-commit"], "description": "How merge-flow merges into base. Default `squash`." },
+        "branch_naming":  { "type": "string", "description": "Optional convention hint, e.g. `v{major}/{type}/{desc}` (Forms enforces this via a git hook)." },
+        "release_skill":  { "type": "string", "description": "Applied-repo skill that OWNS cutting/tagging/version-bump/back-merge (e.g. `release-management`). When set, auto-release-loop orchestrates and defers the mechanics to it instead of the engine's release-flow default. REQUIRED when model=custom." }
+      }
+    },
+
+    "learning": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "inbox":   { "type": "string", "description": "owner/name where proto-learning issues are filed.", "pattern": "^[^/]+/[^/]+$" },
+        "routing": { "type": "string", "description": "Free-form note on where triage routes learnings (shared-skills / product-repo / loop-self)." }
+      }
+    },
+
+    "playbook": {
+      "type": "string",
+      "description": "The consumer skill that carries the per-issue build playbook and invokes issue-loop-core. Default `issue-loop` (i.e. `.claude/skills/issue-loop/`)."
+    }
+  }
+}
