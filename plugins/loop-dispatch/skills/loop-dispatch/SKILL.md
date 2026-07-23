@@ -23,10 +23,14 @@ own gates, models, and notifications. loop-dispatch adds no policy of its own.
 
 ## The routing table
 
-`route-event.sh` (run **at the edge** by the caller workflow — see new-loop-routine and
-[`references/webhook-context.md`](references/webhook-context.md), not here) maps the exact
-`(event, action, label|state)` tuple to a loop. Anything unmatched → the routine is
-**never fired**. The mapping it applies:
+The mapping is **data, not prose** — it lives in
+[`route-map.json`](scripts/route-map.json) (schema: [`route-map.schema.json`](scripts/route-map.schema.json)),
+and `route-event.sh` resolves the route deterministically from it (first matching rule wins;
+run **at the edge** by the caller workflow — see new-loop-routine and
+[`references/webhook-context.md`](references/webhook-context.md)). Anything unmatched → the
+routine is **never fired**. This table just renders the built-in `route-map.json`; a consumer
+**extends routing by shipping its own `route-map.json`** (same schema — add labels or
+re-target loops), never by editing this skill.
 
 | event | action | label / state | Run |
 |---|---|---|---|

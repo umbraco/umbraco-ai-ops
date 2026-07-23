@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/umbraco/umbraco-ai-ops/github-ops/operation-catalog.schema.json",
+  "title": "github-ops operation catalog (provider interface)",
+  "description": "The interface every github-ops provider implements. Each operation is one capability a loop can invoke by NAME; a provider is a reference file that maps every operation of its axis to a concrete command/tool. Axes: 'forge' = the git host (implemented by gh-cli.md and github-mcp.md), 'ci' = the CI system (implemented by the ci_provider references — github-checks in gh-cli/github-mcp, azure-pipelines.md). To add a provider outside gh / GitHub-checks / Azure Pipelines, implement every operation of the matching axis.",
+  "type": "object",
+  "required": ["version", "operations"],
+  "additionalProperties": false,
+  "properties": {
+    "version": { "type": "integer", "const": 1 },
+    "operations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "axis", "title"],
+        "additionalProperties": false,
+        "properties": {
+          "id":    { "type": "string", "description": "Stable slug loops refer to.", "pattern": "^[a-z0-9-]+$" },
+          "axis":  { "type": "string", "enum": ["forge", "ci"], "description": "Which provider kind must implement this operation." },
+          "title": { "type": "string", "description": "Human-readable operation name." },
+          "description": { "type": "string" },
+          "gate":  { "type": "boolean", "description": "True if this operation is a merge/CI gate loops must not bypass." }
+        }
+      }
+    }
+  }
+}

@@ -40,7 +40,6 @@ Installed from this marketplace (`.claude-plugin/marketplace.json`):
 | **learning** | The self-learning machinery: capture hooks → `proto-learning` issues → `triage-learnings`. Mechanism generic; inbox + routing are config. |
 | **release-flow** | Branching/release/dev-sync (gitflow vs main-only). **Reference/default only** — Forms and Automate override with their own release skills. |
 | **dotnet-web-runtime** | Cloud-env setup so a .NET product can run as a web routine (NuGet-feed proxy / 401 fix). |
-| **dependabot-rollup** | Roll Dependabot security PRs into one green PR. Opt-in, **local-only**. |
 
 ## How a consumer links to the engine
 
@@ -80,12 +79,9 @@ triage_routing:  <shared-skills / product-repo / loop-self>
 .claude-plugin/
   marketplace.json         # marketplace manifest listing the plugins
 plugins/
-  <plugin>/                # one dir per plugin (skills/, agents/, hooks/, references/)
-lib/
-  slack.sh                 # shared helpers reused across scripts
+  <plugin>/                # one dir per plugin (skills/, agents/, scripts/, references/)
 scripts/
   cloud-skill-sync.sh      # cloud-env Setup script: deliver the engine skills to a routine
-  branch-housekeeping/     # weekly: delete merged branches, flag ambiguous ones
 ```
 
 ## Status

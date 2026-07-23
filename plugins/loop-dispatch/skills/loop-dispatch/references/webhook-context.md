@@ -1,9 +1,17 @@
-# Routing a GitHub event deterministically (the edge contract)
+# Routing a webhook event deterministically (the edge contract)
 
-How the loop system turns a GitHub event into a route with **zero judgement**. Routing
-happens **at the edge** — in the caller GitHub Action, `route-event.sh` reads the event
-and decides — so `loop-dispatch` only ever receives an already-resolved route. This is
-the field contract `route-event.sh` routes on; any webhook-driven automation can reuse it.
+How the loop system turns a repository event into a route with **zero judgement**. Routing
+happens **at the edge** — `route-event.sh` reads the event and decides — so `loop-dispatch`
+only ever receives an already-resolved route.
+
+**This is a provider seam.** `route-event.sh` routes on a small, **source-agnostic field
+contract** (`event`, `action`, `owner`/`repo`, `number`, `label`/`state`), passable either
+as flags or as a raw payload. **GitHub Actions is the event-source provider today** (it
+reads `$GITHUB_EVENT_PATH`); another source — e.g. **Azure DevOps service hooks**, or a
+GitLab webhook — becomes a provider later by mapping its own payload to the same fields and
+invoking `route-event.sh` (with the `--event/--action/--label/--repo/--number/--target`
+flags). The route decision stays deterministic and identical regardless of which source
+produced the fields — only the extraction differs per provider.
 
 ## The event fields route-event.sh reads
 
@@ -30,7 +38,7 @@ supersedes that; the field contract is identical either way.)
 2. **Extract `event`, `action`, `owner`, `repo`, `number`, `label`/`state` verbatim.**
    No inference, no guessing what to look up.
 3. **Gate on the exact tuple *before* doing any work — with a script, not judgement.**
-   loop-dispatch ships [`route-event.sh`](route-event.sh): pass it the parsed fields and
+   loop-dispatch ships [`route-event.sh`](../scripts/route-event.sh): pass it the parsed fields and
    it prints `route=<loop|none>`. Act only on a named route; **any other value → quiet
    no-op.** Do **not** wake a loop and let it sweep on a label you don't care about —
    that's the wasteful pattern (a Dependabot PR labelled `dependencies` must *not* trigger

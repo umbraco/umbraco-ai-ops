@@ -20,7 +20,7 @@ You are running as a cloud worker; do all GitHub work via the GitHub MCP (github
 ```
 
 The routine has **no UI event triggers** — it's fired by the committed GitHub Action
-([`caller-workflow.yml`](caller-workflow.yml)), which subscribes to all the loop events
+([`loop-dispatch.yml.template`](loop-dispatch.yml.template)), which subscribes to all the loop events
 and routes them at the edge via `route-event.sh`. The event → loop mapping it enforces:
 - Issue labelled `ready-for-ai` → **issue-loop** (the consumer's entry skill)
 - PR labelled `auto-merge` → **merge-flow**

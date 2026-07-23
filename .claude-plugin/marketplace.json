@@ -65,14 +65,6 @@
       "version": "0.1.0",
       "category": "workflow",
       "keywords": ["dotnet", "nuget", "cloud-routine", "web-runtime", "setup"]
-    },
-    {
-      "name": "dependabot-rollup",
-      "source": "./plugins/dependabot-rollup",
-      "description": "Roll every open Dependabot security PR (excluding semver-major bumps) into one branch + PR, drive it to green CI, and close the superseded individual PRs. Repo-agnostic, opt-in, and LOCAL-ONLY (the Claude GitHub App can't read Dependabot alerts, so it can't run as a cloud routine). Requires github-ops.",
-      "version": "0.1.0",
-      "category": "workflow",
-      "keywords": ["dependabot", "security", "dependencies", "pull-request", "ci", "automation"]
     }
   ]
 }

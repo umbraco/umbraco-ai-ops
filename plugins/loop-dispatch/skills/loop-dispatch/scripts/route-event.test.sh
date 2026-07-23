@@ -3,7 +3,7 @@
 # Deterministic tests for route-event.sh — the loop-dispatch routing decision.
 # Hermetic: bash + jq only, no network, no gh, no claude. Runs in a few ms.
 #
-# Usage: bash run.sh   (exits non-zero if any case fails)
+# Usage: bash route-event.test.sh   (exits non-zero if any case fails)
 set -uo pipefail
 
 # Isolate from any ambient GitHub-event env (GitHub Actions sets these to the
@@ -11,7 +11,7 @@ set -uo pipefail
 unset GITHUB_EVENT_PATH GITHUB_EVENT_NAME
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SCRIPT="$(cd "$HERE/.." && pwd)/route-event.sh"
+SCRIPT="$HERE/route-event.sh"
 [ -f "$SCRIPT" ] || { echo "FATAL: route-event.sh not found at $SCRIPT"; exit 2; }
 command -v jq >/dev/null 2>&1 || { echo "FATAL: jq required"; exit 2; }
 

@@ -41,35 +41,27 @@ here.
 > Server versions differ — **confirm against the live `mcp__github__*` tool list**
 > and use the tool that performs the operation if a name doesn't match.
 
-## The operation catalog
+## The operation catalog (the provider interface)
 
-Every operation a loop needs, with its section anchor in each reference file. Both
-files cover the **same** list — keep them in sync.
+The canonical list of operations a loop can invoke by name is **data, not prose**:
+[`operation-catalog.json`](operation-catalog.json) (shape:
+[`operation-catalog.schema.json`](operation-catalog.schema.json)). It's the **interface**
+every provider implements — each operation carries an `axis`:
 
-| Operation | Used by |
-|-----------|---------|
-| List issues (by label / state) | triage (inbox), all loops (backlog) |
-| Get / read an issue | triage |
-| Create an issue | triage (`mcp-repo`, `loop-improvement`) |
-| Comment on an issue | all loops |
-| Add / remove a label on an issue | triage, merge-flow |
-| Close an issue | triage |
-| List PRs (by label / state) | merge-flow |
-| List a repo's open Dependabot PRs | dependabot-rollup |
-| List Dependabot security alerts | dependabot-rollup |
-| Get a PR (review decision, mergeable, base) | merge-flow, all loops |
-| Get PR reviews + review comments | merge-flow, review-response |
-| **Get PR CI / check-run status** | every loop (the merge gate) |
-| **Read a failing check's log** | every loop (diagnosing a red CI run) |
-| Re-request review / add reviewer | review-response |
-| Create a PR | all loops |
-| **Merge a PR (+ delete branch)** | merge-flow |
-| Update a PR's body | dependabot-rollup |
-| **Close a PR without merging (+ comment, delete branch)** | dependabot-rollup |
-| Create a branch | triage (shared-skills), issue-loop (web path) |
-| Create / update / push file(s) | triage (shared-skills), issue-loop (web path) |
-| Get file contents | any |
-| Detect base branch | all (defer to `release-and-branching`) |
+- **`forge`** — the git host. Implemented by [`gh-cli.md`](references/gh-cli.md) (local) and
+  [`github-mcp.md`](references/github-mcp.md) (web). Both cover **every** `forge` operation —
+  keep them in sync with the catalog.
+- **`ci`** — the CI system. Implemented per the consumer's `ci_provider` (see below):
+  GitHub checks live in the `gh-cli`/`github-mcp` CI rows; Azure Pipelines in
+  [`azure-pipelines.md`](references/azure-pipelines.md).
+
+Operations flagged `"gate": true` (`get-ci-status`, `read-failing-ci-log`, `merge-pr`) are
+merge/CI gates — loops must never bypass them.
+
+**Adding a provider** (a different git host, or a CI system beyond GitHub-checks / Azure
+Pipelines): add a reference file that maps **every operation of that axis** in
+`operation-catalog.json` to a concrete command/tool. The loops don't change — they call
+operations by id.
 
 ## CI provider — GitHub checks vs Azure Pipelines
 
