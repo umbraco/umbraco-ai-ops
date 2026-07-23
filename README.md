@@ -33,6 +33,7 @@ Installed from this marketplace (`.claude-plugin/marketplace.json`):
 
 | Plugin | What it is |
 |--------|------------|
+| **ops-setup** | Interactive onboarding — `/umbraco-ops-setup` detects the repo's branching/CI/release setup, confirms via the question tool, and generates `.claude/ai-ops.yml` + the build-playbook scaffold + caller workflow(s). Run it first. |
 | **issue-loop-core** | The orchestration engine (queue → `/goal` → cap-3 dispatch → review phase → stop conditions). Loads the product's build playbook via a named slot. Bundles `rework-loop`. |
 | **github-ops** | GitHub work in both environments (`gh`/`git` local, `mcp__github__*` on web) **+ a CI-provider abstraction** (`github-checks`, `azure-pipelines`). Required by every loop. |
 | **loop-dispatch** | One-routine-per-repo event router (`route-event.sh`). Supports a `target_repo` distinct from the event's repo (cross-repo-issues case, e.g. Forms). |
@@ -40,6 +41,21 @@ Installed from this marketplace (`.claude-plugin/marketplace.json`):
 | **learning** | The self-learning machinery: capture hooks → `proto-learning` issues → `triage-learnings`. Mechanism generic; inbox + routing are config. |
 | **release-flow** | Branching/release/dev-sync (gitflow vs main-only). **Reference/default only** — Forms and Automate override with their own release skills. |
 | **dotnet-web-runtime** | Cloud-env setup so a .NET product can run as a web routine (NuGet-feed proxy / 401 fix). |
+
+## Getting started (onboarding a repo)
+
+1. **Install the engine** in the target repo's workspace:
+   `/plugin marketplace add umbraco/umbraco-ai-ops`, then install the plugins.
+2. **Run `/umbraco-ops-setup`.** It investigates the repo (branching model from git history,
+   CI host, release approach), confirms and fills the gaps with you via the question tool,
+   and writes `.claude/ai-ops.yml`, a build-playbook scaffold, and the caller workflow(s).
+3. **Do the manual steps it reports** — create the labels, add the CI auth (a read-only ADO
+   PAT for `azure-pipelines` repos) + egress, and stand up the routine via `new-loop-routine`.
+4. **Review + commit** the generated files (fill any playbook TODOs first).
+
+Nothing is product-specific in the engine — everything the repo does differently lives in
+its own `.claude/ai-ops.yml` and, for bespoke release/branching, an applied-repo skill named
+in `branching.release_skill`.
 
 ## How a consumer links to the engine
 
@@ -58,20 +74,14 @@ calls `github-ops` by name. Nothing is copied.
 
 ## The config contract
 
-The two inputs `issue-loop-core` reads from each consumer:
-
-```yaml
-# 1. build_playbook — the product's per-issue playbook (the only real content)
-# 2. config block (repo facts; auto-detect where derivable):
-inbox_repo:      <where ready-for-ai issues live>     # must be declared when it differs from source (Forms)
-source_repo:     <where PRs open>                      # auto-detect: git remote
-base_branch:     <auto | vX/dev>                       # auto-detect: release-and-branching
-ci_provider:     github-checks | azure-pipelines       # auto-detect: azure-pipelines.yml vs GH checks
-repo_type_gate:  <how to confirm this is the right repo>
-issue_link:      same-repo-closes | cross-repo-full-url
-learning_inbox:  <proto-learning repo>
-triage_routing:  <shared-skills / product-repo / loop-self>
-```
+Each consumer supplies two things: a **build playbook** (its per-issue how-to) and a
+**config block** — the repo's `.claude/ai-ops.yml`, defined by **[`ai-ops.schema.json`](ai-ops.schema.json)**
+with a worked example in **[`ai-ops.example.yml`](ai-ops.example.yml)**. `/umbraco-ops-setup`
+writes it; every loop reads it. It covers `repos` (source/inbox/issue_link), `ci`
+(provider + ADO org/project), `branching` (model/base/release_base/merge_strategy/
+release_skill), `learning`, and the `playbook` name. Omit anything the engine auto-detects —
+a plain same-repo gitflow repo needs almost nothing; anything bespoke is handed to the skill
+named in `branching.release_skill`.
 
 ## Layout
 

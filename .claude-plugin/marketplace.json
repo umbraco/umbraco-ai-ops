@@ -11,6 +11,14 @@
   },
   "plugins": [
     {
+      "name": "ops-setup",
+      "source": "./plugins/ops-setup",
+      "description": "Interactive onboarding: /umbraco-ops-setup investigates a repo (branching model from git history, CI host, release approach), confirms and fills the gaps via the question tool, then generates the consumer files — .claude/ai-ops.yml, a build-playbook scaffold, any override skills, and the caller workflow(s). Run once per repo after installing the engine.",
+      "version": "0.1.0",
+      "category": "workflow",
+      "keywords": ["setup", "onboarding", "config", "detection", "interactive", "scaffold"]
+    },
+    {
       "name": "issue-loop-core",
       "source": "./plugins/issue-loop-core",
       "description": "The orchestration engine: work a backlog of ready-for-ai issues to CI-green PRs. Owns the durable /goal loop, rolling cap-3 dispatch, the human-review-response phase, model selection, and stop conditions/backstops. Loads a product's build playbook via a named slot (it does not know how to build any one product). Bundles rework-loop (PR-review-event response). Repo-agnostic; requires github-ops.",
