@@ -1,0 +1,6 @@
+# Normalise line endings. Scripts run on Linux routine/CI runners, so keep them LF
+# regardless of the committer's OS.
+* text=auto
+*.sh   text eol=lf
+*.yml  text eol=lf
+*.yaml text eol=lf
