@@ -61,7 +61,7 @@
 
     "playbook": {
       "type": "string",
-      "description": "The consumer skill that carries the per-issue build playbook and invokes issue-loop-core. Default `issue-loop` (i.e. `.claude/skills/issue-loop/`)."
+      "description": "The repo-OWNED build skill that issue-loop-core defers to for the per-issue build steps (the override point). Scaffolded by ops-setup, committed in the repo's `.claude/skills/<name>/`, and edited by the repo. The core locates it by this name and instructs build subagents to follow it — there is no same-name shadowing of an engine skill. Default `issue-loop`."
     }
   }
 }

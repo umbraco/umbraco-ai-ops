@@ -62,12 +62,14 @@ Write these into the repo (ask before overwriting anything that already exists):
 1. **`.claude/ai-ops.yml`** — from the confirmed values. Emit only what differs from the
    engine defaults (keep it lean). **Validate it against `ai-ops.schema.json`** (from the
    engine repo root) before writing — every value must fit.
-2. **`.claude/skills/<playbook>/SKILL.md`** — a build-playbook scaffold, only if absent.
-   Tune the sanity/build step to `stack`: `dotnet` → `dotnet build` + "obey each project's
-   `CLAUDE.md`, CI is the gate"; `node` → `npm ci` + `npm run build`/`test`. It must
-   **invoke `issue-loop-core`** for orchestration, passing this repo's `ai-ops.yml` config,
-   and carry the per-issue steps + `/security-review` + `/code-review`. Leave clear TODOs
-   where the repo owner must add product specifics — don't fabricate build commands.
+2. **`.claude/skills/<playbook>/SKILL.md`** — the repo's **build skill** (the override that
+   `issue-loop-core` defers to; the name is `playbook`), only if absent. It carries the
+   per-issue build steps **only** — orchestration stays in `issue-loop-core`, which locates
+   and follows this skill; it does **not** invoke the core. Tune the sanity/build step to
+   `stack`: `dotnet` → `dotnet build` + "obey each project's `CLAUDE.md`, CI is the gate";
+   `node` → `npm ci` + `npm run build`/`test`. Include `/security-review` + `/code-review`
+   and the outcome-label swap. Leave clear TODOs where the repo owner must add product
+   specifics — don't fabricate build commands.
 3. **Override skills — only where the repo diverges.** If `branching.model: custom`, or a
    `release_skill` is named that doesn't exist yet, scaffold that skill's stub (or point at
    the existing one). Do **not** scaffold overrides the engine defaults already cover.

@@ -8,10 +8,26 @@ automation across Umbraco products. See `README.md` for the what/why; this file 
 
 Nothing here may hard-code one product's facts, toolchain, or branching. Product-specific
 behaviour is supplied by the **consumer** (its own repo's `.claude/skills/`, or the shared
-consumer repo for a repo family) via two inputs the engine reads: a **build playbook** and a
+consumer repo for a repo family) via two inputs the engine reads: a **build skill** and a
 **config block** (see `README.md` → config contract). If you find yourself writing `npm`,
 an MCP reference, a specific product name, or a specific branching rule in an engine skill,
 it belongs in a **seam**, not the engine.
+
+## Override & defer (how a repo customises the engine)
+
+Skills do **not** cleanly shadow by name (plugin skills are namespaced; project skills are
+not) and a skill cannot reliably call another skill. So customisation is **not** same-name
+override or skill-to-skill wrapping. Instead:
+
+- **Override = a repo-owned skill.** `ops-setup` scaffolds a skill *into the repo* (e.g. its
+  build skill); the repo owns and edits it. In cloud routines it's part of the clone.
+- **Defer = a config pointer.** The engine locates the repo's skill **by name from
+  `ai-ops.yml`** (`playbook` → the build skill; `branching.release_skill` → the release
+  skill) and follows/invokes it. The pointer is load-bearing precisely because there's no
+  shadowing to fall back on.
+- **Avoid same-name collisions** between an engine skill and a repo skill — cloud delivers
+  both flat into overlapping locations with undocumented precedence. Give repo skills their
+  own names; wire them via config.
 
 ## Extension points are data + schema, never prose
 
