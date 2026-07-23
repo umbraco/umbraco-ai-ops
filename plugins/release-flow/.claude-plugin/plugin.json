@@ -1,7 +1,7 @@
 {
   "name": "release-flow",
   "version": "1.5.0",
-  "description": "Branching, merge, release, and dev-sync workflow skills for any repo — detects gitflow (dev + main) vs main-only and follows the matching conventions for branch naming, squash vs merge-commit, cutting a release, tagging, and syncing back to dev. Bundles release-and-branching, sync-dev, and auto-release-loop (issue+label-triggered release, two automated gates — green CI + an Opus pre-publish review against a growing checklist — no approval pause, Claude push notifications).",
+  "description": "Branching, merge, release, and dev-sync workflow skills for any repo — reads the branch model from the consumer's `.claude/ai-ops.yml` (gitflow, main-only, versioned-gitflow, or custom) and resolves base/release_base from config, falling back to branch detection. Branching/merge/release are applied-repo seams: when `branching.release_skill` is set the loop delegates the cut/bump/tag/back-merge mechanics to it and only orchestrates + gates. Bundles release-and-branching, sync-dev (the dev-sync/back-merge/cleanup contract — no engine bash), and auto-release-loop (issue+label-triggered release, two automated gates — green CI + an Opus pre-publish review against a repo-overridable checklist — no approval pause, Claude push notifications).",
   "author": {
     "name": "Umbraco",
     "url": "https://github.com/umbraco"

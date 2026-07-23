@@ -14,16 +14,11 @@ preserve, so branches squash directly into `main`.
 - Open the PR against **`main`**.
 - After review + green CI, **squash-merge** into `main` (one tidy commit per PR).
 - Delete the branch after merge: `gh pr merge --squash --delete-branch`.
-- **Then tidy the local repo** by running the cleanup script with `main` as the integration
-  branch:
-  ```bash
-  bash "$CLAUDE_PLUGIN_ROOT/scripts/post-merge-cleanup.sh" main
-  # fallback if $CLAUDE_PLUGIN_ROOT is unset (source checkout of the ops repo):
-  bash plugins/release-flow/scripts/post-merge-cleanup.sh main
-  ```
-  It switches to `main`, fast-forwards to `origin/main`, prunes stale remote-tracking refs, then
-  deletes local branches whose PR was **confirmed `MERGED` via `gh`** (squash-aware, never a
-  blind delete). It aborts on a dirty working tree and skips protected branches.
+- **Post-merge local cleanup** (fast-forward `main`, prune stale remote-tracking refs, delete
+  local branches whose PR is confirmed merged) is an **applied-repo responsibility**, not
+  engine mechanics — it's destructive and environment-specific (web routines have no local
+  clone). The engine ships no bash for it: if the repo sets `branching.release_skill`, that
+  skill owns it; otherwise the repo's own `CLAUDE.md` / `/cleanup` flow handles it.
 
 ## Cutting a release
 No separate `dev` means the flow is short:

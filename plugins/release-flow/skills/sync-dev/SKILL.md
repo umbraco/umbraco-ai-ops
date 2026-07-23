@@ -1,47 +1,42 @@
 ---
 name: sync-dev
-description: Move to the repo's main worktree, switch to the `dev` branch, and pull latest. Use when the user says "move/go back to dev", "switch to dev and pull", "get latest on dev", or otherwise wants the main worktree reset to an up-to-date dev branch.
+description: The CONTRACT for dev-sync / back-merge / post-merge cleanup — getting the integration base up to date after a merge or release. The engine does NOT ship bash for this; the mechanics belong to the applied repo (its `branching.release_skill`, or its own cleanup flow). Use when the user says "move/go back to dev", "sync dev", "get latest on the base", or after a release, to know WHO performs the sync and what the generic fallback is.
 ---
 
-# sync-dev
+# sync-dev — the dev-sync / back-merge contract
 
-Switches the repository's **main worktree** to the `dev` branch and pulls the latest changes.
+Keeping the integration base (`branching.base` — `dev`, `main`, or `vN/dev`) up to date after
+a merge or release used to be an engine script. It no longer is: **dev-sync, the
+`release_base` → `base` back-merge, and post-merge local cleanup are applied-repo
+responsibilities**, because they are destructive, environment-specific (a Claude web routine
+has no local clone or worktree), and often entangled with the repo's worktrees and databases.
+Shipping one product's bash as if it were generic was the anti-pattern this seam removes.
 
-## What it does
+## Who performs it
 
-Runs `scripts/sync-dev.sh`, which deterministically:
+- **If the repo sets `branching.release_skill`** (in `.claude/ai-ops.yml`), **that skill owns
+  the contract** — dev-sync, back-merge, and cleanup. Invoke it; don't reimplement here.
+- **If not**, use the generic fallback below (local, single-clone) or the repo's own
+  `CLAUDE.md` / `/cleanup` flow for anything worktree- or database-specific.
 
-1. Resolves the main worktree (the first entry of `git worktree list`) — so this works even when invoked from a linked worktree.
-2. `cd`s into that main worktree.
-3. `git checkout dev`
-4. `git pull`
-5. Prints the resulting HEAD commit.
+## The three pieces of the contract
 
-The script uses `set -euo pipefail`, so it stops at the first error (e.g. a dirty working tree blocking checkout) instead of continuing.
+1. **Dev-sync** — get the main worktree onto an up-to-date integration base. Generic fallback:
+   resolve the main worktree (first entry of `git worktree list`), `git checkout <base>`,
+   `git pull`. `<base>` is the resolved `branching.base`, never a hard-coded `dev`.
+2. **Back-merge after a release** — merge the resolved `release_base` back into `base` so the
+   base carries the version bump + any release fixes. **Never skip this** — an un-synced base
+   is the classic release mistake. Mechanism is the repo's (its `release_skill`, or the
+   `release-and-branching` `assets/sync-main-to-dev.yml` example workflow, or a documented
+   manual merge).
+3. **Post-merge local cleanup** — fast-forward the base, prune stale remote-tracking refs,
+   delete local branches whose PR is confirmed merged. Destructive and repo-specific; the
+   engine ships no bash for it. Worktree + DB teardown always belongs to the repo's own flow.
 
-## How to run
+## Relationship to `release-and-branching` and `auto-release-loop`
 
-```bash
-bash "$CLAUDE_PLUGIN_ROOT/scripts/sync-dev.sh"
-```
-
-If `$CLAUDE_PLUGIN_ROOT` is not set (e.g. running from a source checkout of the
-ops repo rather than the installed plugin), use the plugin's own path:
-
-```bash
-bash plugins/release-flow/scripts/sync-dev.sh
-```
-
-## Notes
-
-- Report the script's output to the user (final branch + HEAD commit).
-- If the script fails because of uncommitted changes, surface that and ask how to proceed — do **not** stash or discard automatically.
-
-## Relationship to `release-and-branching`
-
-This skill just gets the main worktree onto an up-to-date `dev`. It sits at two points in the `release-and-branching` gitflow:
-
-- **After a release — the canonical trigger.** Once the `sync-main-to-dev` automation has merged `main` back into `dev` (with the version bump + release fixes), remote `dev` is ahead of your local `dev`. Run this skill to pull those release commits down, closing out the release and leaving you ready for the next branch.
-- **Front door before starting work.** Getting onto fresh `dev` is also the natural first step before creating a branch — from here, `release-and-branching` leads on with branch naming, squash-merging, cutting releases, and tagging.
-
-It's also the lighter alternative to that skill's `post-merge-cleanup.sh` when you only want to return to latest `dev` **without** deleting merged branches (e.g. after merging via the GitHub UI). If you *do* want the branch cleanup too, run `post-merge-cleanup.sh` from `release-and-branching` — it fast-forwards `dev` and deletes merged local branches in one go.
+- `release-and-branching` resolves the model and the base/release-base and points here for the
+  sync/cleanup contract.
+- `auto-release-loop` **delegates** the back-merge/dev-sync to `branching.release_skill` when
+  set, and only orchestrates + gates; the fallback (no `release_skill`) is the generic
+  back-merge described above.

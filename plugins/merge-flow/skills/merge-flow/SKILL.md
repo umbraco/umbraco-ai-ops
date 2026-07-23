@@ -36,12 +36,27 @@ Scheduled-routine wiring is set up separately (see
 
 ## Config
 
+Read the consumer's **`.claude/ai-ops.yml`** (shape: `ai-ops.schema.json`) for the
+branch/merge facts — never hard-code them. The relevant `branching.*` fields:
+
+| Field | Used for | When absent |
+|-------|----------|-------------|
+| `branching.model` | Which branch model applies (`gitflow` / `main-only` / `versioned-gitflow` / `custom`) | Detect via `release-and-branching` |
+| `branching.base` | The integration branch PRs must target (the mergeable base) | Detect via `release-and-branching` (gitflow → `dev`, main-only → `main`, versioned-gitflow → current major's `vN/dev`) |
+| `branching.release_base` | The branch releases land on — a PR **into** this base is the release path, **skipped here** (it's `auto-release-loop`'s job) | Detect via `release-and-branching` (gitflow/versioned-gitflow → `main` / `vN/main`); main-only has none |
+| `branching.merge_strategy` | `squash` or `merge-commit` when merging into `base` | Default **`squash`** |
+
 | Thing | Value |
 |-------|-------|
 | Trigger label | **`auto-merge`** |
 | Target repos | any repo you point it at |
-| Merge strategy | per repo convention — **detect via `release-and-branching`** |
+| Merge strategy | **`branching.merge_strategy`** from config (default `squash`) |
 | PRs per run cap | **10** |
+
+> **Everything below derives the base/release-base/strategy from config**, falling back to
+> `release-and-branching` detection when a field is absent — so a plain gitflow repo needs
+> no config, and a versioned or bespoke repo is driven entirely by its `.claude/ai-ops.yml`.
+> Never treat the literal names `dev`/`main` as logic; compare against the resolved values.
 
 ## Step 1 — find candidates
 
@@ -69,16 +84,21 @@ For each candidate, all must hold — if any fails, **do not merge** (go to Step
 3. **Mergeable / no conflicts.** The PR must report mergeable with no conflicts (get
    it via github-ops → *Get a PR*). If it's behind its base, update the branch first,
    then re-check CI (that restarts checks).
-4. **Right base.** The PR targets the expected integration branch (gitflow → `dev`;
-   main-only → `main`). A PR into `main` on a gitflow repo is a **release** merge —
-   that's `auto-release-loop`'s job, not this one; skip it here.
+4. **Right base.** The PR targets the resolved **`branching.base`** (the integration
+   branch). A PR whose base is the resolved **`branching.release_base`** is a **release**
+   merge — that's `auto-release-loop`'s job, not this one; **skip it here**. This is
+   computed from config, not from the literal name of any branch: on gitflow `base` is
+   typically `dev` and `release_base` `main`; on versioned-gitflow they're the current
+   major's `vN/dev` / `vN/main`; on main-only there is no separate `release_base`, so
+   PRs into `base` (`main`) are normal merges. A PR targeting neither resolved value is
+   a wrong-base PR — skip it and flag (Step 4).
 
 ## Step 3 — merge
 
 **Merge the PR and delete its branch** (github-ops → *Merge a PR (+ delete branch)*)
-using the repo's convention — detect it via `release-and-branching` (gitflow usually
-squash-into-`dev`; main-only per that repo). Comment confirming the merge. If the
-merge itself fails, report it — never retry a force.
+using the resolved **`branching.merge_strategy`** (default `squash`) into the resolved
+**`branching.base`**. Comment confirming the merge. If the merge itself fails, report it
+— never retry a force.
 
 ## Step 4 — when a gate fails
 
@@ -95,8 +115,9 @@ requested) so the loop stops re-poking it — say which in the comment.
   machine-verified.
 - **An unresolved "changes requested" review vetoes the merge** even with the label —
   a human "no" outranks it.
-- **Never `--auto`, never force-merge, never merge a PR into `main` on a gitflow repo**
-  (that's a release).
+- **Never `--auto`, never force-merge, and never merge a PR whose base is the resolved
+  `branching.release_base`** — that's the release path (`auto-release-loop`'s job),
+  identified from config, not from the literal branch name.
 - **≤ 10 merges per run**; log any deferred.
 - The `auto-merge` label must be applied **deliberately by a maintainer after review** —
   that act is the human gate, so control who can apply it.

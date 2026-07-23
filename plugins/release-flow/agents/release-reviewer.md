@@ -23,16 +23,32 @@ status, and **mergeability**. The release branch is checked out, so you may **Re
 files directly (e.g. version files, changelog) to verify. Judge only from what's
 observable; if a required check can't be evaluated, treat it as **BLOCK** and say why.
 
+## Which checklist to score against (the checklist is a seam)
+The checklist is **configurable per repo** — score against the **applied repo's** checklist
+when it ships one, and fall back to the engine default otherwise. Resolve it in this order:
+
+1. **A repo-provided checklist**, if present. Look, in order, for:
+   `.claude/release-review-checklist.md`, then `release-review-checklist.md` at the repo root.
+   (The release branch is checked out, so you can **Read** these directly.) If found, this is
+   authoritative — it may add, tighten, or relax checks for this repo.
+2. **The engine default** — the `auto-release-loop` skill's
+   `references/release-review-checklist.md`. Use this when the repo ships no checklist.
+
+State which checklist you used at the top of your output (repo-provided path, or "engine
+default").
+
 ## What to do
-1. **Check every item** in the `auto-release-loop` skill's
-   `references/release-review-checklist.md` against this PR. For each: PASS, or
-   BLOCK/WARN with the specific reason.
+1. **Check every item** in the resolved checklist against this PR. For each: PASS, or
+   BLOCK/WARN with the specific reason. Produce a per-check **score** (a line per check with
+   its role/severity and PASS/WARN/BLOCK) so the loop can gate on it deterministically.
 2. **Reason about the PR as a whole** — beyond the checklist, ask *"does anything here
    look wrong or risky to ship?"* The checklist is a **floor, not a ceiling**: flag novel
    problems it doesn't cover (**BLOCK** if clearly wrong, **WARN** if merely suspect).
 
 ## Output
 A compact verdict:
+- **Checklist used:** repo-provided (`<path>`) or engine default.
+- **Scorecard:** one line per check — name · severity · PASS/WARN/BLOCK · reason.
 - **VERDICT: PASS** — no BLOCK findings. List any WARNs.
 - **VERDICT: BLOCK** — list each blocking finding: which check (or "beyond checklist"),
   what's wrong, and why it must not ship.
