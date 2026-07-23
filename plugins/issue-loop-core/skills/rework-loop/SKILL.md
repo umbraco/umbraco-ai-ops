@@ -3,7 +3,7 @@ name: rework-loop
 description: >-
   Label-triggered loop that acts on PR review feedback. When a reviewer has left comments
   and labels a loop-authored PR `auto-rework`, it reads the feedback, makes the changes
-  following the consumer's build playbook conventions and the repo's CLAUDE.md, runs the
+  following the repo's build skill conventions and the repo's CLAUDE.md, runs the
   fast local sanity checks, pushes, replies to the threads, re-requests review, and removes
   the `auto-rework` label — then stops. It does NOT wait for CI (the merge loop won't merge
   until CI passes, so CI is enforced there) and it never merges. Runs in a cloud routine or
@@ -20,7 +20,7 @@ a CI-green PR and stops; when a reviewer reviews that PR and labels it **`auto-r
 merge chain with no long-lived "monitor my review" session.
 
 Like the core, this loop **owns the orchestration, not the build steps.** The actual editing
-follows the **consumer's build playbook conventions** (the same product knowledge the build
+follows the **repo's build skill conventions** (the same product knowledge the build
 subagent used) and the repo's `CLAUDE.md`. This skill only sequences it: read feedback → make
 scoped changes → push → reply → clear the label.
 
@@ -41,11 +41,11 @@ scoped changes → push → reply → clear the label.
 ## Test gate: CI, async — this loop never waits on it
 
 This loop **never runs the full suite — that's the CI job**, not the worker's. It makes the
-edits, runs whatever **fast local sanity pass** the consumer's playbook defines (a compile /
+edits, runs whatever **fast local sanity pass** the repo's build skill defines (a compile /
 build), then pushes and **stops** — it does **not** poll or wait for CI. CI runs
 asynchronously and **the merge loop won't merge until CI is green**, so CI is enforced at
 merge time, not by this session sitting idle. Keeping the rework session short is the whole
-point of the split. All GitHub work — and reading CI status/logs, resolved per the consumer's
+point of the split. All GitHub work — and reading CI status/logs, resolved per the repo's
 `ci_provider` (`github-checks` vs `azure-pipelines`) — goes through the **`github-ops`** skill
 (required).
 
@@ -59,7 +59,7 @@ and review-body asks. If there are none (approval only) → **quiet no-op, stop.
 
 Check out the PR's head branch (re-enter the issue's existing worktree if the consumer's
 playbook manages worktrees). Make the changes that resolve the feedback, **following the
-consumer's build playbook conventions** and the repo's `CLAUDE.md`. Stay **scoped to the
+repo's build skill conventions** and the repo's `CLAUDE.md`. Stay **scoped to the
 feedback** — don't refactor unrelated code or grow the PR. Run the playbook's fast sanity pass
 and fix anything it catches. Re-run the repo's **security + code review** over the new changes
 and fix findings.
@@ -90,14 +90,14 @@ notification: `Reworked PR #N per review — pushed & re-requested review (CI wi
 - **Never merge** — re-request review; the merge loop merges once re-approved.
 - **Never wait on CI** — push and hand off. The merge loop won't merge until CI is green, so
   CI is enforced there; a rework session polling check-runs just wastes time and tokens.
-- **Follow the consumer's playbook for code changes; CI is the correctness gate —
+- **Follow the repo's build skill for code changes; CI is the correctness gate —
   asynchronously.**
 - **Never use `fable`.** This loop edits code — use a capable coding model (Sonnet or better).
 
 ## Running as a routine
 
 Trigger: a PR labelled **`auto-rework`** (routed by loop-dispatch), on an environment carrying
-this skill + `github-ops` (and the consumer's build playbook conventions). One PR per fire.
+this skill + `github-ops` (and the repo's build skill conventions). One PR per fire.
 Use a capable coding model (Sonnet or better) — it edits code. If the environment is cloud vs
 local, state that explicitly in the routine prompt.
 

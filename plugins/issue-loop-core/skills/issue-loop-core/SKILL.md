@@ -5,62 +5,51 @@ description: >-
   CI-green, reviewed, merged PRs. It owns the durable loop only — the queue, the `/goal`
   terminal condition, rolling cap-3 dispatch, the human-review-response phase, model
   selection, and the stop conditions/backstops — and knows NOTHING about how to build any
-  one product. The per-issue build steps come from the CONSUMER via a named playbook slot:
-  an entry skill in the consuming repo declares a config block and a build playbook and
-  says "orchestrate with issue-loop-core using THESE". Two modes chosen by the caller
-  (default local): LOCAL — orchestrated, one isolated worktree + subagent per issue (cap 3),
-  then a review-response loop until merged; CLOUD — one session per issue (event-triggered),
-  CI as the test gate, build to a CI-green PR and stop. All GitHub/CI work defers to the
-  github-ops skill; the base branch to release-and-branching. github-ops required. Invoked
-  BY a consumer's entry skill (never run bare) — "work the ready issues", "run the issue
-  loop", or a routine on Issue: Labeled `ready-for-ai` (cloud).
+  one product. It reads the repo's `.claude/ai-ops.yml` for repo facts and locates the
+  repo's OWN build skill via the `playbook` pointer (default `issue-loop`) — a repo-owned
+  skill, scaffolded by ops-setup, that build subagents follow. Two modes chosen by the
+  caller (default local): LOCAL — orchestrated, one isolated worktree + subagent per issue
+  (cap 3), then a review-response loop until merged; CLOUD — one session per issue
+  (event-triggered), CI as the test gate, build to a CI-green PR and stop. All GitHub/CI
+  work defers to the github-ops skill; the base branch to release-and-branching. github-ops
+  required. Trigger via loop-dispatch on Issue: Labeled `ready-for-ai` (cloud), or "work the
+  ready issues" / "run the issue loop" (local).
 ---
 
 # issue-loop-core
 
 A durable, product-**agnostic** loop that turns the `ready-for-ai` GitHub backlog into
 merged PRs. It owns *how to run the loop*; it does **not** own *how to build any one
-product* — that is the **consumer's build playbook**, handed to this core through a named
-slot (see [The playbook slot](#the-playbook-slot)).
+product* — that lives in the **repo's own build skill** (see [The build skill](#the-build-skill)).
 
-**You never run this skill bare.** A consumer's **entry skill** (e.g. `/issue-loop`,
-committed in the product's own repo or in a family's shared ops repo) invokes it, supplying:
+**How it's invoked.** `loop-dispatch` invokes it on a `ready-for-ai` event (cloud), or you
+run it over a backlog (local). It is **not** parameterised by an injected "playbook"; it
+reads the repo's **`.claude/ai-ops.yml`** ([`ai-ops.schema.json`](../../../../ai-ops.schema.json))
+for repo facts and finds the repo's build skill from the `playbook` pointer. If there is no
+`ai-ops.yml` and no build skill, stop and say so — there is nothing to build.
 
-1. a **build playbook** — the product's per-issue how-to, and
-2. a **config block** — repo facts (where issues live, where PRs open, which CI, …).
+## The build skill
 
-This core reads those two inputs and runs the orchestration below. If it is somehow invoked
-with **no** build playbook and **no** config, stop and say so — there is nothing to build.
+The per-issue build is a **skill the repo owns** — scaffolded by `ops-setup`, committed in
+the repo's `.claude/skills/`, and named by `playbook` in `ai-ops.yml` (default `issue-loop`).
+This core supplies the *orchestration* (queue, cap, `/goal`, review phase, model choice,
+backstops); the repo's build skill supplies the *content* (what "implement this issue"
+actually means for that product). This is the **override** point — a repo owns and edits its
+build skill; the engine ships none.
 
-## The playbook slot
-
-The core dispatches build/review subagents whose **prompt is the consumer-supplied
-playbook**, with the issue's number/title/body substituted in. The core supplies the
-*orchestration* (queue, cap, `/goal`, review phase, model choice, backstops); the consumer
-supplies the *content* (what "implement this issue" actually means for their product).
-
-**How the core receives the slot.** The invoking entry skill passes, by name, in its
-invocation of this core:
-
-| Slot | What the consumer provides | Used where |
-|------|----------------------------|------------|
-| `build_playbook` | the per-issue build prompt (a skill or reference in the consumer's repo) — takes one issue from `ready-for-ai` to an open, CI-green PR | Step 3 / cloud mode: the build subagent's prompt |
-| `review_response_playbook` | the per-round review-response prompt (address feedback, re-green, re-request) | Step 4 / [`rework-loop`](../rework-loop/SKILL.md) |
-| `config` | the config block below | resolved once, up front |
-
-`review_response_playbook` is optional — if the consumer ships only a build playbook, the
-core uses that playbook's own review-response counterpart, or the bundled
-[`rework-loop`](../rework-loop/SKILL.md) shape, driven by `build_playbook`'s conventions.
+When the core dispatches a build (or review-response) subagent, it instructs the subagent to
+**follow the repo's build skill** (the one named by `playbook`), with the issue's
+number/title/body substituted in — i.e. it **defers** to the repo skill located via the
+config pointer. There is no same-name shadowing and no injected prompt: the pointer is how
+the core finds what to run.
 
 **The core never invents build steps.** Anything product-specific — the test command, the
-toolchain, the file layout, project-specific worktree setup — lives **only** in the
-consumer's playbook and the repo's own `CLAUDE.md`. This skill contains no build steps and
-must never grow any.
+toolchain, the file layout, project-specific worktree setup — lives **only** in the repo's
+build skill and the repo's own `CLAUDE.md`. This skill contains no build steps and must
+never grow any.
 
-> The relationship mirrors how a family-specific entry skill reuses a shared orchestration:
-> the consumer's entry skill is a thin wrapper that says *"follow issue-loop-core for
-> orchestration, using THIS build playbook and THIS config block."* The core is the reusable
-> engine; the entry skill is the per-product adapter.
+Review-response reuses the repo's build skill (its review-response section) or the bundled
+[`rework-loop`](../rework-loop/SKILL.md) shape when the build skill defines none.
 
 ## Modes (set by the caller)
 
@@ -91,7 +80,7 @@ only clear it when the whole backlog is done (or you abort).
 
 ## Config (resolve once, up front)
 
-Read from the consumer's **config block** (the slot above); auto-detect where derivable.
+Read from the repo's **`.claude/ai-ops.yml`** ([`ai-ops.schema.json`](../../../../ai-ops.schema.json)); auto-detect where derivable.
 
 | Key | Meaning | How to resolve | Default |
 |-----|---------|----------------|---------|
@@ -103,6 +92,7 @@ Read from the consumer's **config block** (the slot above); auto-detect where de
 | `issue_link` | how a PR references its issue | `same-repo-closes` or `cross-repo-full-url` | `same-repo-closes` |
 | `learning_inbox` | where `proto-learning` issues are filed | consumer declares it | — |
 | `triage_routing` | where captured learnings route | consumer declares it | — |
+| `playbook` | the repo's build skill this core defers to (the override point) | consumer declares it; scaffolded by ops-setup | `issue-loop` |
 | AI label | the queue gate | fixed | `ready-for-ai` |
 | Concurrency cap | parallel build subagents | fixed | **3** |
 
@@ -155,10 +145,10 @@ Dispatch a **build subagent per issue**, at most 3 running at once. Dispatch the
 single message (parallel); each subsequent dispatch happens when a running one completes and
 frees a slot.
 
-For each issue, spawn a subagent (`agentType: general-purpose`, background) whose **prompt is
-the consumer's `build_playbook`** with the issue's number/title/body substituted in. The
-playbook — not this skill — owns the actual build steps; the core only chooses the model,
-tracks the slot, and owns the waiting.
+For each issue, spawn a subagent (`agentType: general-purpose`, background) instructed to
+**follow the repo's build skill** (the one named by `playbook`) with the issue's
+number/title/body substituted in. The repo's build skill — not this skill — owns the actual
+build steps; the core only chooses the model, tracks the slot, and owns the waiting.
 
 **Worktree isolation is the consumer's setup.** If the consumer's playbook creates a
 project-specific (hook-backed) worktree itself, do **not** also pass `isolation: worktree` on
@@ -193,7 +183,7 @@ is the same shape: a scheduled routine that wakes, checks review state, acts, an
 For each PR, react to its review decision:
 
 - **`CHANGES_REQUESTED`** (or new review comments) → dispatch a **review-response subagent**
-  whose prompt is the consumer's `review_response_playbook` (or the bundled
+  that follows the repo's build skill's review-response section (or the bundled
   [`rework-loop`](../rework-loop/SKILL.md) shape). It re-enters that issue's existing worktree
   (`EnterWorktree({ path })` if the playbook manages worktrees), addresses every comment,
   re-runs the reviews over the new changes, pushes, re-greens CI, replies to the review
@@ -252,7 +242,7 @@ review feedback. When none of those exist, every remaining issue is already term
 What happens at that point depends on run mode:
 
 - **Local / interactive** → stop. `/goal clear` and hand back a summary: what merged, what's
-  awaiting your review, what's blocked and why. Re-invoke the entry skill later to resume —
+  awaiting your review, what's blocked and why. Re-invoke the loop later to resume —
   any reviews you've since left get picked up. Don't sit polling for a human when the human
   is right there.
 - **Cloud / unattended** → don't stop; go **dormant**. Re-arm the `ScheduleWakeup` at a long
@@ -326,14 +316,14 @@ For the one triggering issue (identify it from the event; if unclear, take the *
 
 1. **Triage + dispatch.** Read the issue, pick its tier from
    [Model selection](#model-selection) (`opus` / `sonnet` / `haiku`; never `fable`; floor
-   `sonnet` for code-touching work), and spawn **one** build subagent on that model whose
-   prompt is the consumer's `build_playbook`. The base session stays on a cheap model — it
-   only triages, dispatches, and reports. *If the routine environment can't spawn a subagent
-   with a model override, run the playbook **inline** on the routine's own model instead (set
-   that to a sensible default, e.g. `sonnet`) and note it.*
+   `sonnet` for code-touching work), and spawn **one** build subagent on that model instructed
+   to follow the repo's build skill (named by `playbook`). The base session stays on a cheap
+   model — it only triages, dispatches, and reports. *If the routine environment can't spawn a
+   subagent with a model override, follow the repo's build skill **inline** on the routine's
+   own model instead (set that to a sensible default, e.g. `sonnet`) and note it.*
 2. **Build (in the subagent).** Work **directly in the session's checkout** — no worktree
-   (cloud sessions are already isolated). Follow the consumer's **`build_playbook`** with one
-   substitution the playbook must honour: **CI is the test gate.** Run whatever fast local
+   (cloud sessions are already isolated). Follow the **repo's build skill** with one
+   substitution it must honour: **CI is the test gate.** Run whatever fast local
    sanity pass the playbook defines (a compile/build), but the full suite runs in CI, not in
    the session. Still run the repo's **security + code review** before pushing.
 3. Push, open the PR against `base_branch` (referencing the issue per `issue_link`), and
