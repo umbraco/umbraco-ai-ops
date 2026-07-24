@@ -1,0 +1,21 @@
+{
+  "name": "release-flow",
+  "version": "1.5.0",
+  "description": "Branching, merge, release, and dev-sync workflow skills for any repo — detects gitflow (dev + main) vs main-only and follows the matching conventions for branch naming, squash vs merge-commit, cutting a release, tagging, and syncing back to dev. Bundles release-and-branching, sync-dev, and auto-release-loop (issue+label-triggered release, two automated gates — green CI + an Opus pre-publish review against a growing checklist — no approval pause, Claude push notifications).",
+  "author": {
+    "name": "Umbraco",
+    "url": "https://github.com/umbraco"
+  },
+  "homepage": "https://github.com/umbraco/umbraco-ai-ops/tree/main/plugins/release-flow",
+  "license": "MIT",
+  "keywords": [
+    "git",
+    "gitflow",
+    "branching",
+    "release",
+    "tagging",
+    "pull-request",
+    "dev-sync",
+    "workflow"
+  ]
+}

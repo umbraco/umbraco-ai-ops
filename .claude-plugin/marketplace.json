@@ -1,0 +1,78 @@
+{
+  "name": "umbraco-ai-ops",
+  "owner": {
+    "name": "Umbraco",
+    "url": "https://github.com/umbraco/umbraco-ai-ops"
+  },
+  "metadata": {
+    "description": "The generic engine for AI-driven issue automation across Umbraco products — orchestration, GitHub/CI ops, gated merge, cross-repo dispatch, and the self-learning loop. Product-agnostic: each consumer supplies only a build playbook + a config block. Extracted from the umbraco-mcp-ops prototype.",
+    "version": "0.1.0",
+    "homepage": "https://github.com/umbraco/umbraco-ai-ops"
+  },
+  "plugins": [
+    {
+      "name": "ops-setup",
+      "source": "./plugins/ops-setup",
+      "description": "Interactive onboarding: /umbraco-ops-setup investigates a repo (branching model from git history, CI host, release approach), confirms and fills the gaps via the question tool, then generates the consumer files — .claude/ai-ops.yml, a build-playbook scaffold, any override skills, and the caller workflow(s). Run once per repo after installing the engine.",
+      "version": "0.1.0",
+      "category": "workflow",
+      "keywords": ["setup", "onboarding", "config", "detection", "interactive", "scaffold"]
+    },
+    {
+      "name": "issue-loop-core",
+      "source": "./plugins/issue-loop-core",
+      "description": "The orchestration engine: work a backlog of ready-for-ai issues to CI-green PRs. Owns the durable /goal loop, rolling cap-3 dispatch, the human-review-response phase, model selection, and stop conditions/backstops. Loads a product's build playbook via a named slot (it does not know how to build any one product). Bundles rework-loop (PR-review-event response). Repo-agnostic; requires github-ops.",
+      "version": "0.1.0",
+      "category": "workflow",
+      "keywords": ["umbraco", "github-issues", "orchestration", "ci", "pull-request", "automation", "cloud-routine"]
+    },
+    {
+      "name": "github-ops",
+      "source": "./plugins/github-ops",
+      "description": "Shared how-to for GitHub work in both environments (gh CLI + git locally, the GitHub MCP server on Claude web) PLUS a CI-provider abstraction with github-checks and azure-pipelines implementations. One operation catalog; the loop plugins point here instead of re-explaining the dual path. Required by every loop.",
+      "version": "0.1.0",
+      "category": "workflow",
+      "keywords": ["github", "gh-cli", "github-mcp", "azure-pipelines", "ci", "pull-request", "reference", "dual-path"]
+    },
+    {
+      "name": "loop-dispatch",
+      "source": "./plugins/loop-dispatch",
+      "description": "Single front door so one routine per repo can handle every loop event. Deterministically routes each triggering GitHub event to the matching loop via route-event.sh; a non-matching event is a quiet no-op. Supports a target_repo distinct from the event's repo (the cross-repo-issues case, e.g. Forms). Router only; each loop owns its guardrails.",
+      "version": "0.1.0",
+      "category": "workflow",
+      "keywords": ["routine", "dispatch", "router", "github-events", "cross-repo", "automation", "cloud-routine"]
+    },
+    {
+      "name": "merge-flow",
+      "source": "./plugins/merge-flow",
+      "description": "Guardrail loop that merges PRs labelled auto-merge (the maintainer's deliberate go-signal) only once they are also CI-green, conflict-free, on the right base, and free of an unresolved 'changes requested'. Replaces error-prone manual merges. Repo-agnostic; local or scheduled cloud routine.",
+      "version": "0.1.0",
+      "category": "workflow",
+      "keywords": ["pull-request", "merge", "auto-merge", "ci", "guardrail", "automation", "cloud-routine"]
+    },
+    {
+      "name": "learning",
+      "source": "./plugins/learning",
+      "description": "The self-learning machinery: read-only capture hooks (SubagentStop/SessionEnd) that file proto-learning issues off the critical path, the proto-learning schema, and triage-learnings (dedupe + threshold + route to owning repo / shared-skills PR / loop-improvement issue). Mechanism is generic; the inbox repo and routing table are per-consumer config.",
+      "version": "0.1.0",
+      "category": "workflow",
+      "keywords": ["self-learning", "proto-learning", "triage", "hooks", "compounding", "automation"]
+    },
+    {
+      "name": "release-flow",
+      "source": "./plugins/release-flow",
+      "description": "Branching, merge, release, and dev-sync workflow skills for any repo — detects gitflow (dev + main) vs main-only. Reference/default only: products with bespoke release conventions (Forms, Automate) override with their own release skills.",
+      "version": "0.1.0",
+      "category": "workflow",
+      "keywords": ["git", "gitflow", "branching", "release", "tagging", "dev-sync", "workflow"]
+    },
+    {
+      "name": "dotnet-web-runtime",
+      "source": "./plugins/dotnet-web-runtime",
+      "description": "Cloud-environment setup that lets a .NET product run as a Claude web routine: the dotnet-restore internal-NuGet-feed proxy / 401 fix and SessionStart wiring. Needed by any .NET consumer (Forms, Automate); TypeScript products don't need it.",
+      "version": "0.1.0",
+      "category": "workflow",
+      "keywords": ["dotnet", "nuget", "cloud-routine", "web-runtime", "setup"]
+    }
+  ]
+}
