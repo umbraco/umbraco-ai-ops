@@ -3,10 +3,15 @@
 Use this when the repo has both a `dev` branch **and** a `main` branch. The branches are
 always `dev` and `main`.
 
+> Here `dev`/`main` are the concrete branches for **this** model. In the loops they are the
+> resolved `branching.base` / `branching.release_base` — never hard-code the names in engine
+> logic; this reference just spells the gitflow case out.
+
 ## Branching (all work)
 - **Start on latest `dev`.** Before creating a branch, get the main worktree onto an
-  up-to-date `dev` — use the **`sync-dev`** skill (it resolves the main worktree, checks out
-  `dev`, and pulls). That's the front door; everything below leads on from there.
+  up-to-date integration base (`dev`) and pull. This dev-sync is an **applied-repo
+  responsibility**: if the repo sets `branching.release_skill`, that skill owns it; the
+  generic fallback is simply — resolve the main worktree, `git checkout` the base, `git pull`.
 - **Never commit directly to `dev` or `main`** — both are protected. Always work on a branch.
 - Name the branch by type: **`feature/…`**, **`fix/…`**, **`chore/…`** (also `docs/…`,
   `refactor/…`, `test/…`).
@@ -17,26 +22,13 @@ always `dev` and `main`.
 - After review + green CI, **always squash-merge** into `dev` (one tidy commit per PR).
 - Delete the branch after merge (`gh pr merge --squash --delete-branch` removes the remote
   branch).
-- **Then tidy the local repo** by running the cleanup script (from the main worktree):
-  ```bash
-  bash "$CLAUDE_PLUGIN_ROOT/scripts/post-merge-cleanup.sh" dev
-  # fallback if $CLAUDE_PLUGIN_ROOT is unset (source checkout of the ops repo):
-  bash plugins/release-flow/scripts/post-merge-cleanup.sh dev
-  ```
-  It switches to `dev`, fast-forwards to `origin/dev`, prunes stale remote-tracking refs, then
-  deletes local branches whose PR was merged. It's **squash-aware**: since we always
-  squash-merge, a merged branch's tip is never an ancestor of `dev` (so `git branch --merged`
-  would miss it). Instead it finds branches whose upstream is `gone` (the remote branch was
-  deleted by `gh pr merge --delete-branch`) and **confirms via `gh` that the head's PR state is
-  `MERGED`** before deleting — confirmed-merged, never a blind delete. It aborts on a dirty
-  working tree, skips protected branches (`dev`/`main`), skips any branch checked out in a
-  worktree, and no-ops if `gh` isn't installed.
-- If you **only** want to return to latest `dev` (no branch cleanup — e.g. you merged via the
-  GitHub UI), use the lighter **`sync-dev`** skill instead. `post-merge-cleanup.sh` is the
-  superset: it fast-forwards `dev` *and* deletes merged local branches.
-- If the repo uses **git worktrees** (with their own databases / running processes), that
-  teardown is destructive and repo-specific — use the repo's own cleanup flow (e.g. a
-  `/cleanup` skill) instead. This skill deliberately leaves it out.
+- **Post-merge local cleanup** (fast-forward the base, prune stale remote-tracking refs,
+  delete local branches whose PR is confirmed merged) is an **applied-repo responsibility**,
+  not engine mechanics — it is destructive, environment-specific (web routines have no local
+  clone), and often entangled with worktrees/databases. The engine ships no bash for it:
+  - If the repo sets **`branching.release_skill`**, that skill owns the cleanup contract.
+  - Otherwise the repo's own `CLAUDE.md` / `/cleanup` flow handles it (worktree + DB teardown
+    is always repo-specific and must not live in the engine).
 
 ## Cutting a release
 1. **Always create a release branch off `dev`:** `release/<version>` (e.g.
@@ -60,16 +52,18 @@ always `dev` and `main`.
   confirm it, don't assume it.
 
 ## After the release reaches `main`
-Two pieces of automation should run (add them if missing — see `assets/`):
-- **Tag + Release** (`assets/release-tag.yml`) creates the `v<version>` tag + GitHub Release.
-- **Sync back to dev** (`assets/sync-main-to-dev.yml`) merges `main` back into `dev` (via a
-  `chore/merge-main-to-dev` branch) so `dev` picks up the version bump and any release fixes.
-- If the sync fails, do the merge-back-to-dev by hand (the repo's `CLAUDE.md` should document
-  the manual steps).
-- **Once `sync-main-to-dev` has merged, run the `sync-dev` skill** to bring your *local* `dev`
-  up to date — the automation only updates `dev` on the remote, so your main worktree is behind
-  until you pull. This closes out the release: remote `dev` has the release commits, and
-  `sync-dev` gets them onto your machine ready for the next branch.
+Tagging and the back-merge to `dev` must both happen. **Who performs them depends on the repo:**
+- **Tag + Release** creates the `v<version>` tag + GitHub Release. If the repo owns this via
+  `branching.release_skill`, that skill does it; otherwise add the engine's example workflow
+  (`assets/release-tag.yml`) — it's idempotent (skips if the tag exists).
+- **Back-merge `main` → `dev`** (the dev-sync) so `dev` picks up the version bump and any
+  release fixes. This is an **applied-repo responsibility**:
+  - If `branching.release_skill` is set, that skill owns the back-merge + dev-sync contract.
+  - Otherwise the repo may adopt the engine's example workflow `assets/sync-main-to-dev.yml`
+    (opens a `chore/merge-main-to-dev` PR into `dev`), or do the merge-back by hand per its
+    own `CLAUDE.md`.
+- **Never skip the back-merge** — an un-synced `dev` is the classic release mistake — but the
+  *mechanism* is the repo's, not the engine's.
 
 ## Why two merge styles
 - **Squash → `dev`** keeps day-to-day history to one commit per feature.

@@ -1,8 +1,15 @@
-# Release-PR review checklist (auto-release-loop)
+# Release-PR review checklist (auto-release-loop) — ENGINE DEFAULT
 
 The pre-publish sanity gate for `auto-release-loop` (Step 2.5). Because publishing is
 irreversible and un-gated by a human, review the release PR against **every** check
 below before merging/tagging/publishing.
+
+> **This is the engine's DEFAULT checklist — it is a seam, not a fixed list.** An applied
+> repo overrides it by shipping its own `release-review-checklist.md` (the `release-reviewer`
+> agent looks for `.claude/release-review-checklist.md`, then a repo-root
+> `release-review-checklist.md`, before falling back to this file). A repo checklist may add,
+> tighten, or relax checks for that repo's stack/lines. Keep this default product-agnostic —
+> repo-specific checks belong in the repo's own file, not here.
 
 - A **BLOCK** finding **stops the publish** — comment the finding on the triggering
   issue, leave the PR open, and do **not** merge/tag/publish.
@@ -24,8 +31,8 @@ below before merging/tagging/publishing.
 | 2 | **Pre-release vs latest is right** | BLOCK | A version with a `-alpha`/`-beta`/`-rc` suffix must publish as a **prerelease** (never as "latest"); a stable version (no suffix) must **not** be flagged prerelease. Don't ship a beta as latest or a stable as a pre-release. |
 | 3 | **Correct release channel/line** | BLOCK | The version targets the right line (e.g. the v18 line vs an LTS v17 line) and the branch/base match that line. |
 | 4 | **PR scope is release-only** | BLOCK (unexpected code) / WARN (large but explained) | A release PR should be essentially version-file bumps + changelog (+ any security fixes it rolled in). Unexpected source/behaviour changes or files outside the expected set → BLOCK. A large-but-accounted-for diff → WARN. |
-| 5 | **Mergeable — no conflicts** | BLOCK | The PR reports mergeable with no conflicts against `main`. If it's behind `main`, it must be updated and re-greened — never force-merged. |
-| 6 | **Correct base & source branch** | BLOCK | Targets `main`, from `release/<version>` cut off `dev` (gitflow). Not a stray branch, not the wrong base. |
+| 5 | **Mergeable — no conflicts** | BLOCK | The PR reports mergeable with no conflicts against the resolved `release_base`. If it's behind the base, it must be updated and re-greened — never force-merged. |
+| 6 | **Correct base & source branch** | BLOCK | Targets the resolved `branching.release_base`, from a `release/<version>` branch cut off the resolved `branching.base`. Not a stray branch, not the wrong base. (Base names are config-resolved, never assumed.) |
 | 7 | **CI genuinely green** | BLOCK | Every required check passed — not pending, not a should-have-run check that was skipped. Re-confirm; never trust a bypassing auto-merge. |
 | 8 | **Changelog updated & matches** | WARN | The changelog / release notes were updated and reference this version. |
 
