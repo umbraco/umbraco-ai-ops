@@ -37,7 +37,7 @@
           "route": {
             "type": "string",
             "description": "The loop this rule dispatches to (the skill loop-dispatch invokes). route=none is reserved for 'no match'.",
-            "examples": ["issue-loop", "auto-release-loop", "merge-flow", "rework-loop"]
+            "examples": ["issue-loop-core", "auto-release-loop", "merge-flow", "rework-loop"]
           }
         }
       }

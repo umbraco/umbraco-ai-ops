@@ -15,7 +15,7 @@
 #      not part of the JSON body).
 #
 # Output: one line of `key=value` pairs on stdout, always exit 0:
-#   route=<issue-loop|auto-release-loop|merge-flow|rework-loop|none> repo=<r> number=<n>[ target=<t>]
+#   route=<issue-loop-core|auto-release-loop|merge-flow|rework-loop|none> repo=<r> number=<n>[ target=<t>]
 # route=none means "not ours — quiet no-op". `none` is a normal outcome, not an error.
 #
 # CROSS-REPO ISSUES: when a repo's issues live in a SEPARATE repo from its source (e.g.
@@ -96,7 +96,7 @@ else
   case "$event/$action" in
     issues/labeled)
       case "$label" in
-        ready-for-ai) route="issue-loop" ;;
+        ready-for-ai) route="issue-loop-core" ;;
         auto-release) route="auto-release-loop" ;;
       esac ;;
     pull_request/labeled)

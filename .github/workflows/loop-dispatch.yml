@@ -1,0 +1,97 @@
+name: loop-dispatch (reusable)
+
+# Reusable workflow that routes a GitHub loop event to the repo's loop-dispatch
+# routine. A caller workflow in each target repo (see
+# plugins/loop-dispatch/skills/new-loop-routine) declares the events and calls this,
+# passing the two secrets explicitly (NOT `secrets: inherit` — inherit only works when
+# the caller and this workflow share an org/enterprise; consumer repos may not).
+# It runs route-event.sh at the edge and fires the routine via its Fire URL ONLY when
+# the event maps to a loop — so non-matching events (e.g. a Dependabot `dependencies`
+# label) cost nothing, not even a routine session.
+#
+# CROSS-REPO ISSUES: a caller whose issues live in a SEPARATE code repo passes
+# `with.target_repo: <code repo>`; the router then emits `target=<code repo>` so the
+# routine works in that repo while reading the issue from the event repo.
+#
+# Caller must provide two secrets (repo or org level):
+#   LOOP_DISPATCH_FIRE_URL  — the routine's Fire URL (Routines UI -> Call via API)
+#   LOOP_DISPATCH_TOKEN     — the token generated for that routine
+
+on:
+  workflow_call:
+    inputs:
+      target_repo:
+        description: >-
+          The code repo the routine should work in, when it differs from the event
+          repo (cross-repo issues case, e.g. Umbraco.Forms.Issues -> the Forms code
+          repo). Omit for same-repo consumers.
+        required: false
+        type: string
+        default: ""
+    secrets:
+      LOOP_DISPATCH_FIRE_URL:
+        required: true
+      LOOP_DISPATCH_TOKEN:
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch route-event.sh from umbraco-ai-ops
+        uses: actions/checkout@v4
+        with:
+          repository: umbraco/umbraco-ai-ops
+          ref: main
+          path: ops
+
+      - name: Decide the route (deterministic, at the edge)
+        id: route
+        env:
+          # route-event.sh reads $TARGET_REPO and emits target= only when it differs
+          # from the event repo. Empty (same-repo consumers) -> no target emitted.
+          TARGET_REPO: ${{ inputs.target_repo }}
+        run: |
+          set -uo pipefail
+          # $GITHUB_EVENT_PATH / $GITHUB_EVENT_NAME are the CALLER repo's triggering event.
+          # route-event.sh reads the payload for action/label/repo/number (the event NAME
+          # is a header, not body, so it is passed explicitly).
+          out="$(bash ops/plugins/loop-dispatch/skills/loop-dispatch/scripts/route-event.sh --event "$GITHUB_EVENT_NAME")"
+          echo "route-event: $out"
+          route="${out#route=}"; route="${route%% *}"
+          {
+            echo "route=$route"
+            echo "result=$out"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Fire the routine (only when the event maps to a loop)
+        if: steps.route.outputs.route != 'none' && steps.route.outputs.route != ''
+        env:
+          FIRE_URL: ${{ secrets.LOOP_DISPATCH_FIRE_URL }}
+          TOKEN: ${{ secrets.LOOP_DISPATCH_TOKEN }}
+          RESULT: ${{ steps.route.outputs.result }}
+        run: |
+          set -uo pipefail
+          if [ -z "${FIRE_URL:-}" ] || [ -z "${TOKEN:-}" ]; then
+            echo "::error::LOOP_DISPATCH_FIRE_URL / LOOP_DISPATCH_TOKEN secret not set on this repo (or org)."
+            exit 1
+          fi
+          text="loop-dispatch (cloud worker). A GitHub loop event was routed at the edge: ${RESULT}. Run the loop-dispatch skill and dispatch this already-resolved route to its loop for that number, following loop-dispatch's guardrails (do all GitHub work via github-ops). Re-check the entity still qualifies before acting; quiet no-op if not."
+          # Retry transient upstream errors (e.g. a Cloudflare 520 from the Fire endpoint):
+          # --fail-with-body makes any HTTP >=400 an error, and --retry-all-errors makes
+          # --retry cover non-standard 5xx codes that plain --retry ignores. A retried fire
+          # is safe: loop-dispatch re-checks the entity still qualifies and quiet no-ops if
+          # the first fire already handled it.
+          jq -nc --arg t "$text" '{text:$t}' | \
+          curl -sS -X POST "$FIRE_URL" \
+            -H "Authorization: Bearer ${TOKEN}" \
+            -H "anthropic-version: 2023-06-01" \
+            -H "anthropic-beta: experimental-cc-routine-2026-04-01" \
+            -H "Content-Type: application/json" \
+            --fail-with-body \
+            --retry 3 --retry-delay 5 --retry-all-errors \
+            -d @-
+          echo "fired routine for route: ${RESULT}"

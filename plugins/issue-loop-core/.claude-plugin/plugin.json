@@ -1,0 +1,20 @@
+{
+  "name": "issue-loop-core",
+  "version": "0.1.0",
+  "description": "The orchestration engine: work a backlog of ready-for-ai issues to CI-green PRs. Owns the durable /goal loop, rolling cap-3 dispatch, the human-review-response phase, model selection, and stop conditions/backstops. Loads a product's build playbook via a named slot (it does not know how to build any one product). Bundles rework-loop (PR-review-event response). Repo-agnostic; requires github-ops.",
+  "author": {
+    "name": "Umbraco",
+    "url": "https://github.com/umbraco"
+  },
+  "homepage": "https://github.com/umbraco/umbraco-ai-ops/tree/main/plugins/issue-loop-core",
+  "license": "MIT",
+  "keywords": [
+    "umbraco",
+    "github-issues",
+    "orchestration",
+    "ci",
+    "pull-request",
+    "automation",
+    "cloud-routine"
+  ]
+}
