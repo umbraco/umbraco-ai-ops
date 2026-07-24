@@ -16,7 +16,14 @@
       "description": "Interactive onboarding: /umbraco-ops-setup investigates a repo (branching model from git history, CI host, release approach), confirms and fills the gaps via the question tool, then generates the consumer files — .claude/ai-ops.yml, a build-playbook scaffold, any override skills, and the caller workflow(s). Run once per repo after installing the engine.",
       "version": "0.1.0",
       "category": "workflow",
-      "keywords": ["setup", "onboarding", "config", "detection", "interactive", "scaffold"]
+      "keywords": [
+        "setup",
+        "onboarding",
+        "config",
+        "detection",
+        "interactive",
+        "scaffold"
+      ]
     },
     {
       "name": "issue-loop-core",
@@ -24,31 +31,64 @@
       "description": "The orchestration engine: work a backlog of ready-for-ai issues to CI-green PRs. Owns the durable /goal loop, rolling cap-3 dispatch, the human-review-response phase, model selection, and stop conditions/backstops. Loads a product's build playbook via a named slot (it does not know how to build any one product). Bundles rework-loop (PR-review-event response). Repo-agnostic; requires github-ops.",
       "version": "0.1.0",
       "category": "workflow",
-      "keywords": ["umbraco", "github-issues", "orchestration", "ci", "pull-request", "automation", "cloud-routine"]
+      "keywords": [
+        "umbraco",
+        "github-issues",
+        "orchestration",
+        "ci",
+        "pull-request",
+        "automation",
+        "cloud-routine"
+      ]
     },
     {
       "name": "github-ops",
       "source": "./plugins/github-ops",
-      "description": "Shared how-to for GitHub work in both environments (gh CLI + git locally, the GitHub MCP server on Claude web) PLUS a CI-provider abstraction with github-checks and azure-pipelines implementations. One operation catalog; the loop plugins point here instead of re-explaining the dual path. Required by every loop.",
+      "description": "Shared reference for doing GitHub work two ways — locally with the `gh` CLI + `git`, and on Claude web / in scheduled routines with the GitHub MCP server (`mcp__github__*`). One operation catalog, two reference files; the other loop plugins point here instead of each re-explaining the dual path.",
       "version": "0.1.0",
       "category": "workflow",
-      "keywords": ["github", "gh-cli", "github-mcp", "azure-pipelines", "ci", "pull-request", "reference", "dual-path"]
+      "keywords": [
+        "github",
+        "gh-cli",
+        "github-mcp",
+        "azure-pipelines",
+        "ci",
+        "pull-request",
+        "reference",
+        "dual-path"
+      ]
     },
     {
       "name": "loop-dispatch",
       "source": "./plugins/loop-dispatch",
-      "description": "Single front door so one routine per repo can handle every loop event. Deterministically routes each triggering GitHub event to the matching loop via route-event.sh; a non-matching event is a quiet no-op. Supports a target_repo distinct from the event's repo (the cross-repo-issues case, e.g. Forms). Router only; each loop owns its guardrails.",
+      "description": "Single front door for a repo's automation loops so one routine per repo can handle every loop event instead of one routine per event. Deterministically routes each triggering GitHub event to the matching loop (via route-event.sh); a non-matching event is a quiet no-op. Router only; each loop owns its guardrails. Also bundles new-loop-routine — the single source of truth for standing up a standardised loop routine per repo (config + canonical prompts + UI wiring steps). Repo-agnostic; requires github-ops and the loop skills it routes to.",
       "version": "0.1.0",
       "category": "workflow",
-      "keywords": ["routine", "dispatch", "router", "github-events", "cross-repo", "automation", "cloud-routine"]
+      "keywords": [
+        "routine",
+        "dispatch",
+        "router",
+        "github-events",
+        "cross-repo",
+        "automation",
+        "cloud-routine"
+      ]
     },
     {
       "name": "merge-flow",
       "source": "./plugins/merge-flow",
-      "description": "Guardrail loop that merges PRs labelled auto-merge (the maintainer's deliberate go-signal) only once they are also CI-green, conflict-free, on the right base, and free of an unresolved 'changes requested'. Replaces error-prone manual merges. Repo-agnostic; local or scheduled cloud routine.",
+      "description": "Guardrail loop that merges PRs labelled `auto-merge` — the maintainer's deliberate go-signal (the human approval, since you can't review-approve your own PR) — but only once they are also CI-green, conflict-free, on the right base, and free of an unresolved 'changes requested'. Replaces error-prone manual merges: it never merges on an unmet gate, and drives each PR to a clean merge (branch deleted) or flags the blocker. Uses /goal so a merge job is provably finished. Repo-agnostic; runs locally or as a scheduled cloud routine.",
       "version": "0.1.0",
       "category": "workflow",
-      "keywords": ["pull-request", "merge", "auto-merge", "ci", "guardrail", "automation", "cloud-routine"]
+      "keywords": [
+        "pull-request",
+        "merge",
+        "auto-merge",
+        "ci",
+        "guardrail",
+        "automation",
+        "cloud-routine"
+      ]
     },
     {
       "name": "learning",
@@ -56,15 +96,30 @@
       "description": "The self-learning machinery: read-only capture hooks (SubagentStop/SessionEnd) that file proto-learning issues off the critical path, the proto-learning schema, and triage-learnings (dedupe + threshold + route to owning repo / shared-skills PR / loop-improvement issue). Mechanism is generic; the inbox repo and routing table are per-consumer config.",
       "version": "0.1.0",
       "category": "workflow",
-      "keywords": ["self-learning", "proto-learning", "triage", "hooks", "compounding", "automation"]
+      "keywords": [
+        "self-learning",
+        "proto-learning",
+        "triage",
+        "hooks",
+        "compounding",
+        "automation"
+      ]
     },
     {
       "name": "release-flow",
       "source": "./plugins/release-flow",
-      "description": "Branching, merge, release, and dev-sync workflow skills for any repo — detects gitflow (dev + main) vs main-only. Reference/default only: products with bespoke release conventions (Forms, Automate) override with their own release skills.",
+      "description": "Branching, merge, release, and dev-sync workflow skills for any repo — reads the branch model from the consumer's `.claude/ai-ops.yml` (gitflow, main-only, versioned-gitflow, or custom) and resolves base/release_base from config, falling back to branch detection. Branching/merge/release are applied-repo seams: when `branching.release_skill` is set the loop delegates the cut/bump/tag/back-merge mechanics to it and only orchestrates + gates. Bundles release-and-branching, sync-dev (the dev-sync/back-merge/cleanup contract — no engine bash), and auto-release-loop (issue+label-triggered release, two automated gates — green CI + an Opus pre-publish review against a repo-overridable checklist — no approval pause, Claude push notifications).",
       "version": "0.1.0",
       "category": "workflow",
-      "keywords": ["git", "gitflow", "branching", "release", "tagging", "dev-sync", "workflow"]
+      "keywords": [
+        "git",
+        "gitflow",
+        "branching",
+        "release",
+        "tagging",
+        "dev-sync",
+        "workflow"
+      ]
     },
     {
       "name": "dotnet-web-runtime",
@@ -72,7 +127,13 @@
       "description": "Cloud-environment setup that lets a .NET product run as a Claude web routine: the dotnet-restore internal-NuGet-feed proxy / 401 fix and SessionStart wiring. Needed by any .NET consumer (Forms, Automate); TypeScript products don't need it.",
       "version": "0.1.0",
       "category": "workflow",
-      "keywords": ["dotnet", "nuget", "cloud-routine", "web-runtime", "setup"]
+      "keywords": [
+        "dotnet",
+        "nuget",
+        "cloud-routine",
+        "web-runtime",
+        "setup"
+      ]
     }
   ]
 }
