@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "operations": [
+    { "id": "list-issues",         "axis": "forge", "title": "List issues (by label / state)" },
+    { "id": "get-issue",           "axis": "forge", "title": "Get / read an issue" },
+    { "id": "create-issue",        "axis": "forge", "title": "Create an issue" },
+    { "id": "comment-issue",       "axis": "forge", "title": "Comment on an issue" },
+    { "id": "label-issue",         "axis": "forge", "title": "Add / remove a label on an issue" },
+    { "id": "close-issue",         "axis": "forge", "title": "Close an issue" },
+    { "id": "list-prs",            "axis": "forge", "title": "List PRs (by label / state)" },
+    { "id": "get-pr",              "axis": "forge", "title": "Get a PR (review decision, mergeable, base)" },
+    { "id": "get-pr-reviews",      "axis": "forge", "title": "Get PR reviews + review comments" },
+    { "id": "get-ci-status",       "axis": "ci",    "title": "Get PR CI / build status", "gate": true },
+    { "id": "read-failing-ci-log", "axis": "ci",    "title": "Read a failing check's / build's log", "gate": true },
+    { "id": "rerequest-review",    "axis": "forge", "title": "Re-request review / add reviewer" },
+    { "id": "create-pr",           "axis": "forge", "title": "Create a PR" },
+    { "id": "merge-pr",            "axis": "forge", "title": "Merge a PR (+ delete branch)", "gate": true },
+    { "id": "update-pr-body",      "axis": "forge", "title": "Update a PR's body" },
+    { "id": "close-pr",            "axis": "forge", "title": "Close a PR without merging (+ comment, delete branch)" },
+    { "id": "create-branch",       "axis": "forge", "title": "Create a branch" },
+    { "id": "push-files",          "axis": "forge", "title": "Create / update / push file(s)" },
+    { "id": "get-file-contents",   "axis": "forge", "title": "Get file contents" },
+    { "id": "detect-base-branch",  "axis": "forge", "title": "Detect base branch (defer to release-and-branching)" }
+  ]
+}

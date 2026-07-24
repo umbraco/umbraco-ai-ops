@@ -33,8 +33,9 @@ non-matching events (a Dependabot `dependencies` label) cost nothing.
 | trigger | **none / disabled cron placeholder** — the routine is fired by the Action's Fire URL, not a schedule or UI event. |
 
 The routine's stored prompt is the **Consolidated routine** block in
-[`references/routine-prompts.md`](references/routine-prompts.md) (copy verbatim, replace
-`{{OWNER_REPO}}`, no rewording). The Action appends the edge-resolved route to each fire.
+[`references/routine-prompts.md.template`](references/routine-prompts.md.template) (copy
+verbatim, replace `{{OWNER_REPO}}`, no rewording). The Action appends the edge-resolved
+route to each fire.
 
 Never use `fable`. Never put secrets in the prompt or config.
 
@@ -55,18 +56,33 @@ Never use `fable`. Never put secrets in the prompt or config.
    token*). These are per-routine.
 3. **Set two secrets** on the repo (or the org, to share): `LOOP_DISPATCH_FIRE_URL` (the
    Fire URL) and `LOOP_DISPATCH_TOKEN` (the token) — `gh secret set …`.
-4. **Commit the caller workflow** — copy [`references/caller-workflow.yml`](references/caller-workflow.yml)
+4. **Commit the caller workflow** — copy [`references/loop-dispatch.yml.template`](references/loop-dispatch.yml.template)
    **verbatim** to the repo as `.github/workflows/loop-dispatch.yml` (open a PR).
 5. **Smoke-test** — label a throwaway issue `ready-for-ai` (Action fires → routine builds
    a PR), and label a PR `dependencies` (Action computes `route=none` → routine never fires).
+
+### Cross-repo consumers (issues and PRs in different repos)
+
+When a product's issues live in a **separate repo** from its source (e.g.
+`Umbraco.Forms.Issues` → the Forms code repo), the caller workflow is **split across the two
+repos** — the same template, wired to different events in each:
+
+- In the **issues repo**: subscribe to `issues` (labelled `ready-for-ai` / `auto-release`)
+  and set `with.target_repo` to the **code repo**, so the route carries `target=<code repo>`
+  and the routine works there while reading the issue here.
+- In the **code repo**: subscribe to `pull_request_target` (labelled `auto-merge` /
+  `auto-rework`) — those events fire where the PRs live, no `target_repo` needed.
+
+A same-repo consumer (issues and PRs together) keeps a single workflow subscribing to both,
+with no `target_repo`.
 
 ## Rules
 
 - **One routine + one caller workflow per repo.** The routine is fired by the Action's
   Fire URL — no UI event triggers.
-- **Both templates are locked** — the routine prompt (`routine-prompts.md`) and the caller
-  workflow (`caller-workflow.yml`) are copied **verbatim**; changing them means editing
-  those files **in a PR**, never hand-editing a live routine or repo workflow.
+- **Both templates are locked** — the routine prompt (`routine-prompts.md.template`) and the
+  caller workflow (`loop-dispatch.yml.template`) are copied **verbatim**; changing them means
+  editing those files **in a PR**, never hand-editing a live routine or repo workflow.
 - **Thin prompt.** The routine prompt only invokes the skill; loop policy lives in the
   loop skills and must not drift per repo.
 - **Standard config always.** Don't hand-tune per repo beyond `sources`/name and the two

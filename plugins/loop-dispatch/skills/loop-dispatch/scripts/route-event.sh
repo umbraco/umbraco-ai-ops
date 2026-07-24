@@ -2,10 +2,11 @@
 # route-event.sh — deterministic loop-dispatch router.
 #
 # Decides which loop (if any) a GitHub webhook event maps to. Pure function of the
-# event fields — same inputs always give the same output, no model judgement. Run at the
-# EDGE by the caller GitHub Action (reads the Actions event); it fires the routine only
-# when the printed route is not `none`, and the routine's loop-dispatch skill just
-# dispatches that already-resolved route.
+# event fields — same inputs always give the same output, no model judgement. The mapping
+# itself is DATA, not code: it lives in route-map.json (schema: route-map.schema.json),
+# which is the extension point a consumer overrides/extends. Run at the EDGE by the caller
+# GitHub Action (reads the Actions event); it fires the routine only when the printed route
+# is not `none`, and the routine's loop-dispatch skill just dispatches that resolved route.
 #
 # Inputs (in priority order):
 #   1. flags: --event --action --label --state --number --repo --target
@@ -14,7 +15,7 @@
 #      not part of the JSON body).
 #
 # Output: one line of `key=value` pairs on stdout, always exit 0:
-#   route=<issue-loop|auto-release-loop|merge-flow|rework-loop|none> repo=<r> number=<n>[ target=<t>]
+#   route=<issue-loop-core|auto-release-loop|merge-flow|rework-loop|none> repo=<r> number=<n>[ target=<t>]
 # route=none means "not ours — quiet no-op". `none` is a normal outcome, not an error.
 #
 # CROSS-REPO ISSUES: when a repo's issues live in a SEPARATE repo from its source (e.g.
@@ -71,19 +72,40 @@ state="$(printf '%s' "$state" | tr '[:upper:]' '[:lower:]')"
 # `pull_request` for routing.
 [ "$event" = "pull_request_target" ] && event="pull_request"
 
+# Resolve the route from the DATA-DRIVEN map (route-map.json — see route-map.schema.json),
+# first matching rule wins. The map is the extension point: a consumer ships its own
+# route-map.json (or points $ROUTE_MAP at one) to add labels or re-target loops without
+# editing this script. If jq or the map is unavailable, fall back to the built-in defaults
+# below so the router still works standalone (and stays deterministic).
 route="none"
-case "$event/$action" in
-  issues/labeled)
-    case "$label" in
-      ready-for-ai) route="issue-loop" ;;
-      auto-release) route="auto-release-loop" ;;
-    esac ;;
-  pull_request/labeled)
-    case "$label" in
-      auto-merge)  route="merge-flow" ;;
-      auto-rework) route="rework-loop" ;;
-    esac ;;
-esac
+map="${ROUTE_MAP:-"$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)/route-map.json"}"
+
+if command -v jq >/dev/null 2>&1 && [ -f "$map" ]; then
+  route="$(jq -r --arg e "$event" --arg a "$action" --arg l "$label" --arg s "$state" '
+    (.routes // [])
+    | map(select(
+        .event == $e and .action == $a
+        and ((.label // null) == null or .label == $l)
+        and ((.state // null) == null or (.state | ascii_downcase) == $s)
+      ))
+    | (.[0].route // "none")
+  ' "$map" 2>/dev/null)"
+  [ -z "$route" ] && route="none"
+else
+  # Built-in fallback — keep in sync with route-map.json.
+  case "$event/$action" in
+    issues/labeled)
+      case "$label" in
+        ready-for-ai) route="issue-loop-core" ;;
+        auto-release) route="auto-release-loop" ;;
+      esac ;;
+    pull_request/labeled)
+      case "$label" in
+        auto-merge)  route="merge-flow" ;;
+        auto-rework) route="rework-loop" ;;
+      esac ;;
+  esac
+fi
 
 # Only emit target= when a distinct work-repo was supplied (cross-repo case). Same-repo
 # consumers get the unchanged `route= repo= number=` output.

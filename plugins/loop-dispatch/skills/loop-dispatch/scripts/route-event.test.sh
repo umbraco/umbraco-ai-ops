@@ -3,7 +3,7 @@
 # Deterministic tests for route-event.sh — the loop-dispatch routing decision.
 # Hermetic: bash + jq only, no network, no gh, no claude. Runs in a few ms.
 #
-# Usage: bash run.sh   (exits non-zero if any case fails)
+# Usage: bash route-event.test.sh   (exits non-zero if any case fails)
 set -uo pipefail
 
 # Isolate from any ambient GitHub-event env (GitHub Actions sets these to the
@@ -11,7 +11,7 @@ set -uo pipefail
 unset GITHUB_EVENT_PATH GITHUB_EVENT_NAME
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SCRIPT="$(cd "$HERE/.." && pwd)/route-event.sh"
+SCRIPT="$HERE/route-event.sh"
 [ -f "$SCRIPT" ] || { echo "FATAL: route-event.sh not found at $SCRIPT"; exit 2; }
 command -v jq >/dev/null 2>&1 || { echo "FATAL: jq required"; exit 2; }
 
@@ -45,7 +45,7 @@ expect_route "pr_target dependencies → none"       none              -- --even
 expect_route "pr dependencies → none (the 4x bug)" none              -- --event pull_request --action labeled --label dependencies --number 269 --repo o/r
 expect_route "pr javascript → none"                none              -- --event pull_request --action labeled --label javascript --number 7 --repo o/r
 expect_route "pr opened → none"                    none              -- --event pull_request --action opened --number 42 --repo o/r
-expect_route "issue ready-for-ai → issue-loop" issue-loop    -- --event issues --action labeled --label ready-for-ai --number 5 --repo o/r
+expect_route "issue ready-for-ai → issue-loop-core" issue-loop-core -- --event issues --action labeled --label ready-for-ai --number 5 --repo o/r
 expect_route "issue auto-release → auto-release"   auto-release-loop -- --event issues --action labeled --label auto-release --number 9 --repo o/r
 expect_route "issue bug → none"                    none              -- --event issues --action labeled --label bug --number 3 --repo o/r
 expect_route "review changes → none (now label-driven)" none         -- --event pull_request_review --action submitted --state changes_requested --number 42 --repo o/r
@@ -63,7 +63,7 @@ expect_json "raw json dependencies PR → none" \
   '{"action":"labeled","label":{"name":"dependencies"},"pull_request":{"number":269},"repository":{"full_name":"a/b"}}' \
   pull_request
 expect_json "raw json ready-for-ai issue" \
-  "route=issue-loop repo=a/b number=5" \
+  "route=issue-loop-core repo=a/b number=5" \
   '{"action":"labeled","label":{"name":"ready-for-ai"},"issue":{"number":5},"repository":{"full_name":"a/b"}}' \
   issues
 expect_json "raw json auto-rework PR label" \
