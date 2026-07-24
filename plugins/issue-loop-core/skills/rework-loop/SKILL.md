@@ -46,7 +46,7 @@ build), then pushes and **stops** — it does **not** poll or wait for CI. CI ru
 asynchronously and **the merge loop won't merge until CI is green**, so CI is enforced at
 merge time, not by this session sitting idle. Keeping the rework session short is the whole
 point of the split. All GitHub work — and reading CI status/logs, resolved per the repo's
-`ci_provider` (`github-checks` vs `azure-pipelines`) — goes through the **`github-ops`** skill
+`ci.provider` (`github-checks` vs `azure-pipelines`) — goes through the **`github-ops`** skill
 (required).
 
 ## Step 1 — read the feedback

@@ -84,40 +84,41 @@ Read from the repo's **`.claude/ai-ops.yml`** ([`ai-ops.schema.json`](../../../.
 
 | Key | Meaning | How to resolve | Default |
 |-----|---------|----------------|---------|
-| `inbox_repo` | where `ready-for-ai` issues live | consumer declares it — **required when it differs from `source_repo`** | = `source_repo` |
-| `source_repo` | where PRs open | auto-detect: the git remote (github-ops → *Detect base branch / repo*) | current repo |
-| `base_branch` | PR base | detect via the `release-and-branching` skill (gitflow → `dev`) | per release-and-branching |
-| `ci_provider` | which CI reports status | auto-detect (`github-checks` vs `azure-pipelines`); read via github-ops | `github-checks` |
-| `repo_type_gate` | how to confirm this is the right repo before working it | consumer declares it | — |
-| `issue_link` | how a PR references its issue | `same-repo-closes` or `cross-repo-full-url` | `same-repo-closes` |
-| `learning_inbox` | where `proto-learning` issues are filed | consumer declares it | — |
-| `triage_routing` | where captured learnings route | consumer declares it | — |
+| `repos.inbox` | where `ready-for-ai` issues live | consumer declares it — **required when it differs from `repos.source`** | = `repos.source` |
+| `repos.source` | where PRs open | auto-detect: the git remote (github-ops → *Detect base branch / repo*) | current repo |
+| `branching.base` | PR base | detect via the `release-and-branching` skill (gitflow → `dev`) | per release-and-branching |
+| `ci.provider` | which CI reports status | auto-detect (`github-checks` vs `azure-pipelines`); read via github-ops | `github-checks` |
+| `repos.issue_link` | how a PR references its issue | `same-repo-closes` or `cross-repo-full-url` | `same-repo-closes` |
+| `learning.inbox` | where `proto-learning` issues are filed | consumer declares it | — |
+| `learning.routing` | where captured learnings route | consumer declares it | — |
 | `playbook` | the repo's build skill this core defers to (the override point) | consumer declares it; scaffolded by ops-setup | `issue-loop` |
 | AI label | the queue gate | fixed | `ready-for-ai` |
 | Concurrency cap | parallel build subagents | fixed | **3** |
 
-**Cross-repo (issues ≠ source).** When `inbox_repo` differs from `source_repo` (issues live
-in a separate tracker from the code), **read the issue from `inbox_repo`** but **open the PR
-on `source_repo`**. In that case `issue_link` is `cross-repo-full-url`: reference the issue
-with a **full URL** (`.../inbox_repo/issues/N`), **not** a `Closes #N` / `#N` shorthand — a
-bare `#N` resolves inside `source_repo` and a `Closes` keyword there would auto-close an
+**Cross-repo (issues ≠ source).** When `repos.inbox` differs from `repos.source` (issues live
+in a separate tracker from the code), **read the issue from `repos.inbox`** but **open the PR
+on `repos.source`**. In that case `repos.issue_link` is `cross-repo-full-url`: reference the issue
+with a **full URL** (`https://github.com/<repos.inbox>/issues/N`), **not** a `Closes #N` /
+`#N` shorthand — a
+bare `#N` resolves inside `repos.source` and a `Closes` keyword there would auto-close an
 unrelated item. The full URL links the correct issue and never triggers a cross-repo
-auto-close. When `inbox_repo == source_repo`, use `same-repo-closes` (`Closes #N`, which
+auto-close. When `repos.inbox == repos.source`, use `same-repo-closes` (`Closes #N`, which
 closes the issue on merge).
 
-**Confirm the repo first.** Use `repo_type_gate` to verify this is a repo the consumer's
-playbook applies to. If it doesn't match, stop and say so — a mismatched playbook won't
-build correctly.
+**Confirm the repo fits the build skill.** The repo's build skill owns verifying it applies
+to this repo (e.g. an early sanity check against the repo layout). If it reports the repo
+doesn't match, stop and say so — a mismatched build won't succeed. The engine has no
+separate repo-type config; applicability is the build skill's responsibility.
 
 **GitHub operations** (list issues, open/merge PRs, check CI, read failing logs, push
 files, …) go through the **`github-ops`** skill — name the *operation*, never a raw command.
 CI status and failing logs also go through `github-ops`, which resolves `github-checks` vs
-`azure-pipelines` per `ci_provider` — **do not assume GitHub checks.** **`github-ops` must
+`azure-pipelines` per `ci.provider` — **do not assume GitHub checks.** **`github-ops` must
 be installed for this loop to run.**
 
 ## Step 1 — gather the backlog
 
-**List** the open issues labelled `ready-for-ai` on **`inbox_repo`** (github-ops → *List
+**List** the open issues labelled `ready-for-ai` on **`repos.inbox`** (github-ops → *List
 issues by label / state*), reading each one's number/title/body.
 
 - No matching issues → report "nothing labelled `ready-for-ai` is open" and stop. (If the
@@ -133,7 +134,7 @@ Set the durable terminal condition so the loop persists across turns / wake-ups.
 issue or an un-reviewed PR must not keep the loop alive forever):
 
 ```
-/goal every open ready-for-ai issue in <inbox_repo> is in a terminal state — merged, or blocked-with-a-comment, or a CI-green PR awaiting the human's review with no unaddressed feedback — and no actionable work is left in the queue
+/goal every open ready-for-ai issue in <repos.inbox> is in a terminal state — merged, or blocked-with-a-comment, or a CI-green PR awaiting the human's review with no unaddressed feedback — and no actionable work is left in the queue
 ```
 
 Clear it with `/goal clear` when the goal is met or you abort. See
@@ -191,10 +192,10 @@ For each PR, react to its review decision:
   to the review-round cap (see [Stop conditions](#stop-conditions)) — past that, hand the PR
   back for a human to resolve rather than ping-ponging.
 - **`APPROVED`** → the human has accepted it. Merge per the `release-and-branching` skill
-  (squash into `base_branch` for gitflow repos), confirm the merge, then have the worktree
+  (squash into `branching.base` for gitflow repos), confirm the merge, then have the worktree
   removed (`ExitWorktree` remove, or the repo's cleanup). Mark the issue done — the merge
-  closes it if the PR/issue are linked in the same repo; on a cross-repo `issue_link`, close
-  the issue on `inbox_repo` with a note linking the PR.
+  closes it if the PR/issue are linked in the same repo; on a cross-repo `repos.issue_link`, close
+  the issue on `repos.inbox` with a note linking the PR.
 - **Still pending / no review yet** → do nothing; re-arm the wake-up.
 
 Repeat until every PR is approved + merged (or explicitly blocked). Then the `/goal`
@@ -268,9 +269,9 @@ What happens at that point depends on run mode:
 Learning capture is **not implemented here.** It is **fully automatic and hook-driven** via
 the separate **`learning`** plugin (installed alongside this one): read-only `SubagentStop`
 and `SessionEnd` hooks analyse each transcript off the critical path and file
-`proto-learning` issues (to `learning_inbox`) when something non-obvious happened — a
+`proto-learning` issues (to `learning.inbox`) when something non-obvious happened — a
 diagnosed CI failure, a repeated mistake, a missing/unclear pattern, a backstop that tripped.
-A separate triage routine later turns those into PRs, routed per `triage_routing`.
+A separate triage routine later turns those into PRs, routed per `learning.routing`.
 
 **Neither the orchestrator nor any subagent files a learning by hand, and nothing in this
 loop edits skills or `CLAUDE.md` inline.** Your only capture-related duty is *not* to fix
@@ -312,7 +313,7 @@ best-fit model — the same *Model selection* logic as local, just one subagent 
 three.
 
 For the one triggering issue (identify it from the event; if unclear, take the **oldest** open
-`ready-for-ai` issue on `inbox_repo`; none → quiet no-op):
+`ready-for-ai` issue on `repos.inbox`; none → quiet no-op):
 
 1. **Triage + dispatch.** Read the issue, pick its tier from
    [Model selection](#model-selection) (`opus` / `sonnet` / `haiku`; never `fable`; floor
@@ -326,11 +327,11 @@ For the one triggering issue (identify it from the event; if unclear, take the *
    substitution it must honour: **CI is the test gate.** Run whatever fast local
    sanity pass the playbook defines (a compile/build), but the full suite runs in CI, not in
    the session. Still run the repo's **security + code review** before pushing.
-3. Push, open the PR against `base_branch` (referencing the issue per `issue_link`), and
+3. Push, open the PR against `branching.base` (referencing the issue per `repos.issue_link`), and
    **drive CI green** from the logs (github-ops → *Read a failing check's log*, resolved per
-   `ci_provider`; the **8-attempt** cap applies).
+   `ci.provider`; the **8-attempt** cap applies).
 4. **Mark the issue complete, then stop at the CI-green PR.** Once CI is green, run the
-   playbook's outcome step on the triggering issue (on `inbox_repo`) — remove `ready-for-ai`,
+   playbook's outcome step on the triggering issue (on `repos.inbox`) — remove `ready-for-ai`,
    add `generated-by-ai`, comment the PR link. Removing `ready-for-ai` is what stops this
    routine re-firing on the same issue. Then **stop**: do **not** enter a review phase and do
    **not** merge — review-response is [`rework-loop`](../rework-loop/SKILL.md)'s job (it fires
