@@ -1,0 +1,44 @@
+name: tests
+
+# Hermetic, deterministic gate — bash + jq only, no network, no gh, no claude.
+# Runs every skill's *.test.sh and validates every JSON file with jq. Runs on
+# every PR and every push to main (no paths filter — the tests are cheap, and a
+# paths filter only reliably matches the `opened` event, so a later push could
+# add untested changes and slip through ungated).
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run all skill tests (*.test.sh)
+        run: |
+          set -uo pipefail
+          rc=0; found=0
+          while IFS= read -r t; do
+            found=1
+            echo "::group::$t"
+            bash "$t" || rc=1
+            echo "::endgroup::"
+          done < <(find plugins -name '*.test.sh' | sort)
+          [ "$found" = 1 ] || { echo "::error::no *.test.sh found — expected at least the router + detect tests"; exit 1; }
+          exit $rc
+
+      - name: Validate every JSON file (jq empty)
+        run: |
+          set -uo pipefail
+          rc=0
+          while IFS= read -r f; do
+            jq empty "$f" 2>/dev/null || { echo "::error file=$f::invalid JSON"; rc=1; }
+          done < <(find . -path ./.git -prune -o -name '*.json' -print | sort)
+          exit $rc

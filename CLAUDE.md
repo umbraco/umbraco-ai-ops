@@ -102,3 +102,9 @@ keep it that way; never commit CRLF scripts.
 - Run any touched skill's `scripts/*.test.sh`.
 - Grep your change for product-specifics (`npm`, `mcp`, a product name) — if present, it's a
   seam, not engine code.
+
+The first two are enforced in CI by `.github/workflows/tests.yml` (runs every
+`plugins/**/*.test.sh` and `jq empty` on every JSON, on each PR and push to `main`) — keep
+it green. It's hermetic (`bash` + `jq` only): a new test must not need network, `gh`, or
+`claude`. The other workflow, `.github/workflows/loop-dispatch.yml`, is **runtime, not CI** —
+the reusable edge router consumers call from their own caller workflow.

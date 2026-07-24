@@ -95,6 +95,9 @@ named in `branching.release_skill`.
 ```
 .claude-plugin/
   marketplace.json         # marketplace manifest listing the plugins
+.github/workflows/
+  tests.yml                # hermetic CI gate: run every *.test.sh + jq-validate every JSON
+  loop-dispatch.yml        # reusable runtime workflow consumers call (edge router -> fire routine)
 plugins/
   <plugin>/                # one dir per plugin (skills/, agents/, scripts/, references/)
 scripts/
