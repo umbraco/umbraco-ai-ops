@@ -98,8 +98,8 @@ named in `branching.release_skill`.
 > decisions: **[`docs/capabilities-migration-plan.md`](docs/capabilities-migration-plan.md)**.
 > Shared terms: **[`docs/vocabulary.md`](docs/vocabulary.md)**.
 
-The capability set and who may call what are settled; the per-capability *actions* are still being
-argued out, so they live in the plan rather than here until the catalog exists.
+The capability set and who may call what are settled; the per-capability *actions* are argued out
+against the catalog itself, so they live in the plan rather than here until `catalog.json` exists.
 
 **Visibility** says who may call a capability: a **service** is an intention a loop commands · a
 **supporting primitive** is mechanics a service wraps, never called by a loop · **cross-cutting** is
@@ -110,7 +110,7 @@ capability is invoked the same way, and there is no extra layer or runtime.
 |---|---|---|
 | `ops-change` | service | **always the repo** — build/test/verify, closing the issue |
 | `ops-release` | service | **always the repo** — version bump, tag, publish, back-merge |
-| `ops-integrate` | service | engine default *(conditional — see the plan's §6.8)* |
+| `ops-integrate` | service | engine default — owns landing: the merge gates + the merge itself |
 | `ops-branching` | supporting primitive | engine default; repo overrides for a bespoke branch model |
 | `ops-workspace` | supporting primitive | engine default; repo overrides for worktree/DB setup |
 | `ops-repo-meta` | cross-cutting (read) | engine default, detection-backed |

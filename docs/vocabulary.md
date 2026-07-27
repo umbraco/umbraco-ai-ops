@@ -1,8 +1,8 @@
 # Vocabulary
 
-Status: **Draft for review** — ratified by Phase 0 of the
-[capabilities migration plan](capabilities-migration-plan.md), which is also when `CLAUDE.md`
-should start pointing here. Until then, treat this as the proposed language, not settled doctrine.
+Status: **Reviewed, no outstanding notes** (PR #4, 27-07-2026) — formally ratified by Phase 0 of the
+[capabilities migration plan](capabilities-migration-plan.md), which is also when `CLAUDE.md` starts
+pointing here. Use this language now; Phase 0 is the paperwork, not the argument.
 
 Shared words, so a review argument is about the design and not about which thing someone meant.
 The **collisions** table is the load-bearing part — those are words already used for two or three
@@ -39,7 +39,7 @@ notifications are cross-cutting.**
 | **capability** | A unit of variation the engine defers to, implemented as a skill named `ops-<capability>` and invoked by that name. Replaces the older "seam". |
 | **action** | A verb a capability answers to — `ops-change · implement`. The second half of `(action, context-json)`. |
 | **capability skill** | The skill implementing a capability. Either shipped by the engine (a *framework default*) or owned by the repo. |
-| **capability catalog** | `catalog.(yml\|json)` — the normative declaration of every capability, its actions, its `visibility`, and a worked `example`. The single source of truth for the interface. |
+| **capability catalog** | `catalog.json` (+ `catalog.schema.json`) — the normative declaration of every capability, its actions, its `visibility`, and a worked `example`. The single source of truth for the interface. JSON per the plan's §6.6. |
 | **visibility** | The exposure class from §1, carried as a catalog field. |
 | **framework default** | An engine-shipped implementation a repo inherits when it provides none. |
 | **coverage** | Whether a repo satisfies the catalog. Per capability: **present** (repo ships it) · **inherited** (using the framework default) · **missing** (no implementation — `ops-install` reports it). |
@@ -83,6 +83,9 @@ discuss them, not so callers can read them.
 |---|---|
 | **integration branch** | The branch feature work targets. Was `branching.base`. Prefer this phrase over "base" when talking about the concept. |
 | **release base** | The branch releases land on; a PR into it is the release path, owned by `ops-release`. Was `branching.release_base`. |
+| **line** | A version's pair of branches — `vN/dev` + `vN/main`. A repo can have several **live** at once, so "the integration branch" is a *set*, and the wrong-base gate tests membership. |
+| **primary line** | The line work starts on before being ported. **Not** necessarily the newest line or the default branch — a declared `ops-repo-meta` fact. |
+| **port** | Moving a landed change to another live line. **Forward-port** = to a newer line, **back-port** = to an older one. One logical change → one PR per line, each landing on its own. Not a mechanical cherry-pick: a port may need adapting, so it gets its own verify and CI. |
 | **merge strategy** | `squash` or `merge-commit`. Chosen *inside* `ops-branching · merge`; no caller passes it. |
 | **branch model** | `gitflow` · `main-only` · `versioned-gitflow` · `custom`. Knowledge internal to `ops-branching`, no longer a config enum. |
 
@@ -95,7 +98,7 @@ Qualify these every time, or use the ruling.
 | Word | Meaning A | Meaning B | Ruling |
 |---|---|---|---|
 | **action** | GitHub webhook action — `route-map.json`'s `"action": "labeled"` | Capability action — `ops-change · implement` | Phase 2 removes A by folding it into the **event vocabulary** (`issues.labeled`). After that, "action" means B only. |
-| **catalog** | **Capability catalog** — `catalog.(yml\|json)`, the capability/action interface | **Operation catalog** — `operation-catalog.json`, the github-ops provider interface | Always qualify. Never bare "the catalog" in a doc that touches both. |
+| **catalog** | **Capability catalog** — `catalog.json`, the capability/action interface | **Operation catalog** — `operation-catalog.json`, the github-ops provider interface | Always qualify. Never bare "the catalog" in a doc that touches both — and note both are now JSON, so the extension doesn't disambiguate them. |
 | **operation** | A github-ops primitive invoked by name — `get-ci-status`, `merge-pr` | — | An **operation** is a forge/CI primitive; an **action** is a capability verb. Never interchange them. |
 | **provider** | **CI provider** — `github-checks` / `azure-pipelines` | **Forge** — gh CLI vs GitHub MCP | Say "CI provider" or "forge". Bare "provider" is what produced the `ci.provider`/`ci_provider` split. |
 | **skill** | An engine skill | A repo-owned capability skill | Qualify: *framework loop*, *framework default*, or *repo-owned*. |

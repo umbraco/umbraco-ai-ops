@@ -1,7 +1,12 @@
 # Capabilities-model migration plan
 
-Status: Draft for review · Author: audit of `umbraco-ai-ops@main` against the two design docs
-(Layer 1 — *Ops Capability Skills* explainer; Layer 2 — *Conformance Specification*).
+Status: **Reviewed — §6 settled** (PR #4, 27-07-2026) · Author: audit of `umbraco-ai-ops@main`
+against the two design docs (Layer 1 — *Ops Capability Skills* explainer; Layer 2 — *Conformance
+Specification*).
+
+All nine §6 decisions are resolved, so **Phase 3 is unblocked**. One sub-question remains open
+(§6.8a — whether `ops-change` keeps a delegating `land`); it changes one catalog row, not the
+model.
 
 The two design docs are headed **"Repo: umbraco-mcp-ops"** — they describe the target for the
 prototype. This plan ports that target onto the **`umbraco-ai-ops`** engine we shipped, whose
@@ -52,7 +57,7 @@ reads and notifications are cross-cutting.**
 |---|---|---|---|
 | `ops-change` | B | **service** | framework loops |
 | `ops-release` | B | **service** | framework loops |
-| `ops-integrate` | B | **service** *(conditional — §6.8)* | framework loops |
+| `ops-integrate` | B | **service** | framework loops |
 | `ops-branching` | B | **supporting** | services only — **never a loop** |
 | `ops-workspace` | B | **supporting** | `ops-change` only |
 | `ops-repo-meta` | D | **cross-cutting** (read) | any layer |
@@ -63,6 +68,10 @@ reads and notifications are cross-cutting.**
 Two consequences bite this plan directly: `ops-branching`'s strategy/base values become
 **private** — no loop and no service reads `merge_strategy` or `base`, they ask for an *outcome*
 (§1a, §2) — and `ops-workspace` is prepared/torn down by `ops-change`, not by the issue loop.
+
+A third follows from §6 settling as it did: because the **service owns the merge gates**,
+`ops-integrate` is confirmed and `ops-branching` stays **command-only** — no `classify-pr`, no read
+of any kind on that primitive.
 
 Terms used throughout — *service*, *supporting primitive*, *cross-cutting*, *action* vs
 *operation*, *capability catalog* vs *operation catalog* — are defined in
@@ -77,36 +86,41 @@ Terms used throughout — *service*, *supporting primitive*, *cross-cutting*, *a
 > **Status is load-bearing.** Most of these action names are proposals from the audit, not
 > implemented behaviour. Read `proposed` as "argue with me".
 
+> **Review note:** argue with these rows at **Phase 1**, against concrete catalog entries, rather
+> than against the draft table (PR #4). The table stands as-is until then.
+
 Status legend: **exists** = implemented today (source named) · **proposed** = invented by this
-audit, nothing implements it · **conditional** = depends on an open decision in §6.
+audit, nothing implements it · **open** = one unresolved sub-question (§6.8a) · **dropped** =
+ruled out by a settled §6 decision.
 
 | Capability | Action | Status | Notes / where the behaviour lives today |
 |---|---|---|---|
-| `ops-change` | `implement` | proposed | prose in the repo's `CLAUDE.md` + the `playbook` build skill |
+| `ops-change` | `implement` | proposed | prose in the repo's `CLAUDE.md` + the `playbook` build skill; takes **port context** where a line-port is a real change (§8) |
 | | `verify` | proposed | build/test/sanity pass, same source |
-| | `close-issue` | proposed | forge op `close-issue` exists; cross-repo close MUST be explicit (§7.4) |
-| | `land` | conditional §6.8 | only if `auto-merge` stays PR-generic; delegates to `ops-integrate` |
+| | `close-issue` | proposed | forge op `close-issue` exists; cross-repo close MUST be explicit (§7.4); fires when **all** target lines have landed (§8) |
+| | `land` | **open §6.8a** | a *delegating* tail calling `ops-integrate` — or no such action at all; see §6.8a |
 | `ops-release` | `plan` | proposed | `release-reviewer` agent + `auto-release-loop` prose |
 | | `cut` | proposed | version-file list + changelog bump (`auto-release-loop:51`) |
 | | `publish` | proposed | `release-tag.yml`, version-source per stack |
 | | `sync` | **exists** | the `sync-dev` skill, folded in per §2 |
-| `ops-integrate` | `land` | conditional §6.8 | thin service wrapping `ops-branching · merge`; owns the four gates |
+| `ops-integrate` | `land` | proposed | thin service wrapping `ops-branching · merge`; owns the four gates + the release-base skip; returns a structured outcome (§6.8, §6.9) |
 | `ops-branching` | `merge` | proposed | strategy chosen internally; replaces `merge_strategy` config + forge `merge-pr` |
 | | `open-pr` | proposed | forge `create-pr` exists as an operation |
 | | `start-branch` | proposed | forge `create-branch` exists as an operation |
-| | `classify-pr` | conditional §6.9(a) | `integration \| release \| wrong-base`; exists only if the skip stays in the loop |
-| | *(base / release-base / model)* | **not actions** | internal knowledge — private per §0 |
+| | ~~`classify-pr`~~ | **dropped** | §6.9 settled as (b) — the skip lives in `ops-integrate`, so the primitive stays command-only |
+| | *(base / release-base / model)* | **not actions** | internal knowledge — private per §0. `base` is a **set** of live integration branches, not one branch (§7, §8) |
 | `ops-workspace` | `prepare` | proposed | "repo's own `/cleanup`" (`gitflow.md:37`) |
 | | `teardown` | proposed | worktree + DB teardown, same source |
 | `ops-repo-meta` | `identity` | proposed | `detect.sh` can pre-fill; replaces `repos.source` |
-| | `topology` | proposed | roles `code` / `issues` / `learnings`; backs the map `README.md:110` already claims exists (§7) |
+| | `topology` | proposed | roles `code` / `issues` / `learnings`; also holds the **live lines** and which is **primary** — neither is derivable from version numbers (§8) |
 | `ops-ci` | `status` | **exists** | operation `get-ci-status` |
 | | `log` | **exists** | operation `read-failing-ci-log` |
 | `ops-notify` | `send` | proposed | loops emit "Reworked PR #N…" inline today |
 | ~~`ops-learnings`~~ | — | **not a capability** | framework capture hook + `ops-triage`; destinations are `ops-repo-meta` data (§6.2) |
 
-Counts: **4 exist**, 13 proposed, 3 conditional. The two `land` rows are the same action reached
-two ways — see §6.8.
+Counts: **4 exist**, 14 proposed, **1 open** (`ops-change · land`, §6.8a), 1 dropped. If §6.8a
+resolves against the delegating tail, the open row disappears and `land` exists only on
+`ops-integrate`.
 
 ### 1a. Config-pointer seams (`ai-ops.yml` / `ai-ops.schema.json`)
 
@@ -118,8 +132,8 @@ two ways — see §6.8.
 | `ci.provider` | B | `ops-ci` (provider internal to the consumer's skill) | **kills the `ci.provider`/`ci_provider` split** |
 | `ci.ado_org` / `ci.ado_project` / `ci.gh_repo` | B | internal to consumer `ops-ci` | out of central config |
 | `branching.model` | B | `ops-branching` (internal knowledge / framework default) | model becomes skill logic, not an enum |
-| `branching.base` | B | `ops-branching` — **private**; callers get outcomes, never the value | **single source of truth** (ends the four-way drift in §7) |
-| `branching.release_base` | B | `ops-branching` (private); reaches a caller as a PR *classification*, not a branch name — §6.9 | |
+| `branching.base` | B | `ops-branching` — **private**; callers get outcomes, never the value | **single source of truth** (ends the four-way drift in §7). Internally a **set** of live integration branches (§8) |
+| `branching.release_base` | B | `ops-branching` (private) — **never reaches a caller at all** | §6.9 = (b): `ops-integrate` asks and declines release-base PRs itself; no classification is exposed |
 | `branching.merge_strategy` | B | `ops-branching` · `merge` picks it internally | **single source of truth**; no caller passes a strategy |
 | `branching.branch_naming` | B | internal to `ops-branching` / `ops-change` | |
 | `branching.release_skill` | B | `ops-release` (whole capability) | the *pointer* becomes the *convention* (`ops-release`) |
@@ -180,8 +194,8 @@ Reserved framework names (spec §2.3): `loop-dispatch`, `ops-install`, `ops-issu
 | Today | Becomes | Calls (by name) |
 |---|---|---|
 | `issue-loop-core` *(placeholder)* | `ops-issue-loop` | `ops-change` (implement/verify/close-issue) · `ops-ci`, `ops-repo-meta` (reads). **Not** `ops-workspace` — `ops-change` wraps it |
-| `rework-loop` *(placeholder)* | `ops-rework` | `ops-change` · `ops-ci` (status/log), `ops-repo-meta` (reads) |
-| `merge-flow` | `ops-merge-flow` | `ops-change` · `land` **or** `ops-integrate` (§6.8) · `ops-ci` (status), `ops-repo-meta` (topology). **Never `ops-branching` directly** |
+| `rework-loop` *(placeholder)* | `ops-rework` | `ops-change` · `ops-ci` (status/log), `ops-repo-meta` (reads). **Does not land its own fix** — hands the PR back to `ops-merge-flow` so there is one merge path behind one human gate (§8) |
+| `merge-flow` | `ops-merge-flow` | `ops-integrate` · `land` (§6.8 = A) · `ops-ci` (status), `ops-repo-meta` (topology). **Never `ops-branching` directly** |
 | `auto-release-loop` | `ops-auto-release` | `ops-release` (plan/cut/publish/sync) · `ops-ci`. Reaches `ops-branching` **only through `ops-release`** |
 | `release-and-branching` | *demoted* → `ops-branching` (framework default) | — (becomes a capability, repo may override) |
 | `sync-dev` | folded into `ops-release` · `sync` | — |
@@ -196,12 +210,13 @@ Reserved framework names (spec §2.3): `loop-dispatch`, `ops-install`, `ops-issu
 
 ## 3. New artifacts to create in the engine
 
-1. **The catalog** (spec §5) — `catalog.(yml|json)` + schema, normative, one entry per capability
-   (`release, change, ci, branching, workspace, notify, repo-meta, learnings`, plus `integrate` if
-   §6.8 says so), each with actions, a **`visibility`** field (`service` / `supporting` /
-   `cross-cutting`, per the §1 roster) + a normative `example` (it seeds *both* the installer's
-   scaffold and the eval). This is the pivot artifact — build it first; it defines the interface
-   everything else conforms to.
+1. **The catalog** (spec §5) — **`catalog.json` + `catalog.schema.json`** (§6.6: JSON, matching the
+   repo's existing data-seam convention rather than the spec's YAML examples), normative, one entry
+   per capability (`release, change, ci, branching, workspace, notify, repo-meta, integrate`), each
+   with actions, a **`visibility`** field (`service` / `supporting` / `cross-cutting`, per the §1
+   roster) + a normative `example` (it seeds *both* the installer's scaffold and the eval). This is
+   the pivot artifact — build it first; it defines the interface everything else conforms to.
+   `learnings` is deliberately absent: it is framework mechanics, not a capability (§6.2).
 2. **Base routing table** in the spec's `{event,label,loop}` shape, shipped beside `route-event.sh`,
    versioned by the caller's `@ref`.
 3. **Overlay-merge logic** in `route-event.sh` (base ⊕ overlay, `(event,label)` identity,
@@ -228,11 +243,13 @@ them twice.
 **Phase 0 — Ratify (docs + charter).** Commit both design docs to `docs/`. Rewrite the
 `CLAUDE.md` "seam doctrine" from config-pointer/override-defer to convention/`ops-<capability>`,
 and point it at [`vocabulary.md`](vocabulary.md) — ratifying that glossary is part of this phase,
-including the retirement of "seam" for everything except data+schema extension points. Settle the
-open decisions in §6. *No behaviour change.*
+including the retirement of "seam" for everything except data+schema extension points. §6 is
+settled in review (PR #4) — nothing left to decide here beyond §6.8a. *No behaviour change.*
 
-**Phase 1 — Author the catalog.** Create `catalog.(yml|json)` + schema for all 8 capabilities from
-the §1 action inventory, each carrying its `visibility` (§1 roster). **Delete the action-inventory
+**Phase 1 — Author the catalog.** Create `catalog.json` + `catalog.schema.json` for all 8
+capabilities from the §1 action inventory, each carrying its `visibility` (§1 roster). This is also
+where the inventory's `proposed` rows get argued — concrete entries, not draft table rows.
+**Delete the action-inventory
 table** once the catalog exists — it is draft input, and leaving it behind creates the second source
 of truth this migration exists to kill. Reserve the framework loop names. This is the interface
 pivot; everything downstream conforms to it.
@@ -246,19 +263,22 @@ alone here.
 
 **Phase 2 — Routing to spec (edge).** Convert `route-map` to the `{event,label,loop}` shape +
 event vocab; add base⊕overlay merge to `route-event.sh`; rename route targets to reserved loop
-names; remove the duplicated `case` fallback; move the overlay to the caller workflow /
-`.github/ops-routing.yml`. Update `route-event.test.sh`.
+names; remove the duplicated `case` fallback; move the overlay to a committed
+`.github/ops-routing.yml` (§6.4). Update `route-event.test.sh`.
 
-**Phase 3 — Framework loops invoke *services* by name.** Rewrite `merge-flow`→`ops-merge-flow` to
-command a service (`ops-change · land` or `ops-integrate`, per §6.8) plus the cross-cutting reads
-`ops-ci · status` / `ops-repo-meta · topology` — and to **stop resolving `base` / `release_base` /
-`merge_strategy` itself** (today `merge-flow/SKILL.md:40-59` tabulates all three, `:87-94` compares
-against two of them, `:99` passes the strategy into the merge). Rewrite
+**Phase 3 — Framework loops invoke *services* by name.** *(Unblocked — §6.8 and §6.9 are settled.)*
+Rewrite `merge-flow`→`ops-merge-flow` to command **`ops-integrate · land`** plus the cross-cutting
+reads `ops-ci · status` / `ops-repo-meta · topology` — and to **stop resolving `base` /
+`release_base` / `merge_strategy` itself** (today `merge-flow/SKILL.md:40-59` tabulates all three,
+`:87-94` compares against two of them, `:99` passes the strategy into the merge). Build
+`ops-integrate` as the new home for the four gates **plus the release-base skip** (§6.9 = b),
+returning the structured outcome the loop comments on; the loop keeps orchestration only — sweep,
+CI-poll cadence, the 15-minute cap and the per-run cap of 10. Rewrite
 `auto-release-loop`→`ops-auto-release` to call `ops-release` only, never `ops-branching`. Extract
 `ops-ci` (`status` + `log`) from `github-ops`, keeping forge mechanics as framework. Demote
-`release-and-branching`→`ops-branching` framework default **with its values private**; fold
-`sync-dev` into `ops-release.sync`. Settle §6.9 before this phase — it decides where the
-release-base skip lives.
+`release-and-branching`→`ops-branching` framework default **with its values private** and
+**command-only** (no `classify-pr`); its base knowledge must be a **set** of live integration
+branches, not one branch (§8). Fold `sync-dev` into `ops-release.sync`.
 
 **Phase 4 — Build the placeholder loops directly in capability form.** `ops-issue-loop` (commands
 `ops-change`, which itself wraps `ops-workspace`; reads `ops-ci` / `ops-repo-meta`), `ops-rework`,
@@ -269,55 +289,74 @@ read from `ops-repo-meta` (§6.2). Avoids a build-then-migrate double.
 (present/inherited/missing by `ops-<cap>` name); scaffold a stub per missing catalog capability;
 validate the routing overlay per §6. Keep `detect.sh` for pre-fill.
 
-**Phase 6 — Forms consumer capability skills.** Provide Forms' seam implementations:
+**Phase 6 — Consumer capability skills (Forms, then Automate).** Provide Forms' implementations:
 `ops-change` (dotnet build/verify + cross-repo close to `Umbraco.Forms.Issues`), `ops-release`
 (nbgv/version bump/tag/back-merge across `vN/dev`↔`vN/main`), `ops-repo-meta` (topology: public
-issues repo + internal code repo), `ops-branching` (versioned-gitflow, values private), `ops-ci` (azure-pipelines),
-`ops-workspace` (worktree + SQLite DB, wrapped by `ops-change`), `ops-notify`. Learnings needs no
-Forms-specific capability — only a `topology` destination. Run `/ops-install` and prove full
-coverage.
+issues repo + internal code repo; **live lines + primary line** per §8), `ops-branching`
+(versioned-gitflow, values private), `ops-ci` (azure-pipelines), `ops-workspace` (worktree + SQLite
+DB, wrapped by `ops-change`), `ops-notify`. Learnings needs no Forms-specific capability — only a
+`topology` destination. Then Automate, which differs only in `ops-change` (port direction) and
+topology (in-repo issues). Run `/ops-install` and prove full coverage on both.
+
+**Onboarding prerequisites** — repo-side changes both consumers need before a loop can run; see §8
+for the evidence:
+
+| Prerequisite | Forms | Automate | Why |
+|---|---|---|---|
+| Create the trigger labels (`ready-for-ai`, `auto-merge`, …) | needed | needed | none exist in either repo today; nothing can be routed without them |
+| Declare **live lines** + the **primary line** as `ops-repo-meta` facts | needed | needed | multiple majors are live simultaneously; neither is inferable from version numbers |
+| Move the default branch off `v15/dev` | needed | — | routines clone the **default branch** (`README.md` caveat), and Forms' default is a line no longer worked on |
+| `allow_update_branch` → true | needed | needed | both `false`; the loop can't refresh a stale branch before the merge gate |
+| Leave native auto-merge **disabled** | keep off | keep off | landing is the service's decision; native auto-merge would race it |
+| Document per-PR labelling for ports | needed | needed | landing is per-PR (§8), so each line's PR carries its own label |
+| Branch protection on live lines | recommended | recommended | not required, but with none (the case today) `ops-integrate`'s own CI re-check is the **only** real gate |
 
 **Phase 7 — Evals.** Per-capability suites seeded from the catalog examples; opt-in.
 
-**Phase 8 — Retire the config-pointer model.** Remove/shrink `ai-ops.yml` + schema, the
-`playbook` / `release_skill` pointers, and the `ci.*` / `branching.*` config. Update README +
-CLAUDE.md. (Or keep a minimal remnant per the §6 coexistence decision.)
+**Phase 8 — Retire the config-pointer model.** Delete `ai-ops.yml` + `ai-ops.schema.json` +
+`ai-ops.example.yml` outright (§6.7 — no remnant), along with the `playbook` / `release_skill`
+pointers and the `ci.*` / `branching.*` config. Remove the README's "config contract" section and
+update `CLAUDE.md`.
 
 ---
 
 ## 5. What survives of `ai-ops.yml`?
 
 If `ops-repo-meta` (`identity` + `topology`) owns repo identity and the capabilities own everything
-else, `ai-ops.yml`'s normative content is fully absorbed and the file can be **removed**. The open
-question (§6) is whether a thin remnant is worth keeping for humans to eyeball, or whether
-`ops-repo-meta` (detect-backed) is the single source. Recommendation: remove it — a second source
-of the same facts is exactly the drift this migration exists to kill.
+else, `ai-ops.yml`'s normative content is fully absorbed and the file can be **removed**.
+**Decided (§6.7): remove it** — no thin remnant. A second source of the same facts is exactly the
+drift this migration exists to kill. Phase 8 does the deletion.
 
 ---
 
-## 6. Decisions to settle before starting
+## 6. Decisions — settled
 
-1. **Coexistence vs clean break.** Big-bang the config-pointer → capabilities move, or run both
-   during transition? (Recommend: clean break per phase, since the placeholders let us build the
-   central loops fresh rather than migrate them.)
-2. **Which capabilities ship a framework default (`inherited`).** Proposed defaults:
+All nine were resolved in review on PR #4 (27-07-2026). The arguments are kept as the decision log;
+the **Decided** line is what binds. One sub-question was opened by the resolution and is tracked as
+§6.8a.
+
+1. **Coexistence vs clean break.** → **Decided: clean break per phase.** The placeholders let us
+   build the central loops fresh rather than migrate them, so there is nothing to run in parallel.
+2. **Which capabilities ship a framework default (`inherited`).** → **Decided:** defaults for
    `ops-branching`, `ops-ci`, `ops-workspace`, `ops-notify`, `ops-repo-meta`. Always-repo-provided:
    `ops-change` and `ops-release` — **those two only**. Learnings is *not* a per-repo capability:
-   capture should be uniform framework machinery (+ `ops-triage`) so lessons compound, with
-   destinations as `ops-repo-meta` data. Evidence it was never a real seam: `ai-ops.schema.json`
-   types `learning.routing` as a free-form prose string ("Free-form note on where triage routes
+   capture is uniform framework machinery (+ `ops-triage`) so lessons compound, with destinations as
+   `ops-repo-meta` data. Evidence it was never a real seam: `ai-ops.schema.json` types
+   `learning.routing` as a free-form prose string ("Free-form note on where triage routes
    learnings"), so there is nothing behavioural to override.
-3. **Build the placeholders directly in capability form?** (Recommend: yes — `issue-loop-core`,
-   `rework-loop`, `learning` don't exist, so build once as `ops-issue-loop`/`ops-rework`/
-   `ops-learnings`.)
-4. **Overlay home.** Caller-workflow input block vs committed `.github/ops-routing.yml`. (Both are
-   spec-legal; committed file is more auditable.)
-5. **Delivery mechanics.** Same stacked-PR-into-`main` workflow we used for the engine baseline?
-   One PR per phase keeps CI green and reviewable.
-6. **Catalog format.** YAML (matches the spec's examples) or JSON (matches the repo's existing
-   `*.schema.json` data-seam convention)?
-7. **Remove `ai-ops.yml` entirely** (§5) or keep a thin remnant?
-8. **`auto-merge` scope — does `ops-integrate` exist?** *(blocks Phase 3)*
+3. **Build the placeholders directly in capability form?** → **Decided: yes.** `issue-loop-core`,
+   `rework-loop` and `learning` don't exist, so build once as `ops-issue-loop` / `ops-rework` /
+   framework capture + `ops-triage`.
+4. **Overlay home.** → **Decided: a committed `.github/ops-routing.yml`.** Both are spec-legal; the
+   committed file is auditable and reviewable in the consumer repo.
+5. **Delivery mechanics.** → **Decided: stacked PRs into `main`, one per phase**, as with the engine
+   baseline. Keeps CI green and each phase reviewable on its own.
+6. **Catalog format.** → **Decided: JSON** — `catalog.json` + `catalog.schema.json`, matching the
+   repo's existing data-seam convention (`route-map.json`, `operation-catalog.json`) rather than the
+   spec's YAML examples.
+7. **Remove `ai-ops.yml` entirely** (§5) or keep a thin remnant? → **Decided: remove it entirely**,
+   in Phase 8.
+8. **`auto-merge` scope — does `ops-integrate` exist?** → **Decided: A — it exists.**
 
    **The status quo is PR-generic, not undecided.** `merge-flow` Step 1 (`SKILL.md:63`) lists open
    PRs filtered by the label alone — no author check, no `generated-by-ai` filter, no issue link —
@@ -333,18 +372,34 @@ of the same facts is exactly the drift this migration exists to kill.
      human PRs leave the loop with no replacement, and `ops-change · land` would have to handle PRs
      it never created, reconstructing change context it doesn't have.
 
-   **These aren't exclusive.** `ops-integrate` owns landing; `ops-change · land` is the delivery
-   sequence that *calls* it for its final step. One merge path, two entry points — which is what B
-   is really reaching for (a coherent delivery tail) without dropping dependabot.
+   **Resolution: A.** Narrowing would drop working dependabot and human auto-merges, and the
+   evidence for the general case is stronger than "it's the status quo": Automate has eight merged
+   dependabot PRs and one open into `v18/dev` right now, one of which was merged by hand — exactly
+   the work the label automates (§8). None of the four gates depends on the PR's provenance, so the
+   operation doesn't belong to the thing that produced the PR.
 
-   **Recommendation: A, with `ops-change · land` delegating to `ops-integrate`.** Narrowing is the
-   change that needs justifying, since it removes working behaviour.
+   **Follow-on this settles:** `ops-integrate` owns merge *policy* (the four gates + the
+   release-base skip); `ops-merge-flow` keeps *orchestration* — sweeping labelled PRs, the CI poll
+   cadence and 15-minute cap, the per-run cap of 10, and reporting. Policy in the service,
+   scheduling in the loop.
 
-   **Follow-on this settles:** `ops-integrate` owns merge *policy* (the four gates);
-   `ops-merge-flow` keeps *orchestration* — sweeping labelled PRs, the CI poll cadence and 15-minute
-   cap, the per-run cap of 10, and reporting. Policy in the service, scheduling in the loop.
+   **8a. Does `ops-change` also keep a *delegating* `land`?** *(open — one catalog row)*
 
-9. **If `base` is private, who skips a release-base PR?** *(blocks Phase 3)*
+   The original recommendation was "A, with `ops-change · land` delegating to `ops-integrate`" —
+   one merge path, two entry points — and that is what review agreed to. Two facts found afterwards
+   argue against the delegating tail:
+
+   - **A change lands N times at N moments.** Forms ships one logical fix across v13/main, v17 and
+     v18 (§8); v17 can be green while v18 is still being adapted. "The tail of `ops-change`" implies
+     one tail, and there isn't one.
+   - **A human gate splits delivery in two.** `implement → verify → land` isn't a single run, so the
+     tail isn't reachable from the same invocation anyway.
+
+   Under that reading `ops-change` ends at `close-issue`, which fires when **all** target lines have
+   landed, and every merge enters through `ops-merge-flow → ops-integrate`. **Not settled** —
+   it removes one row from the catalog and changes nothing else, so Phase 1 can carry it either way.
+
+9. **If `base` is private, who skips a release-base PR?** → **Decided: (b) — the service.**
 
    `merge-flow` currently decides this itself, comparing the PR's base against the resolved
    `release_base` (`SKILL.md:87-94`, guardrail `:118`) and skipping release PRs as
@@ -359,15 +414,21 @@ of the same facts is exactly the drift this migration exists to kill.
      `ops-integrate`, which asks `ops-branching` and declines release-base PRs. All merge policy in
      one place, and the wrong-base flag is authored by the thing that knows what right looks like.
 
-   **Recommendation: (b), with `ops-integrate` returning a structured outcome** —
+   **Resolution: (b), with `ops-integrate` returning a structured outcome** —
    `merged | skipped:release-base | blocked:ci | blocked:conflict | blocked:changes-requested` — so
-   the loop can still comment the specific blocker (Step 4's behaviour) and stays observable
-   without holding branch names. That gets (a)'s legibility without the leak.
+   the loop can still comment the specific blocker (Step 4's behaviour) and stays observable without
+   holding branch names. That gets (a)'s legibility without the leak, keeps `ops-branching`
+   command-only, and puts all merge policy in one place. **`classify-pr` is dropped.**
 
-**8 and 9 are coupled**, through one question neither names: **do the merge gates belong to the
-loop or the service?** All four live in the loop today (`merge-flow` Step 2). Move them to the
-service and 8 gets `ops-integrate` and 9 answers itself as (b); leave them in the loop and it keeps
-needing base knowledge, which forces 9(a). Settle gate ownership and both fall out.
+   The service re-checks CI even though the loop already polled it. That duplication is deliberate:
+   native auto-merge is disabled and there is **no branch protection on either consumer repo** (§8),
+   so the service's own check is the only gate that actually holds. A service that trusts its caller
+   has no gate at all.
+
+**8 and 9 were coupled**, through one question neither named: **do the merge gates belong to the
+loop or the service?** All four lived in the loop (`merge-flow` Step 2). **Review settled it: the
+gates belong to the service** — which gives 8 its `ops-integrate` and answers 9 as (b) in one move.
+That was the last thing blocking Phase 3.
 
 ---
 
@@ -386,8 +447,66 @@ needing base knowledge, which forces 9(a). Settle gate ownership and both fall o
   Don't carry it forward; the capability is the source.
 - **Route-map lives in two places** (`route-map.json` + the `case` fallback in `route-event.sh`).
   Collapse to one during Phase 2.
-- **`README.md:110` references a "topology map" that doesn't exist.** Either build `ops-repo-meta`
-  topology to back it or fix the doc.
+- ~~**`README.md` references a "topology map" that doesn't exist.**~~ **Fixed** — the dangling
+  sentence was removed and the README now links this plan instead.
+- **"The base branch" is a single value in a repo with several.** Both consumers have **two live
+  integration branches at once** and Forms still takes security merges into `v13/main` (§8). Any
+  `resolve-base` that returns one branch will flag a legitimate PR as wrong-base. `ops-branching`
+  must hold base as **set membership over live lines**, and the wrong-base gate must test membership,
+  not equality.
+- **Primary line ≠ newest line ≠ default branch.** Forms' primary line is v17, which is neither its
+  newest (v18) nor its default branch (`v15/dev`) (§8). Inferring either from version numbers will
+  pick wrong; both are `ops-repo-meta` facts a repo declares.
+- **A line-port is a real change, not a cherry-pick.** Forms ports may need adapting, so a ported PR
+  needs its own `implement` / `verify` / CI cycle. Treating ports as mechanical would land unbuilt
+  code.
+- **Neither consumer repo has branch protection, and native auto-merge is disabled** (observed
+  27-07-2026 — recheck at Phase 6). Nothing outside `ops-integrate` will stop a red merge, which is
+  why the service re-checks CI itself (§6.9) rather than trusting the loop's poll.
 - **No static typing (deliberate).** A capability that returns the wrong shape is caught at runtime
   or by an eval, never statically (spec's explicit trade). Coverage ≠ correctness — Phase 7 evals
   are the only behavioural guard.
+
+---
+
+## 8. Consumer reality check — Forms and Automate
+
+Gathered 27-07-2026 from the two repos themselves (settings, branches, recent merges) except the
+**primary line** and **port direction** rows, which are stated by the maintainers — they aren't
+inferable from the repos and that is precisely why they must be declared facts. This section exists
+because three of the corrections in §7 were only visible by looking at how the repos actually run;
+Phase 6 should re-verify rather than trust it.
+
+| Fact | `umbraco/Forms` | `umbraco/Umbraco.Automate` |
+|---|---|---|
+| Visibility | private | public |
+| Issues | separate public repo (`Umbraco.Forms.Issues`) | in-repo |
+| Default branch | `v15/dev` — **not** an actively worked line | `v18/dev` |
+| Lines live at once | v13/main (security), v17, v18 | v17, v18 |
+| Primary line | **v17** | v18 |
+| Port direction | **upward** — v17 → v18, cherry-picked, "may need some changes" | **downward** — v18 → v17 |
+| Port shape | one PR per line (e.g. a v18 forward-port of a v17 fix, cherry-picked from the v17 commit) | one PR per line |
+| CI | azure-pipelines, **zero** GitHub Actions | azure-pipelines, **zero** GitHub Actions |
+| Branch protection | none | none |
+| Native auto-merge (`allow_auto_merge`) | disabled | disabled |
+| `allow_update_branch` | false | false |
+| `delete_branch_on_merge` | true | false |
+| Bot PRs | — | 8 dependabot merged, 1 open into `v18/dev`; at least one merged by hand |
+| AI trigger labels | none exist | none exist |
+
+**What it forces on the engine:**
+
+1. **Landing is per-PR, never per-port-set.** Forms cherry-picks upward and Automate ports downward;
+   a set-lander would have to encode direction in engine code and would block every line on the
+   slowest one. `ops-integrate` lands the PR in front of it.
+2. **Direction needs no engine support.** `ops-change` is repo-provided, so Forms encodes "up" and
+   Automate encodes "down" in their own skills. This is the convention model working as intended —
+   the engine never learns either direction.
+3. **`ops-change · implement` takes port context.** A port is a change with its own verify and CI
+   (§7), so `implement` needs to know it is porting and from where.
+4. **`close-issue` waits for the whole set.** One logical change lands on N lines at N moments; the
+   issue closes when all target lines have landed — which is the argument behind §6.8a.
+5. **`ops-repo-meta` carries the line facts** — live lines, primary line, port order — because none
+   of them is derivable from the default branch or from version numbers.
+6. **Onboarding is not zero-touch.** No trigger labels exist in either repo, and `allow_update_branch`
+   is off in both; see the Phase 6 prerequisites table.
