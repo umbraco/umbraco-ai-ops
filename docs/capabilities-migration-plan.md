@@ -262,22 +262,57 @@ of the same facts is exactly the drift this migration exists to kill.
 6. **Catalog format.** YAML (matches the spec's examples) or JSON (matches the repo's existing
    `*.schema.json` data-seam convention)?
 7. **Remove `ai-ops.yml` entirely** (§5) or keep a thin remnant?
-8. **`auto-merge` scope — does `ops-integrate` exist?** Today the label is **PR-generic**: `merge-flow`
-   Step 1 (`SKILL.md:63`) lists open PRs filtered by the label *only* — no author check, no
-   `generated-by-ai` filter, no issue link — and gates on label + green + mergeable + base;
-   `README.md:46` describes it the same way. So the status quo is "land any approved PR"
-   (dependabot, human-authored), which needs a thin **`ops-integrate`** service wrapping
-   `ops-branching · merge`. The decision is therefore whether to **narrow** it to change-only (then
-   `land` is simply the tail of `ops-change` and `ops-integrate` doesn't exist) — and narrowing is
-   the change that needs justifying, since it drops dependabot merges from the loop.
-   (Recommend: keep generic, add `ops-integrate`.)
-9. **If `base` is private, who skips a release-base PR?** `merge-flow` currently makes this call
-   itself by comparing the PR base against the resolved `release_base` (`SKILL.md:87-94`, guardrail
-   `:118`) — which a private `ops-branching` forbids. Two legal shapes: (a) `ops-branching` exposes a
-   **read** — `classify-pr` → `integration | release | wrong-base` — and the loop routes on the
-   classification without ever seeing a branch name; or (b) the skip moves *inside* the service, and
-   `ops-merge-flow` hands every labelled PR over and lets it no-op on release PRs. (a) keeps routing
-   visible in the loop; (b) keeps the command surface pure. Must be settled before Phase 3.
+8. **`auto-merge` scope — does `ops-integrate` exist?** *(blocks Phase 3)*
+
+   **The status quo is PR-generic, not undecided.** `merge-flow` Step 1 (`SKILL.md:63`) lists open
+   PRs filtered by the label alone — no author check, no `generated-by-ai` filter, no issue link —
+   and every gate in Step 2 (`:70-94`) is a machine-verifiable property of the PR itself: label
+   present, CI green, mergeable, base correct. Nothing in the loop needs to know who wrote the PR
+   or which issue produced it. `README.md:46` describes it the same way.
+
+   - **Option A — keep it PR-generic.** `ops-integrate` exists: a service owning "land an approved
+     PR" (the gates + the merge), wrapping `ops-branching · merge`. Dependabot and human-authored
+     PRs stay in the loop.
+   - **Option B — narrow to change-only.** `land` becomes the tail of `ops-change`
+     (implement → verify → close-issue → land) and `ops-integrate` doesn't exist. Dependabot and
+     human PRs leave the loop with no replacement, and `ops-change · land` would have to handle PRs
+     it never created, reconstructing change context it doesn't have.
+
+   **These aren't exclusive.** `ops-integrate` owns landing; `ops-change · land` is the delivery
+   sequence that *calls* it for its final step. One merge path, two entry points — which is what B
+   is really reaching for (a coherent delivery tail) without dropping dependabot.
+
+   **Recommendation: A, with `ops-change · land` delegating to `ops-integrate`.** Narrowing is the
+   change that needs justifying, since it removes working behaviour.
+
+   **Follow-on this settles:** `ops-integrate` owns merge *policy* (the four gates);
+   `ops-merge-flow` keeps *orchestration* — sweeping labelled PRs, the CI poll cadence and 15-minute
+   cap, the per-run cap of 10, and reporting. Policy in the service, scheduling in the loop.
+
+9. **If `base` is private, who skips a release-base PR?** *(blocks Phase 3)*
+
+   `merge-flow` currently decides this itself, comparing the PR's base against the resolved
+   `release_base` (`SKILL.md:87-94`, guardrail `:118`) and skipping release PRs as
+   `ops-auto-release`'s job. A private `ops-branching` forbids that comparison.
+
+   - **Option (a) — a classification read.** `ops-branching · classify-pr` returns
+     `integration | release | wrong-base`; the loop routes on the classification and never sees a
+     branch name. Satisfies the privacy rule (a classification is not a branch name) but adds a
+     read to a primitive we just defined as command-only, and leaves merge policy split across loop
+     and service.
+   - **Option (b) — the skip lives in the service.** `ops-merge-flow` hands every labelled PR to
+     `ops-integrate`, which asks `ops-branching` and declines release-base PRs. All merge policy in
+     one place, and the wrong-base flag is authored by the thing that knows what right looks like.
+
+   **Recommendation: (b), with `ops-integrate` returning a structured outcome** —
+   `merged | skipped:release-base | blocked:ci | blocked:conflict | blocked:changes-requested` — so
+   the loop can still comment the specific blocker (Step 4's behaviour) and stays observable
+   without holding branch names. That gets (a)'s legibility without the leak.
+
+**8 and 9 are coupled**, through one question neither names: **do the merge gates belong to the
+loop or the service?** All four live in the loop today (`merge-flow` Step 2). Move them to the
+service and 8 gets `ops-integrate` and 9 answers itself as (b); leave them in the loop and it keeps
+needing base knowledge, which forces 9(a). Settle gate ownership and both fall out.
 
 ---
 
