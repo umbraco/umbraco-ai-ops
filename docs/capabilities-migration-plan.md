@@ -202,8 +202,57 @@ Reserved framework names (spec §2.3): `loop-dispatch`, `ops-install`, `ops-issu
 | `loop-dispatch` | `loop-dispatch` (unchanged name) | gains base⊕overlay merge + event vocab |
 | `new-loop-routine` | loop-scaffolder (writes overlay rows) | — |
 | `ops-setup` / `umbraco-ops-setup` | `ops-install` | reads catalog; coverage + scaffold + overlay-validate |
-| `learning` *(placeholder)* | framework capture hook + `ops-triage` (loop); destinations are `ops-repo-meta` data | uniform across repos so lessons compound (§6.2) |
+| `learning` *(placeholder)* | framework capture hook + `ops-triage` (loop); destinations are `ops-repo-meta` data | uniform across repos so lessons compound (§6.2, detailed in §2a) |
 | `release-reviewer` (agent) | stays (orchestration internal to `ops-auto-release`) | non-normative |
+
+### 2a. `ops-triage` — what it inherits
+
+`ops-triage` is a reserved framework loop name (§2) that nothing in this repo implements:
+`plugins/learning/` does not exist on disk, despite `marketplace.json` declaring it (§7). But it is
+**not undefined** — the `triage-learnings` design it renames is stated across four files, all from
+`633a2a7` ("scaffold engine foundation and generic plugins"). Recording it here so Phase 4 builds
+what was designed rather than reinventing it.
+
+**Canonical statement** — the `learning` plugin's description, `.claude-plugin/marketplace.json:96`:
+
+> read-only capture hooks (SubagentStop/SessionEnd) that file proto-learning issues off the critical
+> path, the proto-learning schema, and **triage-learnings (dedupe + threshold + route to owning repo
+> / shared-skills PR / loop-improvement issue)**.
+
+**The contract, as the shipped skills already describe it:**
+
+| | | Source |
+|---|---|---|
+| **Input** | `proto-learning` issues in the inbox repo, filed by read-only `SubagentStop` / `SessionEnd` hooks that analyse transcripts **off the critical path**. No loop and no subagent ever files one by hand. | `issue-loop-core/SKILL.md:269-277`, `rework-loop/SKILL.md:104-106` |
+| **Operations** | **dedupe** → **threshold** → **route**. Threshold implies a lesson must recur before it is acted on; dedupe implies a stable identity for "the same lesson". | `marketplace.json:96` |
+| **Output** | a **PR**, not a comment — "a separate triage routine later turns those into PRs" | `issue-loop-core/SKILL.md:274` |
+| **Cadence** | "later" / "separate" — batch, not per-event. See the trigger gap below. | `issue-loop-core/SKILL.md:274` |
+
+**The three destinations**, named twice under different labels and reconciling cleanly:
+
+| `marketplace.json:96` | `ai-ops.schema.json:58` | Means | Post-migration home |
+|---|---|---|---|
+| owning repo | `product-repo` | PR against the product repo's own skills / `CLAUDE.md` | `ops-repo-meta` role `code` |
+| shared-skills PR | `shared-skills` | PR against the shared **consumer** repo of a repo family | `ops-repo-meta` — **no role exists for this yet** (§7) |
+| loop-improvement issue | `loop-self` | issue against the engine itself | a fixed engine fact, not repo data |
+
+This is consistent with §6.2 rather than in tension with it: `learning.routing` dies because it was
+prose in the schema, while the **destinations** were always real and become `ops-repo-meta` data.
+`learning.inbox` becomes the `learnings` role (§1a).
+
+**What Phase 4 still has to decide** — genuinely open, not recoverable from history:
+
+1. **The threshold value and the dedupe key.** "Recurs enough" and "the same lesson" are both
+   undefined. Given the capture side is LLM-authored prose issues, dedupe is a judgement call, which
+   makes this the one part of the mechanism an eval (Phase 7) should cover.
+2. **How `ops-triage` is triggered.** Every route is keyed `(event, label)` — the four rows in
+   `route-map.json` — and a routine is fired by the Action's Fire URL with a *disabled* cron
+   placeholder (`new-loop-routine/SKILL.md:33`). A batch loop that runs "later" therefore has **no
+   trigger path in the current design**: it is neither one of the four routes nor a schedule. Either
+   the event vocabulary gains a scheduled trigger in Phase 2, or triage is fired by hand until it
+   does. Phase 2 is the cheap moment to decide.
+3. **Whether the `shared-skills` destination is reachable at all**, since the repo-family consumer
+   shape is never migrated by this plan (§7).
 
 ---
 
@@ -263,7 +312,10 @@ alone here.
 **Phase 2 — Routing to spec (edge).** Convert `route-map` to the `{event,label,loop}` shape +
 event vocab; add base⊕overlay merge to `route-event.sh`; rename route targets to reserved loop
 names; remove the duplicated `case` fallback; move the overlay to a committed
-`.github/ops-routing.yml` (§6.4). Update `route-event.test.sh`.
+`.github/ops-routing.yml` (§6.4). Update `route-event.test.sh`. **Also settle how `ops-triage` is
+triggered** (§2a): it is a batch loop with no `(event, label)` route and no schedule, so either the
+event vocabulary gains a scheduled trigger here or triage stays hand-fired. Deciding it later means
+touching the vocabulary twice.
 
 **Phase 3 — Framework loops invoke *services* by name.** *(Unblocked — §6.8 and §6.9 are settled.)*
 Rewrite `merge-flow`→`ops-merge-flow` to command **`ops-integrate · land`** plus the cross-cutting
@@ -282,7 +334,9 @@ branches, not one branch (§8). Fold `sync-dev` into `ops-release.sync`.
 **Phase 4 — Build the placeholder loops directly in capability form.** `ops-issue-loop` (commands
 `ops-change`, which itself wraps `ops-workspace`; reads `ops-ci` / `ops-repo-meta`), `ops-rework`,
 and the learnings mechanism as a **uniform framework capture hook + `ops-triage`** with destinations
-read from `ops-repo-meta` (§6.2). Avoids a build-then-migrate double.
+read from `ops-repo-meta` (§6.2). Avoids a build-then-migrate double. **Build `ops-triage` to the
+inherited contract in §2a** — dedupe → threshold → route, output a PR — and settle the two things
+history doesn't answer: the threshold value and the dedupe key.
 
 **Phase 5 — Rebuild the installer as `ops-install`.** Coverage report
 (present/inherited/missing by `ops-<cap>` name); scaffold a stub per missing catalog capability;
@@ -448,6 +502,23 @@ That was the last thing blocking Phase 3.
   Don't carry it forward; the capability is the source.
 - **Route-map lives in two places** (`route-map.json` + the `case` fallback in `route-event.sh`).
   Collapse to one during Phase 2.
+- **Two marketplace entries point at directories that don't exist.** `marketplace.json` declares
+  eight plugins; `plugins/` holds six. `learning` and `dotnet-web-runtime` have a `source` path but
+  no directory and no `plugin.json`, which `CLAUDE.md` requires of every declared plugin — so
+  `/plugin marketplace add` would fail on them. They read as shipped rather than as placeholders.
+  Either scaffold them or mark them unreleased; `learning`'s description is currently the **only**
+  written spec for `ops-triage` (§2a), so deleting the entry would lose it.
+- **The repo-family consumer shape is never migrated.** `README.md` names three consumer shapes —
+  Forms, Automate, and the MCP server family with its shared consumer repo (`umbraco-mcp-ops`) —
+  and this plan covers only the first two (Phase 6). The one-`ops-change`-serving-many-repos case is
+  neither migrated nor tested against the convention model, even though the design docs this plan
+  ports were written *for* that repo. It also strands `ops-triage`'s `shared-skills` destination
+  (§2a), which only means anything for a repo family. Needs either a Phase 6b or an explicit
+  out-of-scope ruling.
+- **`ops-triage` has no trigger path.** Routing is `(event, label)`-keyed and routines fire by URL
+  with a disabled cron placeholder, so a batch loop that runs "later" can't currently be started by
+  anything (§2a). Cheapest to settle in Phase 2, while the event vocabulary is already being
+  changed.
 - ~~**`README.md` references a "topology map" that doesn't exist.**~~ **Fixed** — the dangling
   sentence was removed and the README now links this plan instead.
 - **"The base branch" is a single value in a repo with several.** Both consumers have **two live
