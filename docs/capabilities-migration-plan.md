@@ -25,16 +25,44 @@ Two structural wins fall out of the move, both flagged in the audit as current h
 - **`ci.provider` vs `ci_provider` spelling split** (schema/detector say `ci.provider`; the
   github-ops references read `ci_provider`) → *disappears*: CI becomes the `ops-ci` capability, no
   central config key.
-- **`branching.merge_strategy` / `branching.base` are in the schema but re-detected at runtime**
-  via `release-and-branching` (two competing sources of truth) → *collapses* to one:
-  `ops-branching.merge-strategy` / `ops-branching.resolve-base`.
+- **`branching.merge_strategy` / `branching.base` are in the schema, re-detected at runtime** via
+  `release-and-branching`, re-resolved *again* inside `merge-flow`, and pointed at a fourth time by
+  `operation-catalog`'s `detect-base-branch` (§7) → *collapses* to one: the values become **private
+  to `ops-branching`**, which decides squash-vs-merge and checks the base itself. Callers ask for an
+  outcome ("merge this PR"); nothing else ever holds a strategy or a branch name.
 
 ---
 
 ## 1. Seam audit — current → target
 
-Kind legend: **B** = behavioral capability (a loop calls its actions) · **D** = data capability ·
+Kind legend: **B** = behavioral capability (a caller invokes its actions) · **D** = data capability ·
 **F** = framework mechanics (stays in the engine) · **—** = key/behaviour removed.
+
+### Capability roster — kind + visibility
+
+Mapping each seam to a capability (below) says *what* varies; it doesn't say *who may call it*.
+**Visibility** records that second fact. It is not a new layer or any new machinery — just an
+exposure note per capability, carried in the catalog (§3.1) and held by review, not by code.
+(Framing adopted from review on PR #4.)
+
+Rule of thumb: **loops command services only · supporting primitives are wrapped by a service ·
+reads and notifications are cross-cutting.**
+
+| Capability | Kind | Visibility | May be called by |
+|---|---|---|---|
+| `ops-change` | B | **service** | framework loops |
+| `ops-release` | B | **service** | framework loops |
+| `ops-integrate` | B | **service** *(conditional — §6.8)* | framework loops |
+| `ops-branching` | B | **supporting** | services only — **never a loop** |
+| `ops-workspace` | B | **supporting** | `ops-change` only |
+| `ops-repo-meta` | D | **cross-cutting** (read) | any layer |
+| `ops-ci` | B | **cross-cutting** (read) | loops (to gate) + services |
+| `ops-notify` | B | **cross-cutting** (infra) | any layer |
+| `ops-learnings` | F + D | **framework mechanism + data** | capture is framework-wide (§4 P4) |
+
+Two consequences bite this plan directly: `ops-branching`'s strategy/base values become
+**private** — no loop and no service reads `merge_strategy` or `base`, they ask for an *outcome*
+(§1a, §2) — and `ops-workspace` is prepared/torn down by `ops-change`, not by the issue loop.
 
 ### 1a. Config-pointer seams (`ai-ops.yml` / `ai-ops.schema.json`)
 
@@ -46,13 +74,13 @@ Kind legend: **B** = behavioral capability (a loop calls its actions) · **D** =
 | `ci.provider` | B | `ops-ci` (provider internal to the consumer's skill) | **kills the `ci.provider`/`ci_provider` split** |
 | `ci.ado_org` / `ci.ado_project` / `ci.gh_repo` | B | internal to consumer `ops-ci` | out of central config |
 | `branching.model` | B | `ops-branching` (internal knowledge / framework default) | model becomes skill logic, not an enum |
-| `branching.base` | B | `ops-branching` · `resolve-base` | **single source of truth** (ends schema-vs-runtime drift) |
-| `branching.release_base` | B | `ops-branching` · `resolve-base` (release ctx) / `ops-release` · `plan` | |
-| `branching.merge_strategy` | B | `ops-branching` · `merge-strategy` | **single source of truth** |
+| `branching.base` | B | `ops-branching` — **private**; callers get outcomes, never the value | **single source of truth** (ends the four-way drift in §7) |
+| `branching.release_base` | B | `ops-branching` (private); reaches a caller as a PR *classification*, not a branch name — §6.9 | |
+| `branching.merge_strategy` | B | `ops-branching` · `merge` picks it internally | **single source of truth**; no caller passes a strategy |
 | `branching.branch_naming` | B | internal to `ops-branching` / `ops-change` | |
 | `branching.release_skill` | B | `ops-release` (whole capability) | the *pointer* becomes the *convention* (`ops-release`) |
-| `learning.inbox` | B/D | `ops-learnings` · `file` (+ `ops-repo-meta` for target repo) | |
-| `learning.routing` | B | `ops-learnings` · `route` | |
+| `learning.inbox` | D | `ops-repo-meta` · `topology` (role `learnings`) | the destination is a *fact*, not behaviour |
+| `learning.routing` | — | *removed* → framework capture + `ops-triage` | today a free-form prose string in the schema — never a machine-readable seam (§6.2) |
 | `playbook` (build-skill pointer) | B | `ops-change` · `implement` / `verify` / `close-issue` | the central pointer becomes the convention (`ops-change`) |
 | `version` (schema pin) | F | catalog/spec version | replaced by catalog + spec versioning |
 
@@ -65,11 +93,12 @@ per-capability skills. See §5 for what, if anything, remains.
 |---|---|
 | build/test commands, sanity pass (repo `CLAUDE.md`; `playbook` skill) | `ops-change` · `implement` / `verify` (internal) |
 | version-file list + changelog bump (repo `CLAUDE.md`; `auto-release-loop:51`) | `ops-release` · `cut` (internal) |
-| worktree / DB cleanup ("repo's own `/cleanup`"; `gitflow.md:37`) | `ops-workspace` · `prepare` / `teardown` |
+| worktree / DB cleanup ("repo's own `/cleanup`"; `gitflow.md:37`) | `ops-workspace` · `prepare` / `teardown` — wrapped by `ops-change`, not called by a loop |
 | human push notifications (loops emit "Reworked PR #N…") | `ops-notify` · `send` |
-| base-branch + merge-strategy detection via `release-and-branching` | `ops-branching` · `resolve-base` / `merge-strategy` |
+| base-branch + merge-strategy detection via `release-and-branching` | `ops-branching` **internals** — not a caller-visible action (§6.9) |
 | cross-repo issue close (can't use `Closes #N`) | `ops-change` · `close-issue` (§7.4 — MUST be explicit) |
 | CI status reads (`github-ops` → `ci_provider`) | `ops-ci` · `status` |
+| failing check / build log reads (`operation-catalog` → `read-failing-ci-log`) | `ops-ci` · `log` (the `ci` axis is **read-only** — both its operations are reads) |
 | forge mechanism (gh CLI vs GitHub MCP), PR/label/merge by role | **F** — stays framework; target resolved by `ops-repo-meta` · `topology` role |
 | release-tag automation version-source per stack (`release-tag.yml`) | `ops-release` · `cut` / `publish` (internal) |
 
@@ -106,17 +135,17 @@ Reserved framework names (spec §2.3): `loop-dispatch`, `ops-install`, `ops-issu
 
 | Today | Becomes | Calls (by name) |
 |---|---|---|
-| `issue-loop-core` *(placeholder)* | `ops-issue-loop` | `ops-change` (implement/verify/close-issue), `ops-workspace`, `ops-ci`, `ops-repo-meta` |
-| `rework-loop` *(placeholder)* | `ops-rework` | `ops-change`, `ops-ci`, `ops-repo-meta` |
-| `merge-flow` | `ops-merge-flow` | `ops-branching` (merge-strategy/resolve-base), `ops-ci` (status), `ops-repo-meta` (topology) |
-| `auto-release-loop` | `ops-auto-release` | `ops-release` (plan/cut/publish/sync), `ops-ci`, `ops-branching` |
+| `issue-loop-core` *(placeholder)* | `ops-issue-loop` | `ops-change` (implement/verify/close-issue) · `ops-ci`, `ops-repo-meta` (reads). **Not** `ops-workspace` — `ops-change` wraps it |
+| `rework-loop` *(placeholder)* | `ops-rework` | `ops-change` · `ops-ci` (status/log), `ops-repo-meta` (reads) |
+| `merge-flow` | `ops-merge-flow` | `ops-change` · `land` **or** `ops-integrate` (§6.8) · `ops-ci` (status), `ops-repo-meta` (topology). **Never `ops-branching` directly** |
+| `auto-release-loop` | `ops-auto-release` | `ops-release` (plan/cut/publish/sync) · `ops-ci`. Reaches `ops-branching` **only through `ops-release`** |
 | `release-and-branching` | *demoted* → `ops-branching` (framework default) | — (becomes a capability, repo may override) |
 | `sync-dev` | folded into `ops-release` · `sync` | — |
 | `github-ops` | split: `ops-ci` (capability) + forge mechanics stay **F** | forge target resolved via `ops-repo-meta` topology |
 | `loop-dispatch` | `loop-dispatch` (unchanged name) | gains base⊕overlay merge + event vocab |
 | `new-loop-routine` | loop-scaffolder (writes overlay rows) | — |
 | `ops-setup` / `umbraco-ops-setup` | `ops-install` | reads catalog; coverage + scaffold + overlay-validate |
-| `learning` *(placeholder)* | `ops-learnings` (capability) + `ops-triage` (loop) | — |
+| `learning` *(placeholder)* | framework capture hook + `ops-triage` (loop); destinations are `ops-repo-meta` data | uniform across repos so lessons compound (§6.2) |
 | `release-reviewer` (agent) | stays (orchestration internal to `ops-auto-release`) | non-normative |
 
 ---
@@ -124,9 +153,11 @@ Reserved framework names (spec §2.3): `loop-dispatch`, `ops-install`, `ops-issu
 ## 3. New artifacts to create in the engine
 
 1. **The catalog** (spec §5) — `catalog.(yml|json)` + schema, normative, one entry per capability
-   (`release, change, ci, branching, workspace, notify, repo-meta, learnings`), each with actions +
-   a normative `example` (it seeds *both* the installer's scaffold and the eval). This is the pivot
-   artifact — build it first; it defines the interface everything else conforms to.
+   (`release, change, ci, branching, workspace, notify, repo-meta, learnings`, plus `integrate` if
+   §6.8 says so), each with actions, a **`visibility`** field (`service` / `supporting` /
+   `cross-cutting`, per the §1 roster) + a normative `example` (it seeds *both* the installer's
+   scaffold and the eval). This is the pivot artifact — build it first; it defines the interface
+   everything else conforms to.
 2. **Base routing table** in the spec's `{event,label,loop}` shape, shipped beside `route-event.sh`,
    versioned by the caller's `@ref`.
 3. **Overlay-merge logic** in `route-event.sh` (base ⊕ overlay, `(event,label)` identity,
@@ -154,23 +185,30 @@ them twice.
 `CLAUDE.md` "seam doctrine" from config-pointer/override-defer to convention/`ops-<capability>`.
 Settle the open decisions in §6. *No behaviour change.*
 
-**Phase 1 — Author the catalog.** Create `catalog.(yml|json)` + schema for all 8 capabilities.
-Reserve the framework loop names. This is the interface pivot; everything downstream conforms to it.
+**Phase 1 — Author the catalog.** Create `catalog.(yml|json)` + schema for all 8 capabilities,
+each carrying its `visibility` (§1 roster). Reserve the framework loop names. This is the interface
+pivot; everything downstream conforms to it.
 
 **Phase 2 — Routing to spec (edge).** Convert `route-map` to the `{event,label,loop}` shape +
 event vocab; add base⊕overlay merge to `route-event.sh`; rename route targets to reserved loop
 names; remove the duplicated `case` fallback; move the overlay to the caller workflow /
 `.github/ops-routing.yml`. Update `route-event.test.sh`.
 
-**Phase 3 — Framework loops invoke capabilities by name.** Rewrite `merge-flow`→`ops-merge-flow`
-and `auto-release-loop`→`ops-auto-release` to call `ops-branching` / `ops-ci` / `ops-release` /
-`ops-repo-meta` by name. Extract `ops-ci` from `github-ops` (keep forge mechanics as framework).
-Demote `release-and-branching`→`ops-branching` framework default; fold `sync-dev` into
-`ops-release.sync`.
+**Phase 3 — Framework loops invoke *services* by name.** Rewrite `merge-flow`→`ops-merge-flow` to
+command a service (`ops-change · land` or `ops-integrate`, per §6.8) plus the cross-cutting reads
+`ops-ci · status` / `ops-repo-meta · topology` — and to **stop resolving `base` / `release_base` /
+`merge_strategy` itself** (today `merge-flow/SKILL.md:40-59` tabulates all three, `:87-94` compares
+against two of them, `:99` passes the strategy into the merge). Rewrite
+`auto-release-loop`→`ops-auto-release` to call `ops-release` only, never `ops-branching`. Extract
+`ops-ci` (`status` + `log`) from `github-ops`, keeping forge mechanics as framework. Demote
+`release-and-branching`→`ops-branching` framework default **with its values private**; fold
+`sync-dev` into `ops-release.sync`. Settle §6.9 before this phase — it decides where the
+release-base skip lives.
 
-**Phase 4 — Build the placeholder loops directly in capability form.** `ops-issue-loop` (calls
-`ops-change`/`ops-workspace`/`ops-ci`/`ops-repo-meta`), `ops-rework`, and `ops-learnings` +
-`ops-triage`. Avoids a build-then-migrate double.
+**Phase 4 — Build the placeholder loops directly in capability form.** `ops-issue-loop` (commands
+`ops-change`, which itself wraps `ops-workspace`; reads `ops-ci` / `ops-repo-meta`), `ops-rework`,
+and the learnings mechanism as a **uniform framework capture hook + `ops-triage`** with destinations
+read from `ops-repo-meta` (§6.2). Avoids a build-then-migrate double.
 
 **Phase 5 — Rebuild the installer as `ops-install`.** Coverage report
 (present/inherited/missing by `ops-<cap>` name); scaffold a stub per missing catalog capability;
@@ -179,9 +217,10 @@ validate the routing overlay per §6. Keep `detect.sh` for pre-fill.
 **Phase 6 — Forms consumer capability skills.** Provide Forms' seam implementations:
 `ops-change` (dotnet build/verify + cross-repo close to `Umbraco.Forms.Issues`), `ops-release`
 (nbgv/version bump/tag/back-merge across `vN/dev`↔`vN/main`), `ops-repo-meta` (topology: public
-issues repo + internal code repo), `ops-branching` (versioned-gitflow), `ops-ci` (azure-pipelines),
-`ops-workspace` (worktree + SQLite DB), `ops-notify`, `ops-learnings`. Run `/ops-install` and
-prove full coverage.
+issues repo + internal code repo), `ops-branching` (versioned-gitflow, values private), `ops-ci` (azure-pipelines),
+`ops-workspace` (worktree + SQLite DB, wrapped by `ops-change`), `ops-notify`. Learnings needs no
+Forms-specific capability — only a `topology` destination. Run `/ops-install` and prove full
+coverage.
 
 **Phase 7 — Evals.** Per-capability suites seeded from the catalog examples; opt-in.
 
@@ -208,7 +247,11 @@ of the same facts is exactly the drift this migration exists to kill.
    central loops fresh rather than migrate them.)
 2. **Which capabilities ship a framework default (`inherited`).** Proposed defaults:
    `ops-branching`, `ops-ci`, `ops-workspace`, `ops-notify`, `ops-repo-meta`. Always-repo-provided:
-   `ops-change`, `ops-release`, and the routing half of `ops-learnings`.
+   `ops-change` and `ops-release` — **those two only**. Learnings is *not* a per-repo capability:
+   capture should be uniform framework machinery (+ `ops-triage`) so lessons compound, with
+   destinations as `ops-repo-meta` data. Evidence it was never a real seam: `ai-ops.schema.json`
+   types `learning.routing` as a free-form prose string ("Free-form note on where triage routes
+   learnings"), so there is nothing behavioural to override.
 3. **Build the placeholders directly in capability form?** (Recommend: yes — `issue-loop-core`,
    `rework-loop`, `learning` don't exist, so build once as `ops-issue-loop`/`ops-rework`/
    `ops-learnings`.)
@@ -219,6 +262,22 @@ of the same facts is exactly the drift this migration exists to kill.
 6. **Catalog format.** YAML (matches the spec's examples) or JSON (matches the repo's existing
    `*.schema.json` data-seam convention)?
 7. **Remove `ai-ops.yml` entirely** (§5) or keep a thin remnant?
+8. **`auto-merge` scope — does `ops-integrate` exist?** Today the label is **PR-generic**: `merge-flow`
+   Step 1 (`SKILL.md:63`) lists open PRs filtered by the label *only* — no author check, no
+   `generated-by-ai` filter, no issue link — and gates on label + green + mergeable + base;
+   `README.md:46` describes it the same way. So the status quo is "land any approved PR"
+   (dependabot, human-authored), which needs a thin **`ops-integrate`** service wrapping
+   `ops-branching · merge`. The decision is therefore whether to **narrow** it to change-only (then
+   `land` is simply the tail of `ops-change` and `ops-integrate` doesn't exist) — and narrowing is
+   the change that needs justifying, since it drops dependabot merges from the loop.
+   (Recommend: keep generic, add `ops-integrate`.)
+9. **If `base` is private, who skips a release-base PR?** `merge-flow` currently makes this call
+   itself by comparing the PR base against the resolved `release_base` (`SKILL.md:87-94`, guardrail
+   `:118`) — which a private `ops-branching` forbids. Two legal shapes: (a) `ops-branching` exposes a
+   **read** — `classify-pr` → `integration | release | wrong-base` — and the loop routes on the
+   classification without ever seeing a branch name; or (b) the skip moves *inside* the service, and
+   `ops-merge-flow` hands every labelled PR over and lets it no-op on release PRs. (a) keeps routing
+   visible in the loop; (b) keeps the command surface pure. Must be settled before Phase 3.
 
 ---
 
@@ -227,8 +286,14 @@ of the same facts is exactly the drift this migration exists to kill.
 - **Central loop is a placeholder.** `issue-loop-core` (and `rework-loop`) are routed-to but
   unbuilt; the whole issue→PR path is not exercisable today. Migration and first-build are the same
   work here — plan accordingly.
-- **Two sources of truth already exist** (`branching.*` config vs runtime detection;
-  `ci.provider` vs `ci_provider`). Don't carry either forward; the capability is the source.
+- **Base-branch knowledge lives in *four* places**, not two: `ai-ops.schema.json`
+  (`branching.base` / `release_base`), runtime detection in `release-and-branching`, `merge-flow`'s
+  own resolve-and-compare (`SKILL.md:40-59`, `:87-94`), and `operation-catalog.json`'s
+  `detect-base-branch` (a `forge`-axis operation whose title is "defer to release-and-branching").
+  Making the values private to `ops-branching` is the only move that collapses all four; migrating
+  them into a caller-visible `resolve-base` action would just relocate the leak.
+- **`ci.provider` vs `ci_provider` spelling split** (schema/detector vs the github-ops references).
+  Don't carry it forward; the capability is the source.
 - **Route-map lives in two places** (`route-map.json` + the `case` fallback in `route-event.sh`).
   Collapse to one during Phase 2.
 - **`README.md:110` references a "topology map" that doesn't exist.** Either build `ops-repo-meta`
