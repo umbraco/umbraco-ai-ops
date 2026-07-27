@@ -84,10 +84,9 @@ Terms used throughout — *service*, *supporting primitive*, *cross-cutting*, *a
 > callers are deliberately absent — they live in the roster above, one fact in one place.
 >
 > **Status is load-bearing.** Most of these action names are proposals from the audit, not
-> implemented behaviour. Read `proposed` as "argue with me".
-
-> **Review note:** argue with these rows at **Phase 1**, against concrete catalog entries, rather
-> than against the draft table (PR #4). The table stands as-is until then.
+> implemented behaviour — and the argument about them happens at **Phase 1**, against concrete
+> catalog entries rather than against this draft table (agreed on PR #4). It stands as-is until
+> then.
 
 Status legend: **exists** = implemented today (source named) · **proposed** = invented by this
 audit, nothing implements it · **open** = one unresolved sub-question (§6.8a) · **dropped** =
@@ -97,7 +96,7 @@ ruled out by a settled §6 decision.
 |---|---|---|---|
 | `ops-change` | `implement` | proposed | prose in the repo's `CLAUDE.md` + the `playbook` build skill; takes **port context** where a line-port is a real change (§8) |
 | | `verify` | proposed | build/test/sanity pass, same source |
-| | `close-issue` | proposed | forge op `close-issue` exists; cross-repo close MUST be explicit (§7.4); fires when **all** target lines have landed (§8) |
+| | `close-issue` | proposed | forge op `close-issue` exists; cross-repo close MUST be explicit (spec §7.4); fires when **all** target lines have landed (§8) |
 | | `land` | **open §6.8a** | a *delegating* tail calling `ops-integrate` — or no such action at all; see §6.8a |
 | `ops-release` | `plan` | proposed | `release-reviewer` agent + `auto-release-loop` prose |
 | | `cut` | proposed | version-file list + changelog bump (`auto-release-loop:51`) |
@@ -118,9 +117,9 @@ ruled out by a settled §6 decision.
 | `ops-notify` | `send` | proposed | loops emit "Reworked PR #N…" inline today |
 | ~~`ops-learnings`~~ | — | **not a capability** | framework capture hook + `ops-triage`; destinations are `ops-repo-meta` data (§6.2) |
 
-Counts: **4 exist**, 14 proposed, **1 open** (`ops-change · land`, §6.8a), 1 dropped. If §6.8a
-resolves against the delegating tail, the open row disappears and `land` exists only on
-`ops-integrate`.
+Counts: **3 exist** (`ops-release · sync`, `ops-ci · status`, `ops-ci · log`), **15 proposed**,
+**1 open** (`ops-change · land`, §6.8a), 1 dropped. If §6.8a resolves against the delegating tail,
+the open row disappears and `land` exists only on `ops-integrate`.
 
 ### 1a. Config-pointer seams (`ai-ops.yml` / `ai-ops.schema.json`)
 
@@ -128,7 +127,7 @@ resolves against the delegating tail, the open row disappears and `land` exists 
 |---|---|---|---|
 | `repos.source` | D | `ops-repo-meta` · `topology` (role `code`) + `identity` | source = the `code` role |
 | `repos.inbox` | D | `ops-repo-meta` · `topology` (role `issues`) | issues = the `issues` role; single-repo collapses to `code` |
-| `repos.issue_link` | — | *removed* → `ops-change` · `close-issue` | enum disappears; cross-repo close is behaviour (§7.4), not config |
+| `repos.issue_link` | — | *removed* → `ops-change` · `close-issue` | enum disappears; cross-repo close is behaviour (spec §7.4), not config |
 | `ci.provider` | B | `ops-ci` (provider internal to the consumer's skill) | **kills the `ci.provider`/`ci_provider` split** |
 | `ci.ado_org` / `ci.ado_project` / `ci.gh_repo` | B | internal to consumer `ops-ci` | out of central config |
 | `branching.model` | B | `ops-branching` (internal knowledge / framework default) | model becomes skill logic, not an enum |
@@ -154,7 +153,7 @@ per-capability skills. See §5 for what, if anything, remains.
 | worktree / DB cleanup ("repo's own `/cleanup`"; `gitflow.md:37`) | `ops-workspace` · `prepare` / `teardown` — wrapped by `ops-change`, not called by a loop |
 | human push notifications (loops emit "Reworked PR #N…") | `ops-notify` · `send` |
 | base-branch + merge-strategy detection via `release-and-branching` | `ops-branching` **internals** — not a caller-visible action (§6.9) |
-| cross-repo issue close (can't use `Closes #N`) | `ops-change` · `close-issue` (§7.4 — MUST be explicit) |
+| cross-repo issue close (can't use `Closes #N`) | `ops-change` · `close-issue` (spec §7.4 — MUST be explicit) |
 | CI status reads (`github-ops` → `ci_provider`) | `ops-ci` · `status` |
 | failing check / build log reads (`operation-catalog` → `read-failing-ci-log`) | `ops-ci` · `log` (the `ci` axis is **read-only** — both its operations are reads) |
 | forge mechanism (gh CLI vs GitHub MCP), PR/label/merge by role | **F** — stays framework; target resolved by `ops-repo-meta` · `topology` role |
@@ -222,9 +221,10 @@ Reserved framework names (spec §2.3): `loop-dispatch`, `ops-install`, `ops-issu
 3. **Overlay-merge logic** in `route-event.sh` (base ⊕ overlay, `(event,label)` identity,
    `loop:null` disable) + updated tests.
 4. **Framework-default ("inherited") capability skills** for the capabilities that *can* have a
-   sensible generic default — candidates: `ops-branching`, `ops-ci`, `ops-workspace`, `ops-notify`,
-   `ops-repo-meta` (backed by `detect.sh`). `ops-change` and `ops-release` are **always
-   repo-specific** (no framework default).
+   sensible generic default — `ops-branching`, `ops-ci`, `ops-workspace`, `ops-notify`,
+   `ops-repo-meta` (backed by `detect.sh`), and **`ops-integrate`**, which is new code rather than a
+   demotion: nothing implements the gates-plus-merge service today (Phase 3 builds it). `ops-change`
+   and `ops-release` are **always repo-specific** (no framework default).
 5. **Eval harness** (spec §9) — per-capability suites seeded from catalog examples, LLM-judged,
    opt-in. Later phase.
 6. **The spec itself, in-repo** — commit the two design docs as `docs/` companions so the catalog
@@ -249,10 +249,9 @@ settled in review (PR #4) — nothing left to decide here beyond §6.8a. *No beh
 **Phase 1 — Author the catalog.** Create `catalog.json` + `catalog.schema.json` for all 8
 capabilities from the §1 action inventory, each carrying its `visibility` (§1 roster). This is also
 where the inventory's `proposed` rows get argued — concrete entries, not draft table rows.
-**Delete the action-inventory
-table** once the catalog exists — it is draft input, and leaving it behind creates the second source
-of truth this migration exists to kill. Reserve the framework loop names. This is the interface
-pivot; everything downstream conforms to it.
+**Delete the action-inventory table** once the catalog exists — it is draft input, and leaving it
+behind creates the second source of truth this migration exists to kill. Reserve the framework loop
+names. This is the interface pivot; everything downstream conforms to it.
 
 Also in this phase: extend the README's capability section with the **action** level — **derived
 from the catalog, not hand-maintained**, or it drifts the way everything else in §7 has. The
@@ -338,7 +337,9 @@ the **Decided** line is what binds. One sub-question was opened by the resolutio
 1. **Coexistence vs clean break.** → **Decided: clean break per phase.** The placeholders let us
    build the central loops fresh rather than migrate them, so there is nothing to run in parallel.
 2. **Which capabilities ship a framework default (`inherited`).** → **Decided:** defaults for
-   `ops-branching`, `ops-ci`, `ops-workspace`, `ops-notify`, `ops-repo-meta`. Always-repo-provided:
+   `ops-branching`, `ops-ci`, `ops-workspace`, `ops-notify`, `ops-repo-meta` and — once §6.8 settled
+   as A — `ops-integrate`, whose merge gates are engine policy and should be identical everywhere.
+   Always-repo-provided:
    `ops-change` and `ops-release` — **those two only**. Learnings is *not* a per-repo capability:
    capture is uniform framework machinery (+ `ops-triage`) so lessons compound, with destinations as
    `ops-repo-meta` data. Evidence it was never a real seam: `ai-ops.schema.json` types
