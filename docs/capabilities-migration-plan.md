@@ -1,12 +1,25 @@
 # Capabilities-model migration plan
 
 Status: **Reviewed — §6 settled** (PR #4, 27-07-2026) · Author: audit of `umbraco-ai-ops@main`
-against the two design docs (Layer 1 — *Ops Capability Skills* explainer; Layer 2 — *Conformance
-Specification*).
+against the two design docs, both now committed here:
 
-All nine §6 decisions are resolved, so **Phase 3 is unblocked**. One sub-question remains open
-(§6.8a — whether `ops-change` keeps a delegating `land`); it changes one catalog row, not the
-model.
+- **[`ops-capability-skills.md`](ops-capability-skills.md)** — Layer 1, the informative explainer.
+  Numbered **§01–§10**. Cited below as *layer 1*.
+- **[`ops-capability-skills-conformance-spec.md`](ops-capability-skills-conformance-spec.md)** —
+  Layer 2, the **normative** contract. Numbered **§1–§9**. Cited below as *conformance spec*.
+
+> **Cite by document, never bare "spec §N".** The two use overlapping numbering for different
+> things — the installer is layer 1 **§08** while conformance spec **§8** is the conformance
+> clauses; evals are layer 1 **§09** while conformance spec **§9** is the non-normative list. An
+> earlier draft of this plan wrote both as "spec §N" and mislabelled two citations as a result.
+
+Layer 2 also names a **Layer 3** — "reference skills + scaffolder templates (`ops-release`,
+`ops-repo-meta`, catalog)" — which does not exist in either repo. That absence is why this plan's
+phase order departs from layer 1 §10 (§4).
+
+All nine §6 decisions are resolved, so **Phase 3 is unblocked**. Two things remain open: §6.8a
+(whether `ops-change` keeps a delegating `land`) and the conformance gaps in **§9**, which must be
+closed *before* Phase 1 authors the catalog.
 
 The two design docs are headed **"Repo: umbraco-mcp-ops"** — they describe the target for the
 prototype. This plan ports that target onto the **`umbraco-ai-ops`** engine we shipped, whose
@@ -96,7 +109,7 @@ ruled out by a settled §6 decision.
 |---|---|---|---|
 | `ops-change` | `implement` | proposed | prose in the repo's `CLAUDE.md` + the `playbook` build skill; takes **port context** where a line-port is a real change (§8) |
 | | `verify` | proposed | build/test/sanity pass, same source |
-| | `close-issue` | proposed | forge op `close-issue` exists; cross-repo close MUST be explicit (spec §7.4); fires when **all** target lines have landed (§8) |
+| | `close-issue` | proposed | forge op `close-issue` exists; cross-repo close MUST be explicit ([conformance spec](ops-capability-skills-conformance-spec.md) §7.4); fires when **all** target lines have landed (§8) |
 | | `land` | **open §6.8a** | a *delegating* tail calling `ops-integrate` — or no such action at all; see §6.8a |
 | `ops-release` | `plan` | proposed | `release-reviewer` agent + `auto-release-loop` prose |
 | | `cut` | proposed | version-file list + changelog bump (`auto-release-loop:51`) |
@@ -111,7 +124,7 @@ ruled out by a settled §6 decision.
 | `ops-workspace` | `prepare` | proposed | "repo's own `/cleanup`" (`gitflow.md:37`) |
 | | `teardown` | proposed | worktree + DB teardown, same source |
 | `ops-repo-meta` | `identity` | proposed | `detect.sh` can pre-fill; replaces `repos.source` |
-| | `topology` | proposed | roles `code` / `issues` / `learnings`; also holds the **live lines** and which is **primary** — neither is derivable from version numbers (§8) |
+| | `topology` | proposed | canonical roles are `code` / `issues` / **`releases`** (conformance §7.2) — **not** `learnings`, which this plan invented (§9). Also holds the **live lines** and which is **primary** — neither is derivable from version numbers (§8) |
 | `ops-ci` | `status` | **exists** | operation `get-ci-status` |
 | | `log` | **exists** | operation `read-failing-ci-log` |
 | `ops-notify` | `send` | proposed | loops emit "Reworked PR #N…" inline today |
@@ -127,7 +140,7 @@ the open row disappears and `land` exists only on `ops-integrate`.
 |---|---|---|---|
 | `repos.source` | D | `ops-repo-meta` · `topology` (role `code`) + `identity` | source = the `code` role |
 | `repos.inbox` | D | `ops-repo-meta` · `topology` (role `issues`) | issues = the `issues` role; single-repo collapses to `code` |
-| `repos.issue_link` | — | *removed* → `ops-change` · `close-issue` | enum disappears; cross-repo close is behaviour (spec §7.4), not config |
+| `repos.issue_link` | — | *removed* → `ops-change` · `close-issue` | enum disappears; cross-repo close is behaviour ([conformance spec](ops-capability-skills-conformance-spec.md) §7.4), not config |
 | `ci.provider` | B | `ops-ci` (provider internal to the consumer's skill) | **kills the `ci.provider`/`ci_provider` split** |
 | `ci.ado_org` / `ci.ado_project` / `ci.gh_repo` | B | internal to consumer `ops-ci` | out of central config |
 | `branching.model` | B | `ops-branching` (internal knowledge / framework default) | model becomes skill logic, not an enum |
@@ -136,7 +149,7 @@ the open row disappears and `land` exists only on `ops-integrate`.
 | `branching.merge_strategy` | B | `ops-branching` · `merge` picks it internally | **single source of truth**; no caller passes a strategy |
 | `branching.branch_naming` | B | internal to `ops-branching` / `ops-change` | |
 | `branching.release_skill` | B | `ops-release` (whole capability) | the *pointer* becomes the *convention* (`ops-release`) |
-| `learning.inbox` | D | `ops-repo-meta` · `topology` (role `learnings`) | the destination is a *fact*, not behaviour |
+| `learning.inbox` | D | `ops-repo-meta` — **not** a `topology` role | the destination is a *fact*, not behaviour, but `learnings` is **not** a canonical role (conformance §7.2 fixes them at `code`/`issues`/`releases`). Needs either a spec amendment or a home outside `topology` — see §9 |
 | `learning.routing` | — | *removed* → framework capture + `ops-triage` | today a free-form prose string in the schema — never a machine-readable seam (§6.2) |
 | `playbook` (build-skill pointer) | B | `ops-change` · `implement` / `verify` / `close-issue` | the central pointer becomes the convention (`ops-change`) |
 | `version` (schema pin) | F | catalog/spec version | replaced by catalog + spec versioning |
@@ -153,7 +166,7 @@ per-capability skills. See §5 for what, if anything, remains.
 | worktree / DB cleanup ("repo's own `/cleanup`"; `gitflow.md:37`) | `ops-workspace` · `prepare` / `teardown` — wrapped by `ops-change`, not called by a loop |
 | human push notifications (loops emit "Reworked PR #N…") | `ops-notify` · `send` |
 | base-branch + merge-strategy detection via `release-and-branching` | `ops-branching` **internals** — not a caller-visible action (§6.9) |
-| cross-repo issue close (can't use `Closes #N`) | `ops-change` · `close-issue` (spec §7.4 — MUST be explicit) |
+| cross-repo issue close (can't use `Closes #N`) | `ops-change` · `close-issue` ([conformance spec](ops-capability-skills-conformance-spec.md) §7.4 — MUST be explicit) |
 | CI status reads (`github-ops` → `ci_provider`) | `ops-ci` · `status` |
 | failing check / build log reads (`operation-catalog` → `read-failing-ci-log`) | `ops-ci` · `log` (the `ci` axis is **read-only** — both its operations are reads) |
 | forge mechanism (gh CLI vs GitHub MCP), PR/label/merge by role | **F** — stays framework; target resolved by `ops-repo-meta` · `topology` role |
@@ -161,7 +174,7 @@ per-capability skills. See §5 for what, if anything, remains.
 
 ### 1c. Routing seams (`route-map.json` / `route-event.sh`)
 
-| Current | Target (spec §6) |
+| Current | Target ([conformance spec](ops-capability-skills-conformance-spec.md) §6) |
 |---|---|
 | Whole-file replacement (`$ROUTE_MAP` swaps the entire map) | **base ⊕ per-repo overlay** merged live at the edge; identity key `(event,label)`; overlay wins; `loop:null` disables |
 | Rule shape `{event:"issues", action:"labeled", route}` | `{event:"issues.labeled", label, loop}` — collapse event+action into the event vocab (`issues.labeled`, `pull_request.labeled`, `issues.opened`, `pull_request.opened`), rename `route`→`loop` |
@@ -175,7 +188,7 @@ normalisation already match the spec — keep them.
 
 ### 1d. Installer seam (`ops-setup` / `umbraco-ops-setup`)
 
-| Current | Target (`ops-install`, spec §8) |
+| Current | Target (`ops-install`, [layer 1](ops-capability-skills.md) §08 + [conformance spec](ops-capability-skills-conformance-spec.md) §8) |
 |---|---|
 | `detect.sh` pre-fills a config guess | keep — feeds the pre-fill + topology defaults |
 | `AskUserQuestion` confirm/fill of config keys | shrinks to what `ops-repo-meta` can't auto-detect |
@@ -187,7 +200,7 @@ normalisation already match the spec — keep them.
 
 ## 2. Framework-skill → framework-loop map
 
-Reserved framework names (spec §2.3): `loop-dispatch`, `ops-install`, `ops-issue-loop`,
+Reserved framework names ([conformance spec](ops-capability-skills-conformance-spec.md) §2.3): `loop-dispatch`, `ops-install`, `ops-issue-loop`,
 `ops-merge-flow`, `ops-auto-release`, `ops-rework`, `ops-triage`.
 
 | Today | Becomes | Calls (by name) |
@@ -277,13 +290,32 @@ prose in the schema, while the **destinations** were always real and become `ops
 
 ## 3. New artifacts to create in the engine
 
-1. **The catalog** (spec §5) — **`catalog.json` + `catalog.schema.json`** (§6.6: JSON, matching the
-   repo's existing data-seam convention rather than the spec's YAML examples), normative, one entry
-   per capability (`release, change, ci, branching, workspace, notify, repo-meta, integrate`), each
-   with actions, a **`visibility`** field (`service` / `supporting` / `cross-cutting`, per the §1
-   roster) + a normative `example` (it seeds *both* the installer's scaffold and the eval). This is
-   the pivot artifact — build it first; it defines the interface everything else conforms to.
-   `learnings` is deliberately absent: it is framework mechanics, not a capability (§6.2).
+1. **The catalog** ([conformance spec](ops-capability-skills-conformance-spec.md) §5 for structure,
+   [layer 1](ops-capability-skills.md) §05 for its role) — **`catalog.json` + `catalog.schema.json`**
+   (§6.6: JSON, which conformance spec §5.1 permits alongside YAML, and which matches this repo's
+   existing data-seam convention). One entry per capability (`release, change, ci, branching,
+   workspace, notify, repo-meta, integrate`).
+
+   **How normative it is, precisely** — the plan previously flattened this and overstated it:
+
+   | Part | Status | Source |
+   |---|---|---|
+   | Entry keys `capability` / `description` / `operations` | **MUST** | conformance §5.2 |
+   | Per operation: `action`, `description`, `example` | **MUST** | conformance §5.3 |
+   | The `action` *names* — they are the invocation contract and the validation set | **normative** | conformance §5.4 |
+   | Per operation: `input` / `output` field lists | **guidance — MUST NOT be enforced at runtime** | conformance §5.4 |
+   | Anything about behaviour or payload shape | **non-normative**, verified by evals only | layer 1 §05, conformance §9 |
+
+   So layer 1's "the catalog — guidance, not a contract" and conformance §5's "normative structure"
+   are not in conflict: **the shape is normative, the contents are guidance.** That is the same
+   distinction as this plan's "coverage ≠ correctness" hazard (§7).
+
+   Our **`visibility`** field (`service` / `supporting` / `cross-cutting`, per the §1 roster) is an
+   **addition beyond the spec** — the spec neither requires nor forbids it, so `catalog.schema.json`
+   must be a superset of conformance §5.2–5.3, and `visibility` must not be presented as a spec
+   requirement. `example` stays normative because it seeds *both* the installer's scaffold and the
+   eval. `learnings` is deliberately absent (§6.2) — a knowing divergence from the spec, recorded in
+   §9. This is the pivot artifact: build it first.
 2. **Base routing table** in the spec's `{event,label,loop}` shape, shipped beside `route-event.sh`,
    versioned by the caller's `@ref`.
 3. **Overlay-merge logic** in `route-event.sh` (base ⊕ overlay, `(event,label)` identity,
@@ -293,7 +325,7 @@ prose in the schema, while the **destinations** were always real and become `ops
    `ops-repo-meta` (backed by `detect.sh`), and **`ops-integrate`**, which is new code rather than a
    demotion: nothing implements the gates-plus-merge service today (Phase 3 builds it). `ops-change`
    and `ops-release` are **always repo-specific** (no framework default).
-5. **Eval harness** (spec §9) — per-capability suites seeded from catalog examples, LLM-judged,
+5. **Eval harness** ([layer 1](ops-capability-skills.md) §09) — per-capability suites seeded from catalog examples, LLM-judged,
    opt-in. Later phase.
 6. **The spec itself, in-repo** — commit the two design docs as `docs/` companions so the catalog
    and installer have a normative reference to cite.
@@ -302,20 +334,37 @@ prose in the schema, while the **destinations** were always real and become `ops
 
 ## 4. Phased migration plan
 
-Ordering follows the spec's §10 "first build" guidance (reference impls → installer → routing →
-the rest), adapted for migrating a live engine whose central loop (`issue-loop-core`) is still a
+**This ordering deliberately departs from [layer 1](ops-capability-skills.md) §10.** §10's "First
+build" says: *"Stand up `ops-release` + `ops-repo-meta` first — behavioral and ambient-data — then
+write `/ops-install` against the catalog."* That assumes the greenfield `umbraco-mcp-ops` case and
+assumes Layer 3 (reference skills + scaffolder templates) is where those two get written. Neither
+holds here: Layer 3 was never produced, and this engine already ships loops that resolve base
+branches four different ways (§7). So we author the catalog first (Phase 1) and let the reference
+implementations arrive as framework defaults (§3.4) and consumer skills (Phase 6).
+
+The cost of departing is real and worth naming: **nothing exercises the catalog until Phase 3**, so
+an interface mistake made in Phase 1 stays undetected for two phases. §10's order front-loads that
+feedback. If Phase 1 feels speculative, the mitigation is to write one reference `ops-repo-meta`
+alongside the catalog rather than to reorder the whole plan.
+
+Otherwise adapted for migrating a live engine whose central loop (`issue-loop-core`) is still a
 placeholder. **Key sequencing insight:** the placeholder loops (`issue-loop-core`, `rework-loop`,
 `learning`) do **not** exist yet — build them *directly* in capability-model form so we never build
 them twice.
 
-**Phase 0 — Ratify (docs + charter).** Commit both design docs to `docs/`. Rewrite the
-`CLAUDE.md` "seam doctrine" from config-pointer/override-defer to convention/`ops-<capability>`,
-and point it at [`vocabulary.md`](vocabulary.md) — ratifying that glossary is part of this phase,
-including the retirement of "seam" for everything except data+schema extension points. §6 is
-settled in review (PR #4) — nothing left to decide here beyond §6.8a. *No behaviour change.*
+**Phase 0 — Ratify (docs + charter).** ~~Commit both design docs to `docs/`.~~ **Done** — see the
+two links at the top. Remaining: rewrite the `CLAUDE.md` "seam doctrine" from
+config-pointer/override-defer to convention/`ops-<capability>`, and point it at
+[`vocabulary.md`](vocabulary.md) — ratifying that glossary is part of this phase, including the
+retirement of "seam" for everything except data+schema extension points. §6 is settled in review
+(PR #4). **Also close the §9a conformance gaps here**, since they are all corrections to documents
+rather than to code. *No behaviour change.*
 
-**Phase 1 — Author the catalog.** Create `catalog.json` + `catalog.schema.json` for all 8
-capabilities from the §1 action inventory, each carrying its `visibility` (§1 roster). This is also
+**Phase 1 — Author the catalog.** *Prerequisite: §9a is closed* — the catalog is where most of those
+gaps become permanent if they aren't. Create `catalog.json` + `catalog.schema.json` for all 8
+capabilities from the §1 action inventory, each carrying `description` (required per conformance
+§5.2–5.3), `example`, and our additional `visibility` (§1 roster). Settle §9c's
+`resolve-line`-vs-`topology` question while the entries are being written. This is also
 where the inventory's `proposed` rows get argued — concrete entries, not draft table rows.
 **Delete the action-inventory table** once the catalog exists — it is draft input, and leaving it
 behind creates the second source of truth this migration exists to kill. Reserve the framework loop
@@ -358,8 +407,12 @@ history doesn't answer: the threshold value, the dedupe key, and whether a human
 applies the triage label.
 
 **Phase 5 — Rebuild the installer as `ops-install`.** Coverage report
-(present/inherited/missing by `ops-<cap>` name); scaffold a stub per missing catalog capability;
-validate the routing overlay per §6. Keep `detect.sh` for pre-fill.
+(present/inherited/missing by `ops-<cap>` name); scaffold a stub per missing catalog capability
+(carrying `disable-model-invocation: true` and the §3 invocation guards, per §9a.4/§9a.7); validate
+the routing overlay per conformance §6. In a split topology it must install the caller workflow on
+**both** repos and materialize issue-label rules to the issues repo and PR-label rules to the code
+repo (layer 1 §07, conformance §7.5). Keep `detect.sh` for pre-fill. Conformance criteria for the
+installer itself are conformance §8.
 
 **Phase 6 — Consumer capability skills (Forms, then Automate).** Provide Forms' implementations:
 `ops-change` (dotnet build/verify + cross-repo close to `Umbraco.Forms.Issues`), `ops-release`
@@ -382,6 +435,7 @@ for the evidence:
 | Leave native auto-merge **disabled** | keep off | keep off | landing is the service's decision; native auto-merge would race it |
 | Document per-PR labelling for ports | needed | needed | landing is per-PR (§8), so each line's PR carries its own label |
 | Branch protection on live lines | recommended | recommended | not required, but with none (the case today) `ops-integrate`'s own CI re-check is the **only** real gate |
+| Install the caller workflow on **both** repos | needed — code **and** `Umbraco.Forms.Issues` | single repo, one install | conformance §7.5 requires it on every repo emitting consumed events: issue-label rules on the public issues repo, PR-label rules on the code repo (§9a.5) |
 
 **Phase 7 — Evals.** Per-capability suites seeded from the catalog examples; opt-in.
 
@@ -603,3 +657,63 @@ Phase 6 should re-verify rather than trust it.
    of them is derivable from the default branch or from version numbers.
 6. **Onboarding is not zero-touch.** No trigger labels exist in either repo, and `allow_update_branch`
    is off in both; see the Phase 6 prerequisites table.
+
+7. **The live-lines set changes over time.** The `automate-branch-migration` design (shared artifact
+   `e7cf21bc`) specifies a **major-version cutover** that creates `v19/dev` + `v19/main` when a new
+   CMS major ships. So base is not merely a set (§7) but a *moving* one — `ops-branching` must read
+   it, never cache it, and a new line must not require an engine change.
+8. **A fourth family member exists.** That same document names **`Umbraco.AI`** as having already
+   adopted the `vN/` convention, and Automate as adopting it from there. Worth confirming at Phase 6
+   whether it is a fourth consumer or out of scope.
+
+---
+
+## 9. Conformance gaps — close before Phase 1
+
+Committing the two design docs (Phase 0) made the plan checkable against them for the first time,
+and it does not currently conform. These are split by kind, because the two need opposite treatment:
+**accidental** divergences are bugs in this plan, **deliberate** ones are decisions that need
+recording in the spec rather than silently contradicting it.
+
+### 9a. Accidental — fix the plan
+
+| # | Gap | Source |
+|---|---|---|
+| 1 | **`learnings` is not a canonical role.** Roles are fixed at `code` (required), `issues`, `releases`, with an unspecified role resolving to `code`. This plan routed `learning.inbox` to a `learnings` role, and `releases` appears nowhere in the plan at all — even though Forms/Automate publish from the code repo, which is exactly what the role is for. | conformance §7.2, §7.3 |
+| 2 | **Idempotency is a MUST and the plan never mentions it.** "Invoking the same action twice with the same context MUST NOT produce a second side effect" — `cut` re-run must return the existing PR, not open a second. Directly load-bearing for `ops-integrate · land` and `ops-release · cut`. | conformance §3.5 |
+| 3 | **Catalog entries need a `description` per capability *and* per operation.** The plan's §3.1 listed actions, `visibility` and `example`, and omitted the required `description` fields. | conformance §5.2–5.3 |
+| 4 | **Capability skills SHOULD set `disable-model-invocation: true`**, so a loop is the only caller. Nothing in the plan says so, and it is exactly what stops a capability auto-firing on a `description` match. Belongs in the Phase 1 scaffold and the Phase 6 skills. | conformance §2.4, layer 1 §03 |
+| 5 | **The caller workflow must be installed on *both* repos in a split topology.** Forms' issues live in `Umbraco.Forms.Issues`, so the router needs installing there *and* on the code repo — issue-label rules to the public repo, PR-label rules to the private one. Missing from the Phase 6 prerequisites. | conformance §7.5, layer 1 §07 |
+| 6 | **`ops-integrate`'s outcome vocabulary is a convention, not a contract.** §6.9 specifies `merged \| skipped:release-base \| blocked:ci \| …` as though it were enforced; the spec says there is *no* required error vocabulary and the result shape is a SHOULD verified by evals. It is promotable to a MUST **only if a non-model consumer parses it** — so if `ops-merge-flow` branches on the string deterministically, say that explicitly and invoke §4.5. | conformance §4.2, §4.5 |
+| 7 | **The invocation contract is more specific than the plan's `(action, context-json)`.** Two positional arguments, `context` MUST be a single JSON object as a string, absent context MUST be treated as `{}`, and an unknown action MUST be rejected rather than guessed. Phase 1's scaffold should encode all four. | conformance §3.1–3.4 |
+
+### 9b. Deliberate — amend the spec, don't drift from it
+
+| # | Divergence | Standing |
+|---|---|---|
+| 1 | **`learnings` is not a capability here.** Both design docs list `ops-learnings` with `route` / `file` actions; this plan demotes capture to framework mechanics + `ops-triage`, with destinations as data. Reviewed and agreed on PR #4 (§6.2), and the schema evidence supports it. | agreed — needs writing back into the spec |
+| 2 | **`ops-integrate` does not exist in either design doc.** It comes out of §6.8, and adds a capability the catalog must declare (conformance §2.2 forbids a capability skill absent from the catalog, so the catalog is where it becomes legal). | agreed — §6.8 |
+| 3 | **`ops-branching` is command-only.** Both docs expose `resolve-base` and `merge-strategy` as caller-visible actions; §0 and §6.9 make those values private. This is the single biggest departure from the design docs, and the one with the most evidence behind it (§7's four-way drift). | agreed — PR #4 |
+| 4 | **`visibility` is an extra catalog field** the spec neither requires nor forbids (§3.1). | additive, low risk |
+| 5 | **`ops-ci` has a `log` action**; both docs list `status` only. | additive, agreed on PR #4 |
+| 6 | **The spec relies on same-name shadowing; this repo found it doesn't work.** Conformance §2.3 permits a repo to take a reserved name "if it intends to *shadow*", §6.6 states a same-named repo loop "**shadows**" a core loop, and layer 1 §06 offers shadowing as a customisation route. `CLAUDE.md:18` records the opposite from experience: plugin skills are namespaced, project skills are not, cloud delivers both flat into overlapping locations with undocumented precedence — which is *why* this engine binds by config pointer today and why §1's whole model is convention-by-name. **The spec's customisation story is unsound on this point**; overlay-plus-a-differently-named-loop is the mechanism that actually works. Needs correcting in the spec, not worked around here. | **conflict — spec is wrong** |
+
+### 9c. Worth mining, not yet decided
+
+Two superseded design artifacts name things this plan lacks. They predate the privacy ruling — their
+`branching` exposes `resolve-base`/`merge-strategy` — so they are not authoritative, but they were
+written by people thinking about the same problem:
+
+- **Ops Capability Interfaces** (`5aed3369`) lists `repo-meta · feeds` and
+  `repo-meta · protected-branches`, neither of which this plan has. `protected-branches` bears
+  directly on the branch-protection hazard (§7), and `feeds` on the NuGet-feed setup
+  `dotnet-web-runtime` exists for. It also has `branching · resolve-line`, which treats line
+  resolution as **branching behaviour** — whereas §8 makes live-lines/primary-line **`ops-repo-meta`
+  data**. That disagreement is real and Phase 1 should settle it deliberately.
+- **Release Provider Contract** (`8983efd4`) is an earlier release-only design (fixed lifecycle
+  `plan → cut → CI gate → review gate → publish → sync`, verbs discovered as files under
+  `.release-flow/`). Its lifecycle ordering and its idempotency requirement are worth reusing when
+  `ops-release` is written; its file-discovery mechanism is superseded by the naming convention.
+
+Neither is committed to `docs/` — they are superseded, and committing them as "the spec" would
+create exactly the second source of truth this migration exists to kill.

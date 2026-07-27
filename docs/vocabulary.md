@@ -68,7 +68,7 @@ notifications are cross-cutting.**
 |---|---|
 | **consumer** | A repo that uses the engine and supplies its own capability skills. |
 | **applied repo** | A consumer once installed and covered. Interchangeable with consumer in practice; prefer **consumer**. |
-| **role** | What a repo *is to* a loop, from `ops-repo-meta · topology`: `code`, `issues`, `learnings`. Replaces the old `repos.source` / `repos.inbox` keys. |
+| **role** | What a repo *is to* a loop, from `ops-repo-meta · topology`. Canonical roles are **`code`** (required), **`issues`** and **`releases`**; an unspecified role resolves to `code` (conformance spec §7.2). Replaces the old `repos.source` / `repos.inbox` keys. **`learnings` is not a role** — see the migration plan §9. |
 | **topology** | The set of roles and which repo fills each. Single-repo setups collapse every role onto `code`. |
 | **identity** | Ambient facts about the repo itself (name, labels, defaults), from `ops-repo-meta`. |
 
