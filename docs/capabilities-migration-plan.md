@@ -64,6 +64,50 @@ Two consequences bite this plan directly: `ops-branching`'s strategy/base values
 **private** — no loop and no service reads `merge_strategy` or `base`, they ask for an *outcome*
 (§1a, §2) — and `ops-workspace` is prepared/torn down by `ops-change`, not by the issue loop.
 
+Terms used throughout — *service*, *supporting primitive*, *cross-cutting*, *action* vs
+*operation*, *capability catalog* vs *operation catalog* — are defined in
+[`vocabulary.md`](vocabulary.md).
+
+### Action inventory — the draft catalog
+
+> **Superseded by Phase 1.** This table is the *input* to the capability catalog (§3.1), not a
+> second copy of it: author the catalog from these rows, then **delete this table**. Visibility and
+> callers are deliberately absent — they live in the roster above, one fact in one place.
+>
+> **Status is load-bearing.** Most of these action names are proposals from the audit, not
+> implemented behaviour. Read `proposed` as "argue with me".
+
+Status legend: **exists** = implemented today (source named) · **proposed** = invented by this
+audit, nothing implements it · **conditional** = depends on an open decision in §6.
+
+| Capability | Action | Status | Notes / where the behaviour lives today |
+|---|---|---|---|
+| `ops-change` | `implement` | proposed | prose in the repo's `CLAUDE.md` + the `playbook` build skill |
+| | `verify` | proposed | build/test/sanity pass, same source |
+| | `close-issue` | proposed | forge op `close-issue` exists; cross-repo close MUST be explicit (§7.4) |
+| | `land` | conditional §6.8 | only if `auto-merge` stays PR-generic; delegates to `ops-integrate` |
+| `ops-release` | `plan` | proposed | `release-reviewer` agent + `auto-release-loop` prose |
+| | `cut` | proposed | version-file list + changelog bump (`auto-release-loop:51`) |
+| | `publish` | proposed | `release-tag.yml`, version-source per stack |
+| | `sync` | **exists** | the `sync-dev` skill, folded in per §2 |
+| `ops-integrate` | `land` | conditional §6.8 | thin service wrapping `ops-branching · merge`; owns the four gates |
+| `ops-branching` | `merge` | proposed | strategy chosen internally; replaces `merge_strategy` config + forge `merge-pr` |
+| | `open-pr` | proposed | forge `create-pr` exists as an operation |
+| | `start-branch` | proposed | forge `create-branch` exists as an operation |
+| | `classify-pr` | conditional §6.9(a) | `integration \| release \| wrong-base`; exists only if the skip stays in the loop |
+| | *(base / release-base / model)* | **not actions** | internal knowledge — private per §0 |
+| `ops-workspace` | `prepare` | proposed | "repo's own `/cleanup`" (`gitflow.md:37`) |
+| | `teardown` | proposed | worktree + DB teardown, same source |
+| `ops-repo-meta` | `identity` | proposed | `detect.sh` can pre-fill; replaces `repos.source` |
+| | `topology` | proposed | roles `code` / `issues` / `learnings`; backs the map `README.md:110` already claims exists (§7) |
+| `ops-ci` | `status` | **exists** | operation `get-ci-status` |
+| | `log` | **exists** | operation `read-failing-ci-log` |
+| `ops-notify` | `send` | proposed | loops emit "Reworked PR #N…" inline today |
+| ~~`ops-learnings`~~ | — | **not a capability** | framework capture hook + `ops-triage`; destinations are `ops-repo-meta` data (§6.2) |
+
+Counts: **4 exist**, 13 proposed, 3 conditional. The two `land` rows are the same action reached
+two ways — see §6.8.
+
 ### 1a. Config-pointer seams (`ai-ops.yml` / `ai-ops.schema.json`)
 
 | Current key | Kind | Target capability · action | Migration note |
@@ -182,11 +226,15 @@ placeholder. **Key sequencing insight:** the placeholder loops (`issue-loop-core
 them twice.
 
 **Phase 0 — Ratify (docs + charter).** Commit both design docs to `docs/`. Rewrite the
-`CLAUDE.md` "seam doctrine" from config-pointer/override-defer to convention/`ops-<capability>`.
-Settle the open decisions in §6. *No behaviour change.*
+`CLAUDE.md` "seam doctrine" from config-pointer/override-defer to convention/`ops-<capability>`,
+and point it at [`vocabulary.md`](vocabulary.md) — ratifying that glossary is part of this phase,
+including the retirement of "seam" for everything except data+schema extension points. Settle the
+open decisions in §6. *No behaviour change.*
 
-**Phase 1 — Author the catalog.** Create `catalog.(yml|json)` + schema for all 8 capabilities,
-each carrying its `visibility` (§1 roster). Reserve the framework loop names. This is the interface
+**Phase 1 — Author the catalog.** Create `catalog.(yml|json)` + schema for all 8 capabilities from
+the §1 action inventory, each carrying its `visibility` (§1 roster). **Delete the action-inventory
+table** once the catalog exists — it is draft input, and leaving it behind creates the second source
+of truth this migration exists to kill. Reserve the framework loop names. This is the interface
 pivot; everything downstream conforms to it.
 
 **Phase 2 — Routing to spec (edge).** Convert `route-map` to the `{event,label,loop}` shape +
