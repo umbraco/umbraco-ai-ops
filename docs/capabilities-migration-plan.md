@@ -165,7 +165,7 @@ per-capability skills. See §5 for what, if anything, remains.
 |---|---|
 | Whole-file replacement (`$ROUTE_MAP` swaps the entire map) | **base ⊕ per-repo overlay** merged live at the edge; identity key `(event,label)`; overlay wins; `loop:null` disables |
 | Rule shape `{event:"issues", action:"labeled", route}` | `{event:"issues.labeled", label, loop}` — collapse event+action into the event vocab (`issues.labeled`, `pull_request.labeled`, `issues.opened`, `pull_request.opened`), rename `route`→`loop` |
-| Route targets `issue-loop-core` / `auto-release-loop` / `merge-flow` / `rework-loop` | reserved loop names `ops-issue-loop` / `ops-auto-release` / `ops-merge-flow` / `ops-rework` |
+| Route targets `issue-loop-core` / `auto-release-loop` / `merge-flow` / `rework-loop` | reserved loop names `ops-issue-loop` / `ops-auto-release` / `ops-merge-flow` / `ops-rework`, **plus a fifth row for `ops-triage`** (§2a) |
 | Built-in `case` fallback duplicating the 4 rules ("keep in sync") | base table is the single source; drop the dup (or generate the fallback from base) |
 | Overlay = ad-hoc `$ROUTE_MAP` file | overlay in the caller workflow input block **or** a committed `.github/ops-routing.yml` |
 | `new-loop-routine` scaffolds caller workflow | evolves into the loop-scaffolder that *writes overlay rows* (§6) |
@@ -245,12 +245,31 @@ prose in the schema, while the **destinations** were always real and become `ops
 1. **The threshold value and the dedupe key.** "Recurs enough" and "the same lesson" are both
    undefined. Given the capture side is LLM-authored prose issues, dedupe is a judgement call, which
    makes this the one part of the mechanism an eval (Phase 7) should cover.
-2. **How `ops-triage` is triggered.** Every route is keyed `(event, label)` — the four rows in
-   `route-map.json` — and a routine is fired by the Action's Fire URL with a *disabled* cron
-   placeholder (`new-loop-routine/SKILL.md:33`). A batch loop that runs "later" therefore has **no
-   trigger path in the current design**: it is neither one of the four routes nor a schedule. Either
-   the event vocabulary gains a scheduled trigger in Phase 2, or triage is fired by hand until it
-   does. Phase 2 is the cheap moment to decide.
+2. **Who applies the triage label.** Triage needs no new trigger machinery: it is a **fifth route
+   row** in exactly the shape of the other four — `issues.labeled` + a triage label on a
+   `proto-learning` issue → `ops-triage`. `route-event.sh` is already a pure function of
+   `(event, action, label)`, and the cross-repo case it documents at `:20-25` is precisely this one:
+   the caller workflow is committed in the **inbox** repo, where the label fires, and `--target`
+   names the repo the routine works in. Firing per-issue doesn't make triage per-issue —
+   dedupe/threshold query the inbox for kin and legitimately no-op ("one occurrence, below
+   threshold") or close a duplicate.
+
+   What's actually undecided is **who labels**:
+
+   - **A human sweeping the inbox** — identical in shape to `ready-for-ai`, which
+     `issue-loop-core`'s Rules call "the only gate". Consistent with the engine's design, but it puts
+     a human in the compounding path.
+   - **The capture hook, at file time** — every `proto-learning` issue fires triage immediately and
+     the threshold does all the suppressing. Fully automatic, at the cost of many no-op routine
+     fires.
+
+   One wrinkle either way: every existing route has a **single known target**, but triage's
+   destination is one of three (§2a table) and is chosen *by* triage, not known at dispatch. So
+   `--target` can't carry it — the destination is an output of the loop, not an input.
+
+   Note also that "a separate triage routine **later**" (`issue-loop-core:274`) reads as a batch
+   sweep, which per-issue firing isn't. Either the wording is loose or a sweep was intended; history
+   doesn't say.
 3. **Whether the `shared-skills` destination is reachable at all**, since the repo-family consumer
    shape is never migrated by this plan (§7).
 
@@ -312,10 +331,9 @@ alone here.
 **Phase 2 — Routing to spec (edge).** Convert `route-map` to the `{event,label,loop}` shape +
 event vocab; add base⊕overlay merge to `route-event.sh`; rename route targets to reserved loop
 names; remove the duplicated `case` fallback; move the overlay to a committed
-`.github/ops-routing.yml` (§6.4). Update `route-event.test.sh`. **Also settle how `ops-triage` is
-triggered** (§2a): it is a batch loop with no `(event, label)` route and no schedule, so either the
-event vocabulary gains a scheduled trigger here or triage stays hand-fired. Deciding it later means
-touching the vocabulary twice.
+`.github/ops-routing.yml` (§6.4). Update `route-event.test.sh`. **Add the fifth base route row for
+`ops-triage`** (§2a) — `issues.labeled` + a triage label, fired from the inbox repo — while the base
+table is being authored anyway; who applies that label is a Phase 4 question, not a routing one.
 
 **Phase 3 — Framework loops invoke *services* by name.** *(Unblocked — §6.8 and §6.9 are settled.)*
 Rewrite `merge-flow`→`ops-merge-flow` to command **`ops-integrate · land`** plus the cross-cutting
@@ -335,8 +353,9 @@ branches, not one branch (§8). Fold `sync-dev` into `ops-release.sync`.
 `ops-change`, which itself wraps `ops-workspace`; reads `ops-ci` / `ops-repo-meta`), `ops-rework`,
 and the learnings mechanism as a **uniform framework capture hook + `ops-triage`** with destinations
 read from `ops-repo-meta` (§6.2). Avoids a build-then-migrate double. **Build `ops-triage` to the
-inherited contract in §2a** — dedupe → threshold → route, output a PR — and settle the two things
-history doesn't answer: the threshold value and the dedupe key.
+inherited contract in §2a** — dedupe → threshold → route, output a PR — and settle the three things
+history doesn't answer: the threshold value, the dedupe key, and whether a human or the capture hook
+applies the triage label.
 
 **Phase 5 — Rebuild the installer as `ops-install`.** Coverage report
 (present/inherited/missing by `ops-<cap>` name); scaffold a stub per missing catalog capability;
@@ -515,10 +534,12 @@ That was the last thing blocking Phase 3.
   ports were written *for* that repo. It also strands `ops-triage`'s `shared-skills` destination
   (§2a), which only means anything for a repo family. Needs either a Phase 6b or an explicit
   out-of-scope ruling.
-- **`ops-triage` has no trigger path.** Routing is `(event, label)`-keyed and routines fire by URL
-  with a disabled cron placeholder, so a batch loop that runs "later" can't currently be started by
-  anything (§2a). Cheapest to settle in Phase 2, while the event vocabulary is already being
-  changed.
+- **`ops-triage` has no route row, and its destination can't be a dispatch input.** The trigger
+  mechanism is fine — a triage label on a `proto-learning` issue in the inbox repo is the same
+  `issues.labeled` shape as the other four routes, cross-repo included (`route-event.sh:20-25`). But
+  no such label or row exists yet, nobody has decided whether a human or the capture hook applies it,
+  and unlike every other loop the *destination* is chosen by triage rather than passed as `--target`
+  (§2a). Add the row in Phase 2; settle the labeller and the destination handling in Phase 4.
 - ~~**`README.md` references a "topology map" that doesn't exist.**~~ **Fixed** — the dangling
   sentence was removed and the README now links this plan instead.
 - **"The base branch" is a single value in a repo with several.** Both consumers have **two live
