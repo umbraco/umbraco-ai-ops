@@ -90,6 +90,37 @@ release_skill), `learning`, and the `playbook` name. Omit anything the engine au
 a plain same-repo gitflow repo needs almost nothing; anything bespoke is handed to the skill
 named in `branching.release_skill`.
 
+## Where this is going: capability skills
+
+> **Target model, not shipped yet.** The config contract above is what the engine does *today*.
+> It is being replaced by **convention**: each extension point becomes a skill named
+> `ops-<capability>`, located by that name rather than by a config pointer. Plan, phases and open
+> decisions: **[`docs/capabilities-migration-plan.md`](docs/capabilities-migration-plan.md)**.
+> Shared terms: **[`docs/vocabulary.md`](docs/vocabulary.md)**.
+
+The capability set and who may call what are settled; the per-capability *actions* are still being
+argued out, so they live in the plan rather than here until the catalog exists.
+
+**Visibility** says who may call a capability: a **service** is an intention a loop commands · a
+**supporting primitive** is mechanics a service wraps, never called by a loop · **cross-cutting** is
+a read or a side-effect, callable from anywhere. It's a review convention about exposure — every
+capability is invoked the same way, and there is no extra layer or runtime.
+
+| Capability | Visibility | Who provides it |
+|---|---|---|
+| `ops-change` | service | **always the repo** — build/test/verify, closing the issue |
+| `ops-release` | service | **always the repo** — version bump, tag, publish, back-merge |
+| `ops-integrate` | service | engine default *(conditional — see the plan's §6.8)* |
+| `ops-branching` | supporting primitive | engine default; repo overrides for a bespoke branch model |
+| `ops-workspace` | supporting primitive | engine default; repo overrides for worktree/DB setup |
+| `ops-repo-meta` | cross-cutting (read) | engine default, detection-backed |
+| `ops-ci` | cross-cutting (read) | engine default per CI provider |
+| `ops-notify` | cross-cutting (infra) | engine default |
+
+So an adopting repo owns **two** capability skills — `ops-change` and `ops-release` — and inherits
+the rest until it needs something different. Learnings capture is engine machinery, not a
+per-repo capability.
+
 ## Layout
 
 ```
@@ -107,4 +138,6 @@ scripts/
 ## Status
 
 **Work in progress** — scaffolding the engine by extracting and genericising the proven
-`umbraco-mcp-ops` plugins. See the topology map for the full design and decision log.
+`umbraco-mcp-ops` plugins, and migrating from the config contract to the capability model above.
+Design, phases, open decisions and hazard register:
+**[`docs/capabilities-migration-plan.md`](docs/capabilities-migration-plan.md)**.

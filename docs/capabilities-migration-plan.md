@@ -237,10 +237,12 @@ table** once the catalog exists — it is draft input, and leaving it behind cre
 of truth this migration exists to kill. Reserve the framework loop names. This is the interface
 pivot; everything downstream conforms to it.
 
-Also in this phase: `README.md` gains a capability/action overview for adopters — **derived from
-the catalog, not hand-maintained**, or it drifts the way everything else in §7 has. That pass also
-resolves the dangling "see the topology map" reference at `README.md:110`. The README's
-"config contract" section (`:82`) is what Phase 8 deletes, so don't touch it here.
+Also in this phase: extend the README's capability section with the **action** level — **derived
+from the catalog, not hand-maintained**, or it drifts the way everything else in §7 has. The
+capability level (the eight, their visibility, and which two a repo must always provide) is already
+in the README, marked as the target model, since that much is settled; only the actions were
+waiting on the catalog. The README's "config contract" section is what Phase 8 deletes, so leave it
+alone here.
 
 **Phase 2 — Routing to spec (edge).** Convert `route-map` to the `{event,label,loop}` shape +
 event vocab; add base⊕overlay merge to `route-event.sh`; rename route targets to reserved loop
