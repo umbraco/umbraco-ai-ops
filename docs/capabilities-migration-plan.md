@@ -237,6 +237,11 @@ table** once the catalog exists — it is draft input, and leaving it behind cre
 of truth this migration exists to kill. Reserve the framework loop names. This is the interface
 pivot; everything downstream conforms to it.
 
+Also in this phase: `README.md` gains a capability/action overview for adopters — **derived from
+the catalog, not hand-maintained**, or it drifts the way everything else in §7 has. That pass also
+resolves the dangling "see the topology map" reference at `README.md:110`. The README's
+"config contract" section (`:82`) is what Phase 8 deletes, so don't touch it here.
+
 **Phase 2 — Routing to spec (edge).** Convert `route-map` to the `{event,label,loop}` shape +
 event vocab; add base⊕overlay merge to `route-event.sh`; rename route targets to reserved loop
 names; remove the duplicated `case` fallback; move the overlay to the caller workflow /
