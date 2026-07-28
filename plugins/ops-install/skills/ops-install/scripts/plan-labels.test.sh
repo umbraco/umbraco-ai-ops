@@ -80,6 +80,35 @@ out="$(bash "$P" "$(mkrepo text '{"version":1}')" --code owner/code 2>/dev/null)
 check "text mode lists ten labels" 10 "$(printf '%s' "$out" | grep -c '#[0-9a-f]\{6\}')"
 check "text mode says how to create them" 1 "$(printf '%s' "$out" | grep -c 'create-label')"
 
+# --- the git-remote path --------------------------------------------------
+# Every case above passes --code, which is why a trailing-slash bug in the remote parser
+# survived 32 tests and was only found dry-running against a real clone. These exercise the
+# fallback: no --code, so the repo comes off `remote.origin.url`. Hermetic — git init is local.
+gitrepo() { # gitrepo <name> <origin-url> -> prints the dir
+  local d="$TMP/$1"; mkdir -p "$d"
+  git -C "$d" init -q 2>/dev/null
+  git -C "$d" remote add origin "$2" 2>/dev/null
+  printf '%s' "$d"
+}
+repo1() { bash "$P" "$1" --json 2>/dev/null | jq -r '.summary.repos[0]'; }
+
+if command -v git >/dev/null 2>&1; then
+  check "https origin resolves to owner/name" "owner/name" \
+    "$(repo1 "$(gitrepo g1 https://github.com/owner/name)")"
+  check "  a trailing slash is stripped" "owner/name" \
+    "$(repo1 "$(gitrepo g2 https://github.com/owner/name/)")"
+  check "  .git is stripped" "owner/name" \
+    "$(repo1 "$(gitrepo g3 https://github.com/owner/name.git)")"
+  check "  and both together" "owner/name" \
+    "$(repo1 "$(gitrepo g4 https://github.com/owner/name.git/)")"
+  check "  an ssh origin resolves too" "owner/name" \
+    "$(repo1 "$(gitrepo g5 git@github.com:owner/name.git)")"
+  check "a declared topology.code still beats the remote" "owner/declared" \
+    "$(d="$(gitrepo g6 https://github.com/owner/remote/)"; mkdir -p "$d/.claude"; \
+       printf '%s' '{"version":1,"topology":{"code":"owner/declared"}}' > "$d/.claude/ops-repo-meta.json"; \
+       repo1 "$d")"
+fi
+
 bash "$P" >/dev/null 2>&1;                     check "no argument exits 2" 2 $?
 bash "$P" "$TMP/absent" >/dev/null 2>&1;       check "a missing directory exits 2" 2 $?
 d="$(mkrepo broken '{ not json')"

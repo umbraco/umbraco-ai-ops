@@ -42,7 +42,11 @@ command -v jq >/dev/null 2>&1 || { echo "ERROR: jq required" >&2; exit 2; }
 # the only correct answer there.
 if [ -z "$code" ]; then
   origin="$(git -C "$repo" config --get remote.origin.url 2>/dev/null || true)"
-  code="$(printf '%s' "$origin" | sed -E 's#^git@[^:]+:##; s#^https?://[^/]+/##; s#\.git$##')"
+  # Trailing slashes come off BEFORE `.git`, not after: a clone URL legitimately ends in one
+  # (`https://github.com/owner/name/`), and `owner/name.git/` would otherwise keep its `.git`
+  # because the anchor no longer matches. Without any of this, every --repo carries the slash
+  # through to `gh` as `owner/name/`. Found dry-running against a real clone whose origin has one.
+  code="$(printf '%s' "$origin" | sed -E 's#^git@[^:]+:##; s#^https?://[^/]+/##; s#/+$##; s#\.git$##')"
 fi
 [ -n "$code" ] || { echo "ERROR: cannot resolve the code repo — pass --code owner/name" >&2; exit 2; }
 

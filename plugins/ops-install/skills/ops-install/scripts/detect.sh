@@ -19,7 +19,7 @@ git rev-parse --is-inside-work-tree >/dev/null 2>&1 || { printf '{"error":"not a
 # --- source repo (owner/name) from origin ---------------------------------
 origin="$(git remote get-url origin 2>/dev/null || true)"
 source_repo="$(printf '%s' "$origin" \
-  | sed -E 's#^(git@github\.com:|https://github\.com/|ssh://git@github\.com/)##; s#\.git$##; s#/$##')"
+  | sed -E 's#^(git@github\.com:|https://github\.com/|ssh://git@github\.com/)##; s#/+$##; s#\.git$##')"
 
 # --- branches -> branching model ------------------------------------------
 branches="$(git branch -a --format='%(refname:short)' 2>/dev/null | sed 's#^origin/##' | sort -u)"
