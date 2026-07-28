@@ -98,28 +98,100 @@ named in `branching.release_skill`.
 > decisions: **[`docs/capabilities-migration-plan.md`](docs/capabilities-migration-plan.md)**.
 > Shared terms: **[`docs/vocabulary.md`](docs/vocabulary.md)**.
 
+### It's one interface
+
+A generic loop reaches your repo by **invoking a skill by name**. That's the whole binding:
+
+```mermaid
+flowchart LR
+  E["GitHub event<br/>issues.labeled + ready-for-ai"] --> R["route-event.sh<br/>runs at the CI edge"]
+  R --> L["ops-issue-loop<br/>engine, generic"]
+  L -->|"invoke skill named ops-change<br/>with (action, context-json)"| C["ops-change<br/>your repo's skill"]
+  C -.->|"facts the loop reads"| L
+```
+
+The skill's **name** is the address, the **action** is the verb, JSON goes in and facts come back.
+No frontmatter to key on, no registry, no config pointer. Everything below is commentary on that
+one arrow.
+
+### You write two of them
+
+```mermaid
+flowchart LR
+  subgraph yours["you write these"]
+    direction TB
+    G["ops-change<br/>build, test, verify, close the issue"]
+    H["ops-release<br/>bump, tag, publish, back-merge"]
+  end
+  subgraph engine["you inherit these"]
+    direction TB
+    F["ops-integrate — land an approved PR"]
+    A["ops-branching — this repo's branch model"]
+    B["ops-workspace — isolated build env"]
+    C["ops-repo-meta — ambient repo facts"]
+    D["ops-ci — is CI green?"]
+    E["ops-notify — tell a human"]
+  end
+```
+
+Only `ops-change` and `ops-release` are **always** yours — they're the two nobody else can write,
+because they're what your product actually does. The other six ship as engine defaults you override
+only if you need something different. Learnings capture is engine machinery, not a per-repo
+capability.
+
+| Capability | What it does | Provided by |
+|---|---|---|
+| `ops-change` | build/test/verify one change, close the issue | **always the repo** |
+| `ops-release` | version bump, tag, publish, back-merge | **always the repo** |
+| `ops-integrate` | land an approved PR — the merge gates + the merge | engine default |
+| `ops-branching` | open/merge PRs, start branches, own the branch model | engine default |
+| `ops-workspace` | prepare + tear down an isolated build env | engine default |
+| `ops-repo-meta` | ambient facts: identity, which repo fills which role | engine default, detection-backed |
+| `ops-ci` | CI status + failing-build logs | engine default per CI provider |
+| `ops-notify` | notify a human | engine default |
+
+### Who may call what
+
+Capabilities aren't a flat pool — each is exposed to a particular layer. The engine records that per
+capability so review can enforce it:
+
+```mermaid
+flowchart TD
+  subgraph L["framework loops — engine"]
+    IL[ops-issue-loop]
+    MF[ops-merge-flow]
+    AR[ops-auto-release]
+  end
+  subgraph S["services — all a loop may command"]
+    CH[ops-change]
+    IN[ops-integrate]
+    RE[ops-release]
+  end
+  subgraph P["supporting primitives — wrapped by a service"]
+    BR[ops-branching]
+    WS[ops-workspace]
+  end
+  subgraph X["cross-cutting — callable anywhere"]
+    CI[ops-ci]
+    RM[ops-repo-meta]
+    NO[ops-notify]
+  end
+  IL --> CH
+  MF --> IN
+  AR --> RE
+  CH --> WS
+  CH --> BR
+  IN --> BR
+  RE --> BR
+```
+
+**The missing arrows are the point.** Nothing reaches `ops-branching` except through a service, so
+no loop ever holds a branch name or a merge strategy — it asks for an outcome ("merge this PR") and
+branching decides. That one absence is what collapses the four places base-branch knowledge lives
+today.
+
 The capability set and who may call what are settled; the per-capability *actions* are argued out
 against the catalog itself, so they live in the plan rather than here until `catalog.json` exists.
-
-**Visibility** says who may call a capability: a **service** is an intention a loop commands · a
-**supporting primitive** is mechanics a service wraps, never called by a loop · **cross-cutting** is
-a read or a side-effect, callable from anywhere. It's a review convention about exposure — every
-capability is invoked the same way, and there is no extra layer or runtime.
-
-| Capability | Visibility | Who provides it |
-|---|---|---|
-| `ops-change` | service | **always the repo** — build/test/verify, closing the issue |
-| `ops-release` | service | **always the repo** — version bump, tag, publish, back-merge |
-| `ops-integrate` | service | engine default — owns landing: the merge gates + the merge itself |
-| `ops-branching` | supporting primitive | engine default; repo overrides for a bespoke branch model |
-| `ops-workspace` | supporting primitive | engine default; repo overrides for worktree/DB setup |
-| `ops-repo-meta` | cross-cutting (read) | engine default, detection-backed |
-| `ops-ci` | cross-cutting (read) | engine default per CI provider |
-| `ops-notify` | cross-cutting (infra) | engine default |
-
-So an adopting repo owns **two** capability skills — `ops-change` and `ops-release` — and inherits
-the rest until it needs something different. Learnings capture is engine machinery, not a
-per-repo capability.
 
 ## Layout
 
