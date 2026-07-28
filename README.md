@@ -193,8 +193,44 @@ no loop ever holds a branch name or a merge strategy. It asks for an outcome, "m
 branching decides how. That one absence is what collapses the four places base-branch knowledge
 lives today.
 
-The capability set is settled, and so is who may call what. The individual *actions* are still being
-argued out against the catalog, so they live in the plan until `catalog.json` exists.
+### The actions each one answers to
+
+The capability is the address; the **action** is the verb. These come from
+**[`catalog.json`](catalog.json)**, whose shape is set by
+**[`catalog.schema.json`](catalog.schema.json)**. The action *names* are the contract: a capability
+skill must implement exactly these and reject anything else.
+
+> The table below is **generated**. Edit `catalog.json`, then run
+> `scripts/catalog-to-readme.sh`. CI fails if the two drift apart.
+
+<!-- BEGIN GENERATED: catalog-actions (scripts/catalog-to-readme.sh) -->
+| Capability | Action | What it does |
+|---|---|---|
+| `ops-change` | `implement` | Make the change the issue asks for on a work branch, and push it. |
+| `ops-change` | `verify` | Run this repo's build, tests and sanity checks against the change, and report pass or fail with enough detail for the caller to act on a failure. |
+| `ops-change` | `close-issue` | Close the originating issue and label it, on whichever repo holds issues. |
+| `ops-release` | `plan` | Turn the trigger into release facts: which line, which version, and which units of work the release contains. |
+| `ops-release` | `cut` | Branch, bump the version files, write the changelog, and open the release PR. |
+| `ops-release` | `publish` | Realize the release once its PR has landed: tag the commit, push the artifacts to their feed, and publish the release notes. |
+| `ops-release` | `sync` | Put the line's branches back in step after a release, so the next change starts from what actually shipped. |
+| `ops-integrate` | `land` | Check every gate, then merge, or decline with the reason. |
+| `ops-branching` | `merge` | Merge a PR using whichever strategy this repo's model calls for. |
+| `ops-branching` | `open-pr` | Open a PR from a work branch onto the correct base for its line, choosing that base internally. |
+| `ops-branching` | `start-branch` | Create a work branch for a change, named to this repo's convention and rooted on the correct base for its line. |
+| `ops-workspace` | `prepare` | Create the isolated workspace for a branch and leave it ready to build. |
+| `ops-workspace` | `teardown` | Remove the workspace and everything it created, including any database or container. |
+| `ops-repo-meta` | `identity` | Name the repo the loop is working in, and the labels and defaults it runs by. |
+| `ops-repo-meta` | `topology` | Say which repo fills each of the four roles — `code` (required), `issues`, `releases` and `learnings`. |
+| `ops-repo-meta` | `lines` | List the live lines, say which is primary, and give the port order. |
+| `ops-ci` | `status` | Report the CI state of a PR: pending, green or red, and which checks produced that verdict. |
+| `ops-ci` | `log` | Return the failing part of a failing build's log, trimmed to what is needed to diagnose it rather than the whole run. |
+| `ops-notify` | `send` | Send one notification to a human through whichever channel this repo uses. |
+<!-- END GENERATED: catalog-actions -->
+
+Each catalogued action also carries a worked `example` context, which does double duty: the
+installer scaffolds a stub from it and the eval suite is seeded from it. What an action *does* is
+not enforced anywhere — no static types, no payload validation. Evals are the only behavioural
+guard, which is the deliberate trade the spec makes.
 
 ## Layout
 
@@ -204,11 +240,18 @@ argued out against the catalog, so they live in the plan until `catalog.json` ex
 .github/workflows/
   tests.yml                # hermetic CI gate: run every *.test.sh + jq-validate every JSON
   loop-dispatch.yml        # reusable runtime workflow consumers call (edge router -> fire routine)
+catalog.json               # the capability catalog: capabilities, actions, worked examples
+catalog.schema.json        # its shape (a deliberate superset of the conformance spec's keys)
+docs/                      # migration plan, the two design docs, the vocabulary
 plugins/
   <plugin>/                # one dir per plugin (skills/, agents/, scripts/, references/)
-scripts/
-  cloud-skill-sync.sh      # cloud-env Setup script: deliver the engine skills to a routine
+scripts/                   # engine-wide scripts, not tied to one skill; each has its *.test.sh
+  validate-catalog.sh      # enforce catalog.schema.json's rules in jq (hermetic CI has no validator)
+  catalog-to-readme.sh     # regenerate this file's action table; --check fails on drift
 ```
+
+> **Not here yet:** `scripts/cloud-skill-sync.sh`, referenced above as the cloud delivery
+> mechanism, has not been ported from the prototype.
 
 ## Status
 

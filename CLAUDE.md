@@ -27,9 +27,11 @@ into, and no frontmatter to key on:
   `context`. `context` is a **single JSON object encoded as a string**; an absent context is
   `{}`. An action the capability doesn't implement is **rejected**, never guessed at and
   never silently succeeded.
-- **The capability catalog declares the interface** — which capabilities exist, which actions
-  each answers to, and a worked `example` per action. A capability skill for a capability the
-  catalog doesn't declare is illegal.
+- **The capability catalog declares the interface** — [`catalog.json`](catalog.json): which
+  capabilities exist, which actions each answers to, and a worked `example` per action. The
+  **action names are normative** (they are the validation set a skill rejects against); the
+  `input` / `output` lists are guidance and must never be enforced at runtime. A capability skill
+  for a capability the catalog doesn't declare is illegal.
 - **Only `ops-change` and `ops-release` are always the repo's.** The rest ship as **framework
   defaults** the repo *inherits*, and overrides by shipping its own skill of that name.
 - **Capability skills set `disable-model-invocation: true`.** A loop is the only caller; they
@@ -66,7 +68,7 @@ ships the default data; a consumer overrides by shipping its own file of the sam
 
 | Seam | Data | Schema |
 |------|------|--------|
-| **Capability catalog** (which capabilities exist, their actions, `visibility`) | `catalog.json` *(Phase 1)* | `catalog.schema.json` |
+| **Capability catalog** (which capabilities exist, their actions, `visibility`) | `catalog.json` | `catalog.schema.json` |
 | Event → loop routing (framework **base ⊕ per-repo overlay**) | `loop-dispatch/.../scripts/route-map.json` | `route-map.schema.json` |
 | GitHub/CI provider interface | `github-ops/.../operation-catalog.json` | `operation-catalog.schema.json` |
 | ~~Per-repo consumer config~~ | ~~`<consumer>/.claude/ai-ops.yml`~~ | *retired in Phase 8 — absorbed by `ops-repo-meta` plus the capabilities* |
@@ -129,6 +131,9 @@ keep it that way; never commit CRLF scripts.
 
 - `jq empty` every changed `*.json`.
 - Run any touched skill's `scripts/*.test.sh`.
+- **If you touched `catalog.json`:** run `scripts/validate-catalog.sh`, then
+  `scripts/catalog-to-readme.sh` to regenerate the README's action table. Never hand-edit that
+  table — CI fails on drift.
 - Grep your change for product-specifics (`npm`, `mcp`, a product name) — if present, it
   belongs in a **capability**, not in engine code.
 

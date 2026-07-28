@@ -1,0 +1,397 @@
+{
+  "version": 1,
+  "reserved_skill_names": [
+    "loop-dispatch",
+    "ops-install",
+    "ops-issue-loop",
+    "ops-merge-loop",
+    "ops-release-loop",
+    "ops-rework-loop",
+    "ops-triage-loop"
+  ],
+  "capabilities": [
+    {
+      "capability": "change",
+      "kind": "behavioral",
+      "visibility": "service",
+      "framework_default": false,
+      "description": "Build one change in this repo: implement it, prove it, and close the issue that asked for it. Always repo-provided — nothing generic can know how this product is built.",
+      "operations": [
+        {
+          "action": "implement",
+          "description": "Make the change the issue asks for on a work branch, and push it. Where the context carries a port source this is a port, not a replay: adapt the change to the target line, because a port that needs adapting is a real change.",
+          "input": {
+            "issue": "object — the issue being worked, including the repo that holds it",
+            "line": "string — the line to implement on, e.g. v17",
+            "port": "object|null — the source line and commit when this is a port of an already-landed change"
+          },
+          "output": {
+            "branch": "string — the branch the work was pushed to",
+            "summary": "string — what was changed, for the PR body"
+          },
+          "example": {
+            "issue": {
+              "repo": "owner/repo-issues",
+              "number": 4211,
+              "title": "Validation message ignores the current culture"
+            },
+            "line": "v17",
+            "port": null
+          }
+        },
+        {
+          "action": "verify",
+          "description": "Run this repo's build, tests and sanity checks against the change, and report pass or fail with enough detail for the caller to act on a failure.",
+          "input": {
+            "branch": "string — the branch to verify",
+            "scope": "string — optional narrowing, e.g. one test project"
+          },
+          "output": {
+            "ok": "boolean",
+            "failures": "array — one entry per failing check, with its output"
+          },
+          "example": {
+            "branch": "ai/4211-culture-validation"
+          }
+        },
+        {
+          "action": "close-issue",
+          "description": "Close the originating issue and label it, on whichever repo holds issues. Fires only once every target line has landed. MUST close explicitly: a `Closes #N` keyword does not cross repos. MUST tolerate an issue that is already closed.",
+          "input": {
+            "issue": "object — the issue to close, including its repo",
+            "landed": "array — one entry per line that landed, with its PR"
+          },
+          "output": {
+            "closed": "boolean",
+            "labels": "array — the labels left on the issue"
+          },
+          "example": {
+            "issue": {
+              "repo": "owner/repo-issues",
+              "number": 4211
+            },
+            "landed": [
+              { "line": "v17", "pr_number": 8890 },
+              { "line": "v18", "pr_number": 8894 }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "capability": "release",
+      "kind": "behavioral",
+      "visibility": "service",
+      "framework_default": false,
+      "description": "Turn a release trigger into a shipped release for this repo: plan it, cut it, publish it, then put the line's branches back in step. Always repo-provided — version sources and publish targets are product facts.",
+      "operations": [
+        {
+          "action": "plan",
+          "description": "Turn the trigger into release facts: which line, which version, and which units of work the release contains. Reads only; opens nothing.",
+          "input": {
+            "trigger": "object — the issue, label or dispatch that asked for a release"
+          },
+          "output": {
+            "line": "string",
+            "version": "string",
+            "units": "array — the changes included, for the changelog"
+          },
+          "example": {
+            "trigger": {
+              "issue_number": 512,
+              "version_text": "release 18.0.0-beta.3"
+            }
+          }
+        },
+        {
+          "action": "cut",
+          "description": "Branch, bump the version files, write the changelog, and open the release PR. Idempotent: re-running MUST return the existing release PR, never open a second.",
+          "input": {
+            "plan": "object — the output of `plan`"
+          },
+          "output": {
+            "pr_number": "integer",
+            "branch": "string"
+          },
+          "example": {
+            "plan": {
+              "line": "v18",
+              "version": "18.0.0-beta.3",
+              "units": []
+            }
+          }
+        },
+        {
+          "action": "publish",
+          "description": "Realize the release once its PR has landed: tag the commit, push the artifacts to their feed, and publish the release notes. MUST leave nothing half-published on failure.",
+          "input": {
+            "plan": "object — the output of `plan`",
+            "merge_commit": "string — the commit the release PR landed as"
+          },
+          "output": {
+            "tag": "string",
+            "url": "string — the published release"
+          },
+          "example": {
+            "plan": {
+              "line": "v18",
+              "version": "18.0.0-beta.3"
+            },
+            "merge_commit": "9f1c2ab"
+          }
+        },
+        {
+          "action": "sync",
+          "description": "Put the line's branches back in step after a release, so the next change starts from what actually shipped. The step manual releases most often forget.",
+          "input": {
+            "line": "string — the line that was just released"
+          },
+          "output": {
+            "ok": "boolean",
+            "pr_number": "integer|null — set when the sync needed a PR rather than a fast-forward"
+          },
+          "example": {
+            "line": "v18"
+          }
+        }
+      ]
+    },
+    {
+      "capability": "integrate",
+      "kind": "behavioral",
+      "visibility": "service",
+      "framework_default": true,
+      "description": "Land an approved PR. Owns every piece of merge policy: the gates, the release-base skip, and the merge itself. A loop hands it a PR and reads an outcome; the loop never holds a branch name or a merge strategy. The gates are engine policy, so the framework default should fit every repo.",
+      "operations": [
+        {
+          "action": "land",
+          "description": "Check every gate, then merge, or decline with the reason. Gates: the landing label is present, CI is green, the PR is mergeable, and its base is a live integration branch. Re-checks CI itself rather than trusting the caller's poll. Outcome is one of `merged`, `skipped:release-base`, `blocked:ci`, `blocked:conflict`, `blocked:changes-requested` — a fixed set the evals assert on, not an enforced envelope. Idempotent: an already-merged PR MUST report that merge, not attempt another.",
+          "input": {
+            "pr": "object — the PR to land, including its repo and number"
+          },
+          "output": {
+            "outcome": "string — one of the five above",
+            "detail": "string — the specific blocker, for the loop to comment",
+            "merge_commit": "string|null"
+          },
+          "example": {
+            "pr": {
+              "repo": "owner/repo",
+              "number": 8890
+            }
+          }
+        }
+      ]
+    },
+    {
+      "capability": "branching",
+      "kind": "behavioral",
+      "visibility": "supporting",
+      "framework_default": true,
+      "description": "This repo's branch model, and the only holder of it. The integration branches, the release base and the merge strategy are private: callers ask for an outcome, never for a value. Command-only — it answers no reads, and it reads the live-line set from `repo-meta` every time rather than caching it, because a new major adds a line without an engine change.",
+      "operations": [
+        {
+          "action": "merge",
+          "description": "Merge a PR using whichever strategy this repo's model calls for. The caller passes no strategy and learns none. Checking the base is membership of the live-line set, never equality with one branch.",
+          "input": {
+            "pr": "object — the PR to merge"
+          },
+          "output": {
+            "merged": "boolean",
+            "merge_commit": "string"
+          },
+          "example": {
+            "pr": {
+              "repo": "owner/repo",
+              "number": 8890
+            }
+          }
+        },
+        {
+          "action": "open-pr",
+          "description": "Open a PR from a work branch onto the correct base for its line, choosing that base internally.",
+          "input": {
+            "branch": "string",
+            "line": "string",
+            "title": "string",
+            "body": "string"
+          },
+          "output": {
+            "pr_number": "integer",
+            "url": "string"
+          },
+          "example": {
+            "branch": "ai/4211-culture-validation",
+            "line": "v17",
+            "title": "Make validation messages culture-aware",
+            "body": "Fixes owner/repo-issues#4211"
+          }
+        },
+        {
+          "action": "start-branch",
+          "description": "Create a work branch for a change, named to this repo's convention and rooted on the correct base for its line.",
+          "input": {
+            "line": "string",
+            "slug": "string — a short kebab-case description of the work"
+          },
+          "output": {
+            "branch": "string"
+          },
+          "example": {
+            "line": "v17",
+            "slug": "4211-culture-validation"
+          }
+        }
+      ]
+    },
+    {
+      "capability": "workspace",
+      "kind": "behavioral",
+      "visibility": "supporting",
+      "framework_default": true,
+      "description": "An isolated place to build and test one change: worktree, database, dependencies, credentials. Prepared and torn down by `ops-change`, never by a loop.",
+      "operations": [
+        {
+          "action": "prepare",
+          "description": "Create the isolated workspace for a branch and leave it ready to build. Idempotent: an existing workspace for that branch MUST be reused, not duplicated.",
+          "input": {
+            "branch": "string"
+          },
+          "output": {
+            "path": "string — where the workspace lives",
+            "reused": "boolean"
+          },
+          "example": {
+            "branch": "ai/4211-culture-validation"
+          }
+        },
+        {
+          "action": "teardown",
+          "description": "Remove the workspace and everything it created, including any database or container. MUST succeed when there is nothing left to remove.",
+          "input": {
+            "path": "string"
+          },
+          "output": {
+            "ok": "boolean"
+          },
+          "example": {
+            "path": "../worktrees/4211-culture-validation"
+          }
+        }
+      ]
+    },
+    {
+      "capability": "repo-meta",
+      "kind": "data",
+      "visibility": "cross-cutting",
+      "framework_default": true,
+      "description": "Ambient facts about this repo and its family, as data. A data capability: the structure is the deliverable, so every action MUST return well-formed structured output rather than prose. Detection fills in what it can; a repo declares the rest.",
+      "operations": [
+        {
+          "action": "identity",
+          "description": "Name the repo the loop is working in, and the labels and defaults it runs by.",
+          "input": {},
+          "output": {
+            "repo": "string — owner/name",
+            "default_branch": "string",
+            "labels": "object — the trigger labels this repo uses, by purpose"
+          },
+          "example": {}
+        },
+        {
+          "action": "topology",
+          "description": "Say which repo fills each of the four roles — `code` (required), `issues`, `releases` and `learnings`. An unspecified role resolves to `code`, so a single-repo project returns only `code`. `learnings` is not automatically `issues`: where issues are public and code is not, learnings follow the code.",
+          "input": {},
+          "output": {
+            "repos": "object — role → owner/name"
+          },
+          "example": {}
+        },
+        {
+          "action": "lines",
+          "description": "List the live lines, say which is primary, and give the port order. None of it is derivable from version numbers or from the default branch, so a repo declares it: the primary line need not be the newest line or the default branch. Callers MUST read this rather than cache it, because a major-version cutover adds a line.",
+          "input": {},
+          "output": {
+            "live": "array — the lines currently taking work",
+            "primary": "string — the line work starts on before being ported",
+            "port_order": "string — `upward` or `downward`"
+          },
+          "example": {}
+        }
+      ]
+    },
+    {
+      "capability": "ci",
+      "kind": "behavioral",
+      "visibility": "cross-cutting",
+      "framework_default": true,
+      "description": "This repo's CI, read-only. Both actions are reads: nothing here starts, retries or cancels a build. The CI provider is internal — no caller learns which one this repo uses.",
+      "operations": [
+        {
+          "action": "status",
+          "description": "Report the CI state of a PR: pending, green or red, and which checks produced that verdict.",
+          "input": {
+            "pr": "object — the PR to read"
+          },
+          "output": {
+            "state": "string — `pending`, `green` or `red`",
+            "checks": "array — name and conclusion per check"
+          },
+          "example": {
+            "pr": {
+              "repo": "owner/repo",
+              "number": 8890
+            }
+          }
+        },
+        {
+          "action": "log",
+          "description": "Return the failing part of a failing build's log, trimmed to what is needed to diagnose it rather than the whole run.",
+          "input": {
+            "pr": "object",
+            "check": "string — which check to read; omit for the first failing one"
+          },
+          "output": {
+            "log": "string — the relevant excerpt",
+            "check": "string — the check it came from"
+          },
+          "example": {
+            "pr": {
+              "repo": "owner/repo",
+              "number": 8890
+            },
+            "check": "Build (Release)"
+          }
+        }
+      ]
+    },
+    {
+      "capability": "notify",
+      "kind": "behavioral",
+      "visibility": "cross-cutting",
+      "framework_default": true,
+      "description": "Tell a human something happened, through whichever channel this repo uses. Infrastructure: callable from any layer, and never a gate — a failed notification MUST NOT fail the work it was reporting on.",
+      "operations": [
+        {
+          "action": "send",
+          "description": "Send one notification to a human through whichever channel this repo uses. Idempotent per `key`: the same key twice MUST NOT produce a second message.",
+          "input": {
+            "subject": "string",
+            "body": "string",
+            "urgency": "string — `normal` or `high`",
+            "key": "string — a stable id for this notification, for de-duplication"
+          },
+          "output": {
+            "sent": "boolean"
+          },
+          "example": {
+            "subject": "Landed PR #8890",
+            "body": "The v17 line went green and merged. v18 port is still open.",
+            "urgency": "normal",
+            "key": "landed-owner/repo-8890"
+          }
+        }
+      ]
+    }
+  ]
+}

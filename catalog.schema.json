@@ -1,0 +1,93 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/umbraco/umbraco-ai-ops/catalog.schema.json",
+  "title": "Capability catalog",
+  "description": "The engine's declaration of every capability, the actions it answers to, and a worked example per action. One entry per capability; a capability skill is named ops-<capability> and a repo MUST NOT ship one for a capability absent from here. A superset of the conformance spec §5.2-5.3 keys: `visibility`, `kind`, `framework_default` and `reserved_skill_names` are this repo's additions and are NOT spec requirements (see docs/capabilities-migration-plan.md §9b). The structure below is normative; `description`, `input` and `output` contents are guidance and MUST NOT be enforced at runtime. `example` is normative because it seeds both the installer's scaffold and the eval.",
+  "type": "object",
+  "required": ["version", "reserved_skill_names", "capabilities"],
+  "additionalProperties": false,
+  "properties": {
+    "version": {
+      "type": "integer",
+      "const": 1,
+      "description": "Catalog format version. Bump on a breaking shape change, not on adding a capability."
+    },
+    "reserved_skill_names": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "description": "Skill names the engine owns: the framework loops, the edge router and the installer. A consumer MUST NOT define a skill with one of these names. Machine-readable so the router and the installer can both validate against it instead of restating a prose list.",
+      "items": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" }
+    },
+    "capabilities": {
+      "type": "array",
+      "minItems": 1,
+      "description": "One entry per capability. Order is presentational only.",
+      "items": {
+        "type": "object",
+        "required": ["capability", "kind", "visibility", "framework_default", "description", "operations"],
+        "additionalProperties": false,
+        "properties": {
+          "capability": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]*$",
+            "description": "The capability name WITHOUT the ops- prefix. The skill implementing it is named ops-<capability>."
+          },
+          "kind": {
+            "type": "string",
+            "enum": ["behavioral", "data"],
+            "description": "`behavioral` = a caller invokes its actions to make something happen. `data` = the structure it returns IS the deliverable, which triggers the conformance spec's §4.4 carve-out: every action MUST return well-formed structured data."
+          },
+          "visibility": {
+            "type": "string",
+            "enum": ["service", "supporting", "cross-cutting"],
+            "description": "Exposure class. `service` = the only thing a framework loop may command. `supporting` = domain mechanics wrapped by a service, never called by a loop. `cross-cutting` = a read or an infrastructure side effect, callable from any layer. Held by review reading this field, not enforced by code."
+          },
+          "framework_default": {
+            "type": "boolean",
+            "description": "True if the engine ships an implementation a repo inherits when it provides none. False means the capability is ALWAYS repo-provided, so the installer reports `missing` rather than `inherited` when no ops-<capability> skill is present."
+          },
+          "description": {
+            "type": "string",
+            "minLength": 1,
+            "description": "What the capability is for, in one or two sentences. Guidance."
+          },
+          "operations": {
+            "type": "array",
+            "minItems": 1,
+            "description": "The actions this capability answers to. These names are NORMATIVE: they are the invocation contract and the validation set a skill rejects against.",
+            "items": {
+              "type": "object",
+              "required": ["action", "description", "example"],
+              "additionalProperties": false,
+              "properties": {
+                "action": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9-]*$",
+                  "description": "The verb, passed as the first positional argument."
+                },
+                "description": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "What the action does, and any MUST that is specific to it (idempotency shape, safety on failure). Guidance."
+                },
+                "input": {
+                  "type": "object",
+                  "description": "Field list for the context object. GUIDANCE ONLY — informs scaffolding and evals, and MUST NOT be validated at runtime."
+                },
+                "output": {
+                  "type": "object",
+                  "description": "Field list for the returned facts. GUIDANCE ONLY, same rule as `input`."
+                },
+                "example": {
+                  "type": "object",
+                  "description": "A worked context object. NORMATIVE: the installer's scaffold and the eval suite are both seeded from it, so it must be realistic and product-agnostic. An empty object is valid and meaningful — it states that the action takes no context."
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
