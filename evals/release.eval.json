@@ -1,0 +1,173 @@
+{
+  "capability": "release",
+  "skill": "ops-release",
+  "kind": "behavioral",
+  "visibility": "service",
+  "framework_default": false,
+  "generated_from": "catalog.json",
+  "cases": [
+    {
+      "id": "plan/example",
+      "action": "plan",
+      "context": {
+        "trigger": {
+          "issue_number": 512,
+          "version_text": "release 18.0.0-beta.3"
+        }
+      },
+      "asserts": [
+        "The result makes success or failure unambiguous — it ends with a single JSON object carrying `ok`.",
+        "It reports the facts the catalog lists as this action's output, so the next action in a hand-off is not left guessing.",
+        "It did not silently do nothing."
+      ]
+    },
+    {
+      "id": "plan/empty-context",
+      "action": "plan",
+      "context": {},
+      "asserts": [
+        "An absent context is treated as `{}` rather than raising a malformed-input error.",
+        "It either does the sensible default thing or explains what it needed — it does NOT invent a value it was not given."
+      ]
+    },
+    {
+      "id": "plan/idempotency",
+      "action": "plan",
+      "context": {
+        "trigger": {
+          "issue_number": 512,
+          "version_text": "release 18.0.0-beta.3"
+        }
+      },
+      "repeat": 2,
+      "asserts": [
+        "The second invocation produced NO second side effect — no duplicate PR, branch, issue, comment, merge or notification.",
+        "The second invocation reported the EXISTING state rather than failing."
+      ]
+    },
+    {
+      "id": "cut/example",
+      "action": "cut",
+      "context": {
+        "plan": {
+          "line": "v18",
+          "version": "18.0.0-beta.3",
+          "units": []
+        }
+      },
+      "asserts": [
+        "The result makes success or failure unambiguous — it ends with a single JSON object carrying `ok`.",
+        "It reports the facts the catalog lists as this action's output, so the next action in a hand-off is not left guessing.",
+        "It did not silently do nothing."
+      ]
+    },
+    {
+      "id": "cut/empty-context",
+      "action": "cut",
+      "context": {},
+      "asserts": [
+        "An absent context is treated as `{}` rather than raising a malformed-input error.",
+        "It either does the sensible default thing or explains what it needed — it does NOT invent a value it was not given."
+      ]
+    },
+    {
+      "id": "cut/idempotency",
+      "action": "cut",
+      "context": {
+        "plan": {
+          "line": "v18",
+          "version": "18.0.0-beta.3",
+          "units": []
+        }
+      },
+      "repeat": 2,
+      "asserts": [
+        "The second invocation produced NO second side effect — no duplicate PR, branch, issue, comment, merge or notification.",
+        "The second invocation reported the EXISTING state rather than failing."
+      ]
+    },
+    {
+      "id": "publish/example",
+      "action": "publish",
+      "context": {
+        "plan": {
+          "line": "v18",
+          "version": "18.0.0-beta.3"
+        },
+        "merge_commit": "9f1c2ab"
+      },
+      "asserts": [
+        "The result makes success or failure unambiguous — it ends with a single JSON object carrying `ok`.",
+        "It reports the facts the catalog lists as this action's output, so the next action in a hand-off is not left guessing.",
+        "It did not silently do nothing."
+      ]
+    },
+    {
+      "id": "publish/empty-context",
+      "action": "publish",
+      "context": {},
+      "asserts": [
+        "An absent context is treated as `{}` rather than raising a malformed-input error.",
+        "It either does the sensible default thing or explains what it needed — it does NOT invent a value it was not given."
+      ]
+    },
+    {
+      "id": "publish/idempotency",
+      "action": "publish",
+      "context": {
+        "plan": {
+          "line": "v18",
+          "version": "18.0.0-beta.3"
+        },
+        "merge_commit": "9f1c2ab"
+      },
+      "repeat": 2,
+      "asserts": [
+        "The second invocation produced NO second side effect — no duplicate PR, branch, issue, comment, merge or notification.",
+        "The second invocation reported the EXISTING state rather than failing."
+      ]
+    },
+    {
+      "id": "sync/example",
+      "action": "sync",
+      "context": {
+        "line": "v18"
+      },
+      "asserts": [
+        "The result makes success or failure unambiguous — it ends with a single JSON object carrying `ok`.",
+        "It reports the facts the catalog lists as this action's output, so the next action in a hand-off is not left guessing.",
+        "It did not silently do nothing."
+      ]
+    },
+    {
+      "id": "sync/empty-context",
+      "action": "sync",
+      "context": {},
+      "asserts": [
+        "An absent context is treated as `{}` rather than raising a malformed-input error.",
+        "It either does the sensible default thing or explains what it needed — it does NOT invent a value it was not given."
+      ]
+    },
+    {
+      "id": "sync/idempotency",
+      "action": "sync",
+      "context": {
+        "line": "v18"
+      },
+      "repeat": 2,
+      "asserts": [
+        "The second invocation produced NO second side effect — no duplicate PR, branch, issue, comment, merge or notification.",
+        "The second invocation reported the EXISTING state rather than failing."
+      ]
+    },
+    {
+      "id": "unknown-action",
+      "action": "definitely-not-an-action",
+      "context": {},
+      "asserts": [
+        "The action was REJECTED. Not guessed at, not mapped to a similar one, not silently succeeded.",
+        "The rejection says which actions are valid, or at least that this one is not."
+      ]
+    }
+  ]
+}

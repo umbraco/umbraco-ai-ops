@@ -1,7 +1,12 @@
 #!/usr/bin/env bash
-# detect.sh — inspect a git repo and emit best-effort ai-ops config fields as JSON.
-# Deterministic, read-only (never writes), no network. The umbraco-ops-setup skill runs
-# this, shows the result, confirms/fills gaps with the user, then writes .claude/ai-ops.yml.
+# detect.sh — inspect a git repo and emit best-effort repo facts as JSON.
+# Deterministic, read-only (never writes), no network. `ops-install` runs this, shows the
+# result, and confirms or fills the gaps with a human; `ops-repo-meta` uses it as the seed for
+# `identity` and `lines`. It writes no config file — there isn't one any more.
+#
+# It is a SEED, not an authority. Anything a human had to decide — the primary line, the port
+# direction, which repo holds issues — is not detectable, and a repo declares it by shipping
+# its own `ops-repo-meta`.
 #
 # Usage: bash detect.sh [repo-dir]   (default: current directory)
 # Output: one JSON object on stdout; {"error": "..."} if the dir isn't a git repo.
@@ -45,7 +50,7 @@ has_release_tags=false; [ -n "$(git tag --list 'release-*' 2>/dev/null | head -1
 release_skill=""
 [ -d .claude/skills/release-management ] && release_skill="release-management"
 
-# --- stack (for the build-playbook scaffold) ------------------------------
+# --- stack (informs the ops-change scaffold) -------------------------------
 stack="unknown"
 if [ -n "$(git ls-files '*.slnx' '*.sln' '*.csproj' 2>/dev/null | head -1)" ]; then stack="dotnet"
 elif [ -n "$(git ls-files 'package.json' 2>/dev/null | head -1)" ]; then stack="node"; fi

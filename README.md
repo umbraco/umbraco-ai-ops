@@ -22,15 +22,15 @@ prototype, which proved the model on Claude Code web routines.
 
 Consumer shape follows **repo cardinality**:
 
-| Consumer | Shape | Where its build skill + config live |
+| Consumer | Shape | Where its capability skills live |
 |----------|-------|----------------------------------|
-| **Umbraco.Forms** | single product, one repo | committed in the repo's own `.claude/skills/` (in-repo) |
-| **Umbraco.Automate** | single product (multi-package), one repo | committed in the repo's own `.claude/skills/` (in-repo) |
+| **Umbraco.Forms** | single product, one repo | its own `.claude/skills/ops-change` + `ops-release` |
+| **Umbraco.Automate** | single product (multi-package), one repo | its own `.claude/skills/`, same shape |
 | **MCP server family** | many repos, one toolchain | one shared consumer repo (`umbraco-mcp-ops`), delivered like the engine |
 
-> **One product = one repo → consumer half lives in-repo.**
-> **One product family = many repos → consumer half lives in one shared repo**, to avoid
-> duplicating an identical build skill across the family.
+> **One product = one repo → your two skills live in-repo.**
+> **One product family = many repos → they live in one shared repo**, to avoid duplicating an
+> identical `ops-change` across the family.
 
 ## Plugins
 
@@ -38,7 +38,7 @@ Installed from this marketplace (`.claude-plugin/marketplace.json`):
 
 | Plugin | What it is |
 |--------|------------|
-| **ops-setup** | Onboarding. `/umbraco-ops-setup` detects the repo's branching, CI and release setup, confirms it with you, then writes `.claude/ai-ops.yml`, a build-skill scaffold and the caller workflows. Run it first. |
+| **ops-install** | Onboarding, and the proof it worked. `/ops-install` detects the repo's setup, reports capability coverage, scaffolds a stub for anything missing, installs the caller workflows and validates the routing. Run it first. |
 | **ops-issue-loop** | The orchestrator: queue, dispatch up to three at once, stop at a green PR. It owns sequencing only and commands your `ops-change` for the work. Bundles `ops-rework-loop`. |
 | **ops-learnings** | Self-learning. Read-only hooks file `ops/proto-learning` issues off the critical path; `ops-triage-loop` sweeps them weekly and routes each lesson to whoever owns it. |
 | **github-ops** | All GitHub work, in both environments: `gh`/`git` locally, `mcp__github__*` on web. Also wraps the CI provider, either `github-checks` or `azure-pipelines`. Every loop needs it. |
@@ -56,17 +56,17 @@ Installed from this marketplace (`.claude-plugin/marketplace.json`):
 
 1. **Install the engine** in the target repo's workspace:
    `/plugin marketplace add umbraco/umbraco-ai-ops`, then install the plugins.
-2. **Run `/umbraco-ops-setup`.** It reads the branching model out of git history, works out the
-   CI host and release approach, then asks you about anything it could not tell. It writes
-   `.claude/ai-ops.yml`, a build-skill scaffold and the caller workflows.
-3. **Do the manual steps it lists.** Create the labels. Add the CI credentials and egress. On
-   `azure-pipelines` repos that means a read-only ADO PAT. Then stand up the routine with
-   `new-loop-routine`.
-4. **Fill in any build-skill TODOs, then review and commit** the generated files.
+2. **Run `/ops-install`.** It reads the branching model out of git history, works out the CI host
+   and release approach, then asks about anything it could not tell. It reports **capability
+   coverage** and scaffolds a stub for whatever is missing — on a fresh repo that is `ops-change`
+   and `ops-release`, the two that are always yours.
+3. **Do the manual steps it lists.** Create the `ops/` labels. Add the routine secrets, and the
+   CI credentials if CI is not GitHub checks. Then stand up the routine with `new-loop-routine`.
+4. **Fill in the TODOs in the scaffolded skills, then review and commit.** A scaffold is not an
+   implementation: the loops cannot run until those are done.
 
-Nothing in the engine is product-specific. Whatever your repo does differently lives in its own
-`.claude/ai-ops.yml`. If your release or branching is unusual, it lives in a skill you own, named
-in `branching.release_skill`.
+Nothing in the engine is product-specific, and there is no config file. Whatever your repo does
+differently lives in a skill you own, named `ops-<capability>`.
 
 ## How a consumer links to the engine
 
@@ -86,24 +86,12 @@ copied, nothing depends on one skill shadowing another, and no pointer has to be
 > one build skill on the default branch and have it work out the base branch at runtime. Do not
 > fork a copy per branch.
 
-## The config contract (being retired)
-
-> **No loop reads this any more.** `.claude/ai-ops.yml` is now read by **exactly one skill**,
-> `ops-repo-meta`, as a transitional bridge so existing consumers keep working while the
-> capability model lands. It is **deleted** in Phase 8, along with `ai-ops.schema.json` and
-> `ai-ops.example.yml`. **Do not add a key to it.**
-
-Its shape is **[`ai-ops.schema.json`](ai-ops.schema.json)**, with
-**[`ai-ops.example.yml`](ai-ops.example.yml)** as a worked example. It covers `repos`, `ci`,
-`branching`, `learning` and `playbook`. Everything in it is being absorbed: repo facts by
-`ops-repo-meta`, the rest by the capability that owns the behaviour.
-
 ## Capability skills
 
-> **Where things stand.** Phases 0–4 have landed: the catalog exists, routing is on the spec's
-> shape, and every loop now commands capabilities by name. What is left is the installer
-> (Phase 5), the two consumers' own skills (Phase 6), evals (Phase 7) and deleting the config
-> above (Phase 8). The plan is in
+> **Where things stand.** The engine is on the capability model: the catalog exists, routing is
+> base ⊕ overlay at the edge, every loop commands capabilities by name, the installer proves
+> coverage, and the old central config is deleted. What is left is per-consumer work (Phase 6 —
+> Forms' and Automate's own two skills) and evals (Phase 7). The plan is in
 > **[`docs/capabilities-migration-plan.md`](docs/capabilities-migration-plan.md)**; shared terms
 > are in **[`docs/vocabulary.md`](docs/vocabulary.md)**.
 

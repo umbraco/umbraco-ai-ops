@@ -1,0 +1,85 @@
+{
+  "capability": "workspace",
+  "skill": "ops-workspace",
+  "kind": "behavioral",
+  "visibility": "supporting",
+  "framework_default": true,
+  "generated_from": "catalog.json",
+  "cases": [
+    {
+      "id": "prepare/example",
+      "action": "prepare",
+      "context": {
+        "branch": "ai/4211-culture-validation"
+      },
+      "asserts": [
+        "The result makes success or failure unambiguous — it ends with a single JSON object carrying `ok`.",
+        "It reports the facts the catalog lists as this action's output, so the next action in a hand-off is not left guessing.",
+        "It did not silently do nothing."
+      ]
+    },
+    {
+      "id": "prepare/empty-context",
+      "action": "prepare",
+      "context": {},
+      "asserts": [
+        "An absent context is treated as `{}` rather than raising a malformed-input error.",
+        "It either does the sensible default thing or explains what it needed — it does NOT invent a value it was not given."
+      ]
+    },
+    {
+      "id": "prepare/idempotency",
+      "action": "prepare",
+      "context": {
+        "branch": "ai/4211-culture-validation"
+      },
+      "repeat": 2,
+      "asserts": [
+        "The second invocation produced NO second side effect — no duplicate PR, branch, issue, comment, merge or notification.",
+        "The second invocation reported the EXISTING state rather than failing."
+      ]
+    },
+    {
+      "id": "teardown/example",
+      "action": "teardown",
+      "context": {
+        "path": "../worktrees/4211-culture-validation"
+      },
+      "asserts": [
+        "The result makes success or failure unambiguous — it ends with a single JSON object carrying `ok`.",
+        "It reports the facts the catalog lists as this action's output, so the next action in a hand-off is not left guessing.",
+        "It did not silently do nothing."
+      ]
+    },
+    {
+      "id": "teardown/empty-context",
+      "action": "teardown",
+      "context": {},
+      "asserts": [
+        "An absent context is treated as `{}` rather than raising a malformed-input error.",
+        "It either does the sensible default thing or explains what it needed — it does NOT invent a value it was not given."
+      ]
+    },
+    {
+      "id": "teardown/idempotency",
+      "action": "teardown",
+      "context": {
+        "path": "../worktrees/4211-culture-validation"
+      },
+      "repeat": 2,
+      "asserts": [
+        "The second invocation produced NO second side effect — no duplicate PR, branch, issue, comment, merge or notification.",
+        "The second invocation reported the EXISTING state rather than failing."
+      ]
+    },
+    {
+      "id": "unknown-action",
+      "action": "definitely-not-an-action",
+      "context": {},
+      "asserts": [
+        "The action was REJECTED. Not guessed at, not mapped to a similar one, not silently succeeded.",
+        "The rejection says which actions are valid, or at least that this one is not."
+      ]
+    }
+  ]
+}

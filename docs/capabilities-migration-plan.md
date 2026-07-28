@@ -1,6 +1,6 @@
 # Capabilities-model migration plan
 
-Status: **Phases 0–4 landed; Phase 5 next** (28-07-2026) · Author: audit of `umbraco-ai-ops@main`
+Status: **Engine complete — Phases 0–5, 7, 8 landed; Phase 6 is consumer-side** (28-07-2026) · Author: audit of `umbraco-ai-ops@main`
 against the two design docs, both now committed here:
 
 - **[`ops-capability-skills.md`](ops-capability-skills.md)** — Layer 1, the informative explainer.
@@ -17,13 +17,25 @@ Layer 2 also names a **Layer 3** — "reference skills + scaffolder templates (`
 `ops-repo-meta`, catalog)" — which does not exist in either repo. That absence is why this plan's
 phase order departs from layer 1 §10 (§4).
 
-**Phases 0 through 4 are complete.** All nine §6 decisions are resolved, §6.8a with them, and
-§9a's seven conformance gaps are closed. The catalog exists — **[`catalog.json`](../catalog.json)**,
-8 capabilities and 19 actions. Routing is on the spec's shape with base ⊕ overlay merging at the
-edge. **All five framework loops exist under their reserved names and command capabilities by
-name**, and all six framework defaults ship in `ops-capabilities`. **The four-way base-branch drift
-is closed**, and `ai-ops.yml` is read by exactly one skill. **Nothing is open.** Phase 5 is next:
-the installer.
+**The engine is done. Phases 0–5, 7 and 8 have landed; Phase 6 is work in the consumer repos, not
+here.**
+
+| | |
+|---|---|
+| §6 decisions | all nine resolved, §6.8a with them |
+| §9a conformance gaps | all seven closed |
+| The catalog | **[`catalog.json`](../catalog.json)** — 8 capabilities, 19 actions, with `--check`-gated generation of everything derived from it |
+| Routing | the spec's `{event,label,loop}` shape, base ⊕ overlay merged at the edge, four base rows |
+| Framework loops | all five, under their reserved names, commanding capabilities by name |
+| Framework defaults | all six, in `ops-capabilities` |
+| The installer | `ops-install` — conformance §8's three clauses, each by a tested script |
+| Evals | 8 suites, 66 cases, generated from the catalog; opt-in |
+| The old config model | **deleted** — no file, no pointer, no transitional read |
+| Tests | 12 hermetic files in the CI gate |
+
+**The four-way base-branch drift is closed**, the `ci.provider` spelling split is gone, and every
+engine label is namespaced `ops/`. **Nothing is open.** What remains is per-consumer: Forms' and
+Automate's own `ops-change` and `ops-release`, against the prerequisites table in Phase 6.
 
 > **Where execution changed the plan, read [§10](#10-deviations-log--what-execution-changed-about-this-plan).**
 > Three logs, three jobs: **§6** is what we decided before building, **§9b** is where we knowingly
@@ -576,15 +588,35 @@ pretending to apply it.
 **All five framework loops now exist under their reserved names**, so `loop-dispatch` no longer
 carries a translation table.
 
-**Phase 5 — Rebuild the installer as `ops-install`.** Coverage report
-(present/inherited/missing by `ops-<cap>` name); scaffold a stub per missing catalog capability
-(carrying `disable-model-invocation: true` and the §3 invocation guards, per §9a.4/§9a.7); validate
-the routing overlay per conformance §6. In a split topology it must install the caller workflow on
-**both** repos and materialize issue-label rules to the issues repo and PR-label rules to the code
-repo (layer 1 §07, conformance §7.5). Keep `detect.sh` for pre-fill. Conformance criteria for the
-installer itself are conformance §8.
+**Phase 5 — Rebuild the installer as `ops-install`. Complete.** All three conformance §8 clauses
+are met, and each by a **script** rather than by prose, because a coverage report a model
+produces by reading directories can be quietly wrong and "you are covered" is exactly the claim
+nobody re-checks.
 
-**Phase 6 — Consumer capability skills (Forms, then Automate).** Provide Forms' implementations:
+- ~~Coverage report (present / inherited / missing by `ops-<cap>` name).~~ `scripts/coverage.sh`,
+  with `--json`. It exits non-zero when anything is missing, so a caller can gate on it, and it
+  reads the defaults **off disk** rather than trusting the catalog's `framework_default` flag —
+  a flag saying a default exists is a claim, and checking claims is the point. 15 tests.
+- ~~Scaffold a stub per missing capability, carrying `disable-model-invocation` and the §2b
+  guards.~~ `scripts/scaffold-capability.sh`, **generated from the catalog entry**, so a stub can
+  never disagree with the catalog about which actions exist. It refuses a capability the catalog
+  does not declare, and never overwrites. 50 tests.
+- ~~Validate the routing overlay per conformance §6.~~ `scripts/validate-overlay.sh`: shape, the
+  event vocabulary, `(event,label)` uniqueness, and that **every routed loop resolves to an
+  installed skill**. It also warns when a `loop: null` disable matches no base rule — which does
+  nothing at all and is always a mistake. 27 tests.
+- ~~Install the caller workflow on **both** repos in a split topology.~~ Written into the skill as
+  its own step, with the wiring per repo spelled out, because this is the step that silently
+  half-works: issue labels on a repo with no workflow are simply ignored.
+- ~~Keep `detect.sh`.~~ Kept, and re-described as a **seed, not an authority** — it writes
+  nothing now.
+
+**Phase 6 — Consumer capability skills (Forms, then Automate).** **Out of scope for this repo** —
+it is work in the two consumer repos, not the engine. Everything the engine owes it is done: the
+catalog declares the interface, `ops-install` scaffolds both skills and proves coverage, and the
+prerequisites table below is the checklist.
+
+**Phase 6 detail, for whoever does it.** Provide Forms' implementations:
 `ops-change` (dotnet build/verify + cross-repo close to `Umbraco.Forms.Issues`), `ops-release`
 (nbgv/version bump/tag/back-merge across `vN/dev`↔`vN/main`), `ops-repo-meta` (topology: public
 issues repo + internal code repo, `releases` and `learnings` both resolving to `code`; **live lines +
@@ -615,12 +647,29 @@ for the evidence:
 | Branch protection on live lines | recommended | recommended | not required, but with none (the case today) `ops-integrate`'s own CI re-check is the **only** real gate |
 | Install the caller workflow on **both** repos | needed — code **and** `Umbraco.Forms.Issues` | single repo, one install | conformance §7.5 requires it on every repo emitting consumed events: issue-label rules on the public issues repo, PR-label rules on the code repo (§9a.5) |
 
-**Phase 7 — Evals.** Per-capability suites seeded from the catalog examples; opt-in.
+**Phase 7 — Evals. Complete.** `evals/` holds **8 suites, 66 cases**, and they are
+**generated** — `scripts/build-evals.sh`, with a `--check` mode a test asserts, so they cannot
+drift from the catalog. A hand-written eval set drifts, and a drifted one either fails on the
+wrong thing or passes while testing an action that no longer exists.
 
-**Phase 8 — Retire the config-pointer model.** Delete `ai-ops.yml` + `ai-ops.schema.json` +
-`ai-ops.example.yml` outright (§6.7 — no remnant), along with the `playbook` / `release_skill`
-pointers and the `ci.*` / `branching.*` config. Remove the README's "config contract" section and
-update `CLAUDE.md`.
+Every action gets the four cases that correspond to the four MUSTs a capability can silently get
+wrong: the catalog's **worked example**, an **empty context** (must be `{}`, not an error), an
+**unknown action** (must be rejected), and **idempotency** (same action twice, no second side
+effect). A data capability gets a fifth for structured output (§4.4).
+
+`scripts/run-evals.sh` runs a suite, LLM-judged against the asserts. It needs `claude` and a real
+repo, so it is **opt-in and not in the CI gate** — and deliberately not named `*.test.sh`, or the
+gate would try to run it. `--list` and `--plan` are hermetic and tested.
+
+**Phase 8 — Retire the config-pointer model. Complete.** `ai-ops.schema.json` and
+`ai-ops.example.yml` are **deleted** (§6.7 — no remnant; `ai-ops.yml` only ever existed in a
+consumer). The transitional read inside `ops-repo-meta` is gone with them, so nothing anywhere
+reads a config file. The README's config-contract section is removed and its opening rewritten;
+`CLAUDE.md` now says plainly that if you want a config key, the answer is a capability.
+
+Safe to do now precisely because **no consumer is onboarded yet** — §8 records that neither repo
+has any trigger label, so there is no live `ai-ops.yml` to break. Had one existed, this phase
+would have had to wait for Phase 6.
 
 ---
 
@@ -992,3 +1041,11 @@ Kind: **added** = did more than the plan asked · **changed** = did it different
 | 25 | 4 | **added** | The plan does not say how the capture hook — bash, no session — resolves the `learnings` repo. | It **cannot invoke a skill**, so it resolves `$OPS_LEARNINGS_REPO`, else the current git remote. Unset therefore lands on the current repo, which is exactly what the framework default for the `learnings` role resolves to, so the two agree without the hook knowing about roles. The label, the loop signature and the log/state paths are env-overridable for the same reason. |
 | 26 | 4 | **added** | Nothing asked for tests on the capture hook. | **28 cases**, hermetic — the analyzer is injected and filing is forced to dry-run, so nothing reaches GitHub. The property under test is that capture **never fails the session**: every case asserts exit 0, including the broken ones. Capture runs off the critical path, so a bug there must cost a log line, never a build. |
 | 27 | 4 | **changed** | Phase 8 removes the README's config-contract section. | The README's **opening** was left describing the retired model as current — "each consumer supplies a build skill and a config block, found via the `playbook` key" — which stopped being true the moment the loops started commanding capabilities. Corrected now; the config-contract *section* still stands, but marked as read by exactly one skill and deleted in Phase 8. Leaving a factually wrong first paragraph for four more phases was not worth the tidiness of a clean phase boundary. |
+| 28 | 5 | **changed** | Phase 5 describes the installer as a skill that reports coverage, scaffolds and validates. | **Four of its six steps are scripts** — `coverage.sh`, `scaffold-capability.sh`, `validate-overlay.sh` and the kept `detect.sh` — with 92 tests between them. Conformance §8's three clauses are the three claims nobody re-checks; a model reading directories to produce "you are covered" can be quietly wrong, and the skill's job is to *show the output*, not to be trusted. |
+| 29 | 5 | **added** | Nothing asked for a manifest check. | `scripts/validate-manifests.sh` came out of Phase 3 and is listed there (§10.19); Phase 5 is where it earned its keep, catching the `ops-setup` → `ops-install` rename in both manifests and the marketplace at once. |
+| 30 | 5 | **corrected** | `coverage.sh` could have read the catalog's `framework_default` flag to decide `inherited`. | It reads the **defaults off disk** instead. The flag is a claim about what exists; a coverage report exists to check claims, and one that trusts its own catalog would report `inherited` for a default someone deleted. |
+| 31 | 7 | **added** | Phase 7: "per-capability suites seeded from the catalog examples; opt-in." | Suites are **generated with a `--check` gate**, not seeded once. Seeding is a one-time act and drifts immediately; the README table taught that lesson in Phase 1. Also fixed the case set: rather than one case per example, each action gets **four** — example, empty-context, unknown-action, idempotency — because those are the four MUSTs of §2b that a capability can satisfy on paper and violate in practice. |
+| 32 | 7 | **changed** | Not stated: what the eval runner is called. | `scripts/run-evals.sh`, deliberately **not** `*.test.sh`. CI now finds every `*.test.sh` in the repo (§10.7), so a runner named that way would join the hermetic gate and fail on every machine without `claude`. Its hermetic paths (`--list`, `--plan`) have their own tests. |
+| 33 | 8 | **added** | Phase 8 lists the config files to delete. | Also deleted the **transitional read** inside `ops-repo-meta` that Phase 3 added (§10.17), which is the thing that would otherwise have kept the file alive in spirit. Safe now only because no consumer is onboarded — §8 records that neither repo has a trigger label yet. |
+| 34 | 5 | **added** | The hazard register called `scripts/cloud-skill-sync.sh` a Phase 6 blocker. | **Ported and fixed.** Both `README.md` and `CLAUDE.md` named it as the mechanism that delivers the engine to a cloud routine — the main runtime — and the file did not exist. It now delivers **every** skill and agent rather than a hand-maintained list (one less thing to forget), and it **wires the capture hooks into `settings.json`**, without which proto-learning capture works locally and silently does nothing in cloud. 29 tests, hermetic via `$OPS_SRC` and `$OPS_HOME`. |
+| 35 | — | **corrected** | *(process, not plan)* | Two of my own bugs, worth recording because both were silent: jq's `index` with an **array** argument searches for a subsequence, not an element, so the overlay validator's disable-check never matched; and under `set -o pipefail`, `cmd \| grep -q` reports the *writer's* status because `grep -q` closes the pipe early, so a passing assertion read as a failure. Both are commented at the site. |

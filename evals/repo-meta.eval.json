@@ -1,0 +1,115 @@
+{
+  "capability": "repo-meta",
+  "skill": "ops-repo-meta",
+  "kind": "data",
+  "visibility": "cross-cutting",
+  "framework_default": true,
+  "generated_from": "catalog.json",
+  "cases": [
+    {
+      "id": "identity/example",
+      "action": "identity",
+      "context": {},
+      "asserts": [
+        "The result makes success or failure unambiguous — it ends with a single JSON object carrying `ok`.",
+        "It reports the facts the catalog lists as this action's output, so the next action in a hand-off is not left guessing.",
+        "It did not silently do nothing."
+      ]
+    },
+    {
+      "id": "identity/empty-context",
+      "action": "identity",
+      "context": {},
+      "asserts": [
+        "An absent context is treated as `{}` rather than raising a malformed-input error.",
+        "It either does the sensible default thing or explains what it needed — it does NOT invent a value it was not given."
+      ]
+    },
+    {
+      "id": "identity/idempotency",
+      "action": "identity",
+      "context": {},
+      "repeat": 2,
+      "asserts": [
+        "The second invocation produced NO second side effect — no duplicate PR, branch, issue, comment, merge or notification.",
+        "The second invocation reported the EXISTING state rather than failing."
+      ]
+    },
+    {
+      "id": "topology/example",
+      "action": "topology",
+      "context": {},
+      "asserts": [
+        "The result makes success or failure unambiguous — it ends with a single JSON object carrying `ok`.",
+        "It reports the facts the catalog lists as this action's output, so the next action in a hand-off is not left guessing.",
+        "It did not silently do nothing."
+      ]
+    },
+    {
+      "id": "topology/empty-context",
+      "action": "topology",
+      "context": {},
+      "asserts": [
+        "An absent context is treated as `{}` rather than raising a malformed-input error.",
+        "It either does the sensible default thing or explains what it needed — it does NOT invent a value it was not given."
+      ]
+    },
+    {
+      "id": "topology/idempotency",
+      "action": "topology",
+      "context": {},
+      "repeat": 2,
+      "asserts": [
+        "The second invocation produced NO second side effect — no duplicate PR, branch, issue, comment, merge or notification.",
+        "The second invocation reported the EXISTING state rather than failing."
+      ]
+    },
+    {
+      "id": "lines/example",
+      "action": "lines",
+      "context": {},
+      "asserts": [
+        "The result makes success or failure unambiguous — it ends with a single JSON object carrying `ok`.",
+        "It reports the facts the catalog lists as this action's output, so the next action in a hand-off is not left guessing.",
+        "It did not silently do nothing."
+      ]
+    },
+    {
+      "id": "lines/empty-context",
+      "action": "lines",
+      "context": {},
+      "asserts": [
+        "An absent context is treated as `{}` rather than raising a malformed-input error.",
+        "It either does the sensible default thing or explains what it needed — it does NOT invent a value it was not given."
+      ]
+    },
+    {
+      "id": "lines/idempotency",
+      "action": "lines",
+      "context": {},
+      "repeat": 2,
+      "asserts": [
+        "The second invocation produced NO second side effect — no duplicate PR, branch, issue, comment, merge or notification.",
+        "The second invocation reported the EXISTING state rather than failing."
+      ]
+    },
+    {
+      "id": "unknown-action",
+      "action": "definitely-not-an-action",
+      "context": {},
+      "asserts": [
+        "The action was REJECTED. Not guessed at, not mapped to a similar one, not silently succeeded.",
+        "The rejection says which actions are valid, or at least that this one is not."
+      ]
+    },
+    {
+      "id": "structured-output",
+      "action": "identity",
+      "context": {},
+      "asserts": [
+        "The output is well-formed structured data, not prose. A caller can parse it without interpreting a sentence.",
+        "This is a data capability, so the structure IS the deliverable (conformance spec §4.4)."
+      ]
+    }
+  ]
+}

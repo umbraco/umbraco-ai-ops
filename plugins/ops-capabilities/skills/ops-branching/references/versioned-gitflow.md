@@ -11,7 +11,7 @@ integration branch and a `vN/main` release branch for each supported major `N` (
 
 ## Resolving the current major
 
-- If `branching.base` / `branching.release_base` are given explicitly in `.claude/ai-ops.yml`,
+- If a repo declares its lines explicitly (via its own `ops-repo-meta`),
   use them verbatim (e.g. `base: v18/dev`, `release_base: v18/main`).
 - Otherwise resolve the **highest** major from the branches:
   ```bash
@@ -21,7 +21,7 @@ integration branch and a `vN/main` release branch for each supported major `N` (
   Take the greatest `N` that has **both** a `vN/dev` and a `vN/main`; that pair is the active
   line — `base = vN/dev`, `release_base = vN/main`.
 - The repo's own `CLAUDE.md` may pin the working line (versioned repos typically document the
-  in-dev major); follow it, but `.claude/ai-ops.yml` still wins.
+  in-dev major); follow it, but a repo-declared line list still wins.
 
 ## Branching, merging, releasing
 

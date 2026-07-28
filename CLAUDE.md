@@ -52,11 +52,11 @@ flat into overlapping locations with undocumented precedence. Convention-by-name
 that, but it also means an engine skill and a repo skill **must never share a name unless the
 repo means to replace it**.
 
-> **In flight.** The engine still binds through `.claude/ai-ops.yml` pointers today
-> (`playbook` → build skill, `branching.release_skill` → release skill). That is the model
-> being retired, in Phase 8 of
-> **[`docs/capabilities-migration-plan.md`](docs/capabilities-migration-plan.md)**. Write new
-> work against the convention above; do not add config keys.
+> **There is no central config.** The engine used to bind through `.claude/ai-ops.yml`
+> pointers (`playbook` → build skill, `branching.release_skill` → release skill). That file,
+> its schema and its example are **deleted**. If you find yourself wanting a config key, the
+> answer is a capability — see
+> **[`docs/capabilities-migration-plan.md`](docs/capabilities-migration-plan.md)**.
 
 ## Data seams are data + schema, never prose
 
@@ -72,7 +72,6 @@ ships the default data; a consumer overrides by shipping its own file of the sam
 | Event → loop routing, framework **base** | `loop-dispatch/.../scripts/route-map.json` | `route-map.schema.json` |
 | Event → loop routing, **per-repo overlay** (merged over the base at the edge) | `<consumer>/.github/ops-routing.json` | `loop-dispatch/.../scripts/ops-routing.schema.json` |
 | GitHub/CI provider interface | `github-ops/.../operation-catalog.json` | `operation-catalog.schema.json` |
-| ~~Per-repo consumer config~~ | ~~`<consumer>/.claude/ai-ops.yml`~~ | *retired in Phase 8 — absorbed by `ops-repo-meta` plus the capabilities* |
 
 When you add a seam, follow the same pattern (data file + schema alongside the code that
 reads it) and document it here.
@@ -154,12 +153,27 @@ keep it that way; never commit CRLF scripts.
 
 - `jq empty` every changed `*.json`.
 - Run any touched skill's `scripts/*.test.sh`.
-- **If you touched `catalog.json`:** run `scripts/validate-catalog.sh`, then
-  `scripts/catalog-to-readme.sh` to regenerate the README's action table. Never hand-edit that
-  table — CI fails on drift.
+- **If you touched `catalog.json`:** run **all three** of `scripts/validate-catalog.sh`,
+  `scripts/catalog-to-readme.sh` (regenerates the README's action table) and
+  `scripts/build-evals.sh` (regenerates `evals/`). Never hand-edit the generated table or a
+  suite — CI fails on drift in either.
 - **If you added, renamed or removed a plugin:** run `scripts/validate-manifests.sh`. A
   marketplace entry pointing at a directory that doesn't exist makes `/plugin marketplace add`
   fail for the **whole** marketplace, not just that entry.
+
+Everything generated from the catalog has a `--check` mode with a test asserting it, so the
+catalog stays the single source: the README action table, and the eval suites.
+
+## Evals are the only behavioural guard
+
+There are no static types and no payload validation — the conformance spec makes that trade
+explicitly. So `ops-install` can report **full coverage** for a repo whose capabilities are
+wrong in every action, because coverage matches skill *names*. `evals/` is what checks
+behaviour, and it is generated from the catalog's worked examples.
+
+Running them needs `claude` and a real repo, so **they are opt-in and not in the CI gate** —
+which is also why the runner is `scripts/run-evals.sh` and deliberately **not** named
+`*.test.sh`. Use `--list` and `--plan <capability>` to inspect a suite without running it.
 - Grep your change for product-specifics (`npm`, `mcp`, a product name) — if present, it
   belongs in a **capability**, not in engine code.
 

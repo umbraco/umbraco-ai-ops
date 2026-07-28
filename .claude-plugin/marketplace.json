@@ -11,18 +11,18 @@
   },
   "plugins": [
     {
-      "name": "ops-setup",
-      "source": "./plugins/ops-setup",
-      "description": "Interactive onboarding: /umbraco-ops-setup investigates a repo (branching model from git history, CI host, release approach), confirms and fills the gaps via the question tool, then generates the consumer files — .claude/ai-ops.yml, a build-playbook scaffold, any override skills the repo needs, and the caller workflow(s). Run once per repo after installing the engine.",
-      "version": "0.1.0",
+      "name": "ops-install",
+      "source": "./plugins/ops-install",
+      "description": "Onboarding, and the proof that a repo is actually covered. `/ops-install` detects the repo's branching, CI and release setup, reports capability coverage against catalog.json (present / inherited / missing, by matching ops-<capability> skill names), scaffolds a stub for every missing capability GENERATED from its catalog entry — carrying disable-model-invocation, the reject-unknown-action rule and the per-action idempotency requirement — installs the caller workflow on every repo that emits routed events (both repos in a split topology), validates the routing overlay against the event vocabulary and checks every routed loop resolves to an installed skill, then lists the manual steps. Four of its six steps are deterministic scripts, because a coverage report a model produces by reading directories can be quietly wrong. Writes no central config: a capability is found by its name.",
+      "version": "0.2.0",
       "category": "workflow",
       "keywords": [
-        "setup",
         "onboarding",
-        "config",
-        "detection",
-        "interactive",
-        "scaffold"
+        "installer",
+        "coverage",
+        "scaffold",
+        "conformance",
+        "detection"
       ]
     },
     {

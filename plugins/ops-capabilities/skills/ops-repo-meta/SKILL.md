@@ -45,19 +45,16 @@ In this order. Stop at the first that answers.
 
 1. **A repo-declared fact.** If the repo ships its own `ops-repo-meta`, this skill is not
    running at all — that is what overriding means.
-2. **Detection.** `detect.sh` (in the `ops-setup` plugin) reads git branches and repo
+2. **Detection.** `detect.sh` (in the `ops-install` plugin) reads git branches and repo
    settings and returns `source`, `branching.*`, `ci.provider`, `release.*`, `stack`. Use it
    for `identity.repo`, `identity.default_branch`, and as the seed for `lines`.
-3. **The repo's `.claude/ai-ops.yml`, if present** — a **transitional** bridge, not the
-   model. See the box below.
-4. **The framework defaults** in this file.
+3. **The framework defaults** in this file.
 
-> **Transitional: reading `ai-ops.yml`.** The engine used to have every loop read that file
-> directly. During the migration exactly **one** skill reads it — this one — so the loops
-> already speak the capability interface while existing consumers keep working. Phase 8 of
-> [the migration plan](../../../../docs/capabilities-migration-plan.md) deletes the file, and
-> this step goes with it. Do **not** add a new key to it, and do **not** read it from
-> anywhere else.
+> **There is no config file to read.** The engine used to bind through a central
+> `.claude/ai-ops.yml`, and during the migration this skill read it as a transitional bridge.
+> That file is gone. A repo with facts detection cannot reach **ships its own `ops-repo-meta`**
+> — that is the whole mechanism, and adding a config file back would recreate the drift the
+> capability model exists to remove.
 
 ## Action: `identity`
 

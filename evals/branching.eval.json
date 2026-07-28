@@ -1,0 +1,132 @@
+{
+  "capability": "branching",
+  "skill": "ops-branching",
+  "kind": "behavioral",
+  "visibility": "supporting",
+  "framework_default": true,
+  "generated_from": "catalog.json",
+  "cases": [
+    {
+      "id": "merge/example",
+      "action": "merge",
+      "context": {
+        "pr": {
+          "repo": "owner/repo",
+          "number": 8890
+        }
+      },
+      "asserts": [
+        "The result makes success or failure unambiguous — it ends with a single JSON object carrying `ok`.",
+        "It reports the facts the catalog lists as this action's output, so the next action in a hand-off is not left guessing.",
+        "It did not silently do nothing."
+      ]
+    },
+    {
+      "id": "merge/empty-context",
+      "action": "merge",
+      "context": {},
+      "asserts": [
+        "An absent context is treated as `{}` rather than raising a malformed-input error.",
+        "It either does the sensible default thing or explains what it needed — it does NOT invent a value it was not given."
+      ]
+    },
+    {
+      "id": "merge/idempotency",
+      "action": "merge",
+      "context": {
+        "pr": {
+          "repo": "owner/repo",
+          "number": 8890
+        }
+      },
+      "repeat": 2,
+      "asserts": [
+        "The second invocation produced NO second side effect — no duplicate PR, branch, issue, comment, merge or notification.",
+        "The second invocation reported the EXISTING state rather than failing."
+      ]
+    },
+    {
+      "id": "open-pr/example",
+      "action": "open-pr",
+      "context": {
+        "branch": "ai/4211-culture-validation",
+        "line": "v17",
+        "title": "Make validation messages culture-aware",
+        "body": "Fixes owner/repo-issues#4211"
+      },
+      "asserts": [
+        "The result makes success or failure unambiguous — it ends with a single JSON object carrying `ok`.",
+        "It reports the facts the catalog lists as this action's output, so the next action in a hand-off is not left guessing.",
+        "It did not silently do nothing."
+      ]
+    },
+    {
+      "id": "open-pr/empty-context",
+      "action": "open-pr",
+      "context": {},
+      "asserts": [
+        "An absent context is treated as `{}` rather than raising a malformed-input error.",
+        "It either does the sensible default thing or explains what it needed — it does NOT invent a value it was not given."
+      ]
+    },
+    {
+      "id": "open-pr/idempotency",
+      "action": "open-pr",
+      "context": {
+        "branch": "ai/4211-culture-validation",
+        "line": "v17",
+        "title": "Make validation messages culture-aware",
+        "body": "Fixes owner/repo-issues#4211"
+      },
+      "repeat": 2,
+      "asserts": [
+        "The second invocation produced NO second side effect — no duplicate PR, branch, issue, comment, merge or notification.",
+        "The second invocation reported the EXISTING state rather than failing."
+      ]
+    },
+    {
+      "id": "start-branch/example",
+      "action": "start-branch",
+      "context": {
+        "line": "v17",
+        "slug": "4211-culture-validation"
+      },
+      "asserts": [
+        "The result makes success or failure unambiguous — it ends with a single JSON object carrying `ok`.",
+        "It reports the facts the catalog lists as this action's output, so the next action in a hand-off is not left guessing.",
+        "It did not silently do nothing."
+      ]
+    },
+    {
+      "id": "start-branch/empty-context",
+      "action": "start-branch",
+      "context": {},
+      "asserts": [
+        "An absent context is treated as `{}` rather than raising a malformed-input error.",
+        "It either does the sensible default thing or explains what it needed — it does NOT invent a value it was not given."
+      ]
+    },
+    {
+      "id": "start-branch/idempotency",
+      "action": "start-branch",
+      "context": {
+        "line": "v17",
+        "slug": "4211-culture-validation"
+      },
+      "repeat": 2,
+      "asserts": [
+        "The second invocation produced NO second side effect — no duplicate PR, branch, issue, comment, merge or notification.",
+        "The second invocation reported the EXISTING state rather than failing."
+      ]
+    },
+    {
+      "id": "unknown-action",
+      "action": "definitely-not-an-action",
+      "context": {},
+      "asserts": [
+        "The action was REJECTED. Not guessed at, not mapped to a similar one, not silently succeeded.",
+        "The rejection says which actions are valid, or at least that this one is not."
+      ]
+    }
+  ]
+}

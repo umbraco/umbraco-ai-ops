@@ -1,0 +1,138 @@
+{
+  "capability": "change",
+  "skill": "ops-change",
+  "kind": "behavioral",
+  "visibility": "service",
+  "framework_default": false,
+  "generated_from": "catalog.json",
+  "cases": [
+    {
+      "id": "implement/example",
+      "action": "implement",
+      "context": {
+        "issue": {
+          "repo": "owner/repo-issues",
+          "number": 4211,
+          "title": "Validation message ignores the current culture"
+        },
+        "line": "v17",
+        "port": null
+      },
+      "asserts": [
+        "The result makes success or failure unambiguous — it ends with a single JSON object carrying `ok`.",
+        "It reports the facts the catalog lists as this action's output, so the next action in a hand-off is not left guessing.",
+        "It did not silently do nothing."
+      ]
+    },
+    {
+      "id": "implement/empty-context",
+      "action": "implement",
+      "context": {},
+      "asserts": [
+        "An absent context is treated as `{}` rather than raising a malformed-input error.",
+        "It either does the sensible default thing or explains what it needed — it does NOT invent a value it was not given."
+      ]
+    },
+    {
+      "id": "implement/idempotency",
+      "action": "implement",
+      "context": {
+        "issue": {
+          "repo": "owner/repo-issues",
+          "number": 4211,
+          "title": "Validation message ignores the current culture"
+        },
+        "line": "v17",
+        "port": null
+      },
+      "repeat": 2,
+      "asserts": [
+        "The second invocation produced NO second side effect — no duplicate PR, branch, issue, comment, merge or notification.",
+        "The second invocation reported the EXISTING state rather than failing."
+      ]
+    },
+    {
+      "id": "verify/example",
+      "action": "verify",
+      "context": {
+        "branch": "ai/4211-culture-validation"
+      },
+      "asserts": [
+        "The result makes success or failure unambiguous — it ends with a single JSON object carrying `ok`.",
+        "It reports the facts the catalog lists as this action's output, so the next action in a hand-off is not left guessing.",
+        "It did not silently do nothing."
+      ]
+    },
+    {
+      "id": "verify/empty-context",
+      "action": "verify",
+      "context": {},
+      "asserts": [
+        "An absent context is treated as `{}` rather than raising a malformed-input error.",
+        "It either does the sensible default thing or explains what it needed — it does NOT invent a value it was not given."
+      ]
+    },
+    {
+      "id": "verify/idempotency",
+      "action": "verify",
+      "context": {
+        "branch": "ai/4211-culture-validation"
+      },
+      "repeat": 2,
+      "asserts": [
+        "The second invocation produced NO second side effect — no duplicate PR, branch, issue, comment, merge or notification.",
+        "The second invocation reported the EXISTING state rather than failing."
+      ]
+    },
+    {
+      "id": "close-issue/example",
+      "action": "close-issue",
+      "context": {
+        "landed": {
+          "repo": "owner/repo",
+          "pr_number": 8890,
+          "line": "v17"
+        }
+      },
+      "asserts": [
+        "The result makes success or failure unambiguous — it ends with a single JSON object carrying `ok`.",
+        "It reports the facts the catalog lists as this action's output, so the next action in a hand-off is not left guessing.",
+        "It did not silently do nothing."
+      ]
+    },
+    {
+      "id": "close-issue/empty-context",
+      "action": "close-issue",
+      "context": {},
+      "asserts": [
+        "An absent context is treated as `{}` rather than raising a malformed-input error.",
+        "It either does the sensible default thing or explains what it needed — it does NOT invent a value it was not given."
+      ]
+    },
+    {
+      "id": "close-issue/idempotency",
+      "action": "close-issue",
+      "context": {
+        "landed": {
+          "repo": "owner/repo",
+          "pr_number": 8890,
+          "line": "v17"
+        }
+      },
+      "repeat": 2,
+      "asserts": [
+        "The second invocation produced NO second side effect — no duplicate PR, branch, issue, comment, merge or notification.",
+        "The second invocation reported the EXISTING state rather than failing."
+      ]
+    },
+    {
+      "id": "unknown-action",
+      "action": "definitely-not-an-action",
+      "context": {},
+      "asserts": [
+        "The action was REJECTED. Not guessed at, not mapped to a similar one, not silently succeeded.",
+        "The rejection says which actions are valid, or at least that this one is not."
+      ]
+    }
+  ]
+}
