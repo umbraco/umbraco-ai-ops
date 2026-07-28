@@ -157,6 +157,9 @@ keep it that way; never commit CRLF scripts.
 - **If you touched `catalog.json`:** run `scripts/validate-catalog.sh`, then
   `scripts/catalog-to-readme.sh` to regenerate the README's action table. Never hand-edit that
   table — CI fails on drift.
+- **If you added, renamed or removed a plugin:** run `scripts/validate-manifests.sh`. A
+  marketplace entry pointing at a directory that doesn't exist makes `/plugin marketplace add`
+  fail for the **whole** marketplace, not just that entry.
 - Grep your change for product-specifics (`npm`, `mcp`, a product name) — if present, it
   belongs in a **capability**, not in engine code.
 

@@ -165,12 +165,12 @@
       "operations": [
         {
           "action": "land",
-          "description": "Check every gate, then merge, or decline with the reason. Gates: the landing label is present, CI is green, the PR is mergeable, and its base is a live integration branch. Re-checks CI itself rather than trusting the caller's poll. Outcome is one of `merged`, `skipped:release-base`, `blocked:ci`, `blocked:conflict`, `blocked:changes-requested` — a fixed set the evals assert on, not an enforced envelope. Idempotent: an already-merged PR MUST report that merge, not attempt another.",
+          "description": "Check every gate, then merge, or decline with the reason. Gates: the landing label is present, CI is green, the PR is mergeable, and its base is a live integration branch. Re-checks CI itself rather than trusting the caller's poll. Outcome is one of `merged`, `skipped:release-base`, `blocked:ci`, `blocked:conflict`, `blocked:changes-requested`, `blocked:wrong-base`, `blocked:no-label` — a fixed set the evals assert on, not an enforced envelope. Idempotent: an already-merged PR MUST report that merge, not attempt another.",
           "input": {
             "pr": "object — the PR to land, including its repo and number"
           },
           "output": {
-            "outcome": "string — one of the five above",
+            "outcome": "string — one of the seven above",
             "detail": "string — the specific blocker, for the loop to comment",
             "merge_commit": "string|null"
           },

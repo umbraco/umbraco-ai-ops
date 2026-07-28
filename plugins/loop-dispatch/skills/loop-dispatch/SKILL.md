@@ -99,10 +99,9 @@ specific issue/PR, and **follow that skill's instructions verbatim**:
 - `ops/auto-rework` PR → **`ops-rework-loop`** for that PR.
 - `ops/auto-release` issue → **`ops-release-loop`**, version taken from the issue title.
 
-> **Names in flight.** The loops above are the target names (§2 of the migration plan). Until
-> Phase 3/4 rename the skills themselves, dispatch to the skill that exists today:
-> `ops-issue-loop` → `issue-loop-core`, `ops-merge-loop` → `merge-flow`,
-> `ops-release-loop` → `auto-release-loop`, `ops-rework-loop` → `rework-loop`.
+> **Two names still in flight.** `ops-merge-loop` and `ops-release-loop` are real skills as of
+> Phase 3. The issue and rework loops are renamed in Phase 4, so until then dispatch
+> `ops-issue-loop` → `issue-loop-core` and `ops-rework-loop` → `rework-loop`.
 
 **One event → one loop.** Do not chain (don't build *then* merge *then* release in a
 single fire) — each of those has its own event that will dispatch its own run. Hand

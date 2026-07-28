@@ -43,7 +43,7 @@ supersedes that; the field contract is identical either way.)
    non-zero exit means the router is misconfigured (see its exit codes) — that is a build
    failure, not a no-op. Do **not** wake a loop and let it sweep on a label you don't care about —
    that's the wasteful pattern (a Dependabot PR labelled `dependencies` must *not* trigger
-   the `ops/auto-merge` path; that's what caused merge-flow to fire 4× overnight). A scripted
+   the `ops/auto-merge` path; that's what caused the merge loop to fire 4× overnight). A scripted
    decision is byte-identical across firings and model instances.
 4. **Fetch details with the exact values** through `github-ops` — `issue_read`
    (`method: "get"`) for issues, `pull_request_read` (`method: "get"`) for PRs — using

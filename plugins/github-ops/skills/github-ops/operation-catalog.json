@@ -19,7 +19,6 @@
     { "id": "close-pr",            "axis": "forge", "title": "Close a PR without merging (+ comment, delete branch)" },
     { "id": "create-branch",       "axis": "forge", "title": "Create a branch" },
     { "id": "push-files",          "axis": "forge", "title": "Create / update / push file(s)" },
-    { "id": "get-file-contents",   "axis": "forge", "title": "Get file contents" },
-    { "id": "detect-base-branch",  "axis": "forge", "title": "Detect base branch (defer to release-and-branching)" }
+    { "id": "get-file-contents",   "axis": "forge", "title": "Get file contents" }
   ]
 }

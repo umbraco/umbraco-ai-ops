@@ -1,0 +1,20 @@
+{
+  "name": "ops-capabilities",
+  "version": "0.1.0",
+  "description": "The framework-default capability skills a consumer inherits: ops-integrate (land an approved PR — owns every merge gate and the release-base skip), ops-branching (the repo's branch model, with the integration branches, release base and merge strategy PRIVATE — callers ask for outcomes, never values), ops-ci (CI status + failing-build logs, read-only, provider internal), ops-repo-meta (ambient repo facts as data: identity, topology, live lines), and ops-notify (tell a human). Each is a skill named ops-<capability>, invoked by name with (action, context-json) per catalog.json; a repo overrides one by shipping its own skill of the same name. The two capabilities that are ALWAYS the repo's — ops-change and ops-release — are deliberately absent.",
+  "author": {
+    "name": "Umbraco",
+    "url": "https://github.com/umbraco"
+  },
+  "homepage": "https://github.com/umbraco/umbraco-ai-ops/tree/main/plugins/ops-capabilities",
+  "license": "MIT",
+  "keywords": [
+    "capability",
+    "framework-default",
+    "merge",
+    "branching",
+    "ci",
+    "repo-meta",
+    "notify"
+  ]
+}

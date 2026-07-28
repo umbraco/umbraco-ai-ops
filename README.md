@@ -41,10 +41,15 @@ Installed from this marketplace (`.claude-plugin/marketplace.json`):
 | **issue-loop-core** | The orchestrator: queue, dispatch up to three at once, review, stop. It owns sequencing only, and follows the repo's build skill for the work itself. Bundles `rework-loop`. |
 | **github-ops** | All GitHub work, in both environments: `gh`/`git` locally, `mcp__github__*` on web. Also wraps the CI provider, either `github-checks` or `azure-pipelines`. Every loop needs it. |
 | **loop-dispatch** | The event router, `route-event.sh`. One routine per repo. It can work in a different repo from the one that fired the event, which is what Forms needs. |
-| **merge-flow** | Merges a PR labelled `ops/auto-merge`, once CI is green and there are no conflicts. |
-| **learning** | Self-learning. Capture hooks file `ops/proto-learning` issues, and `triage-learnings` turns them into PRs. The mechanism is generic. Where they go is config. |
-| **release-flow** | Branching, release and dev-sync, for gitflow or main-only. **A default only.** Forms and Automate both supply their own release skills instead. |
-| **dotnet-web-runtime** | Cloud setup so a .NET product can run as a web routine. Fixes the NuGet feed 401. |
+| **ops-capabilities** | The six capability skills you **inherit**: `ops-integrate`, `ops-branching`, `ops-ci`, `ops-repo-meta`, `ops-notify` (and `ops-workspace`, arriving with the issue loop). Override one by shipping your own skill of the same name. |
+| **ops-merge-loop** | Sweeps PRs labelled `ops/auto-merge` and hands each to `ops-integrate · land`. Scheduling only: every merge gate lives in the service. |
+| **ops-release-loop** | Issue-triggered, CI-gated release. Commands the repo's own `ops-release` through plan → cut → publish → sync, with an Opus pre-publish review as the second gate. |
+
+> **Not built yet, and no longer declared:** **learning** (the capture hooks and the scheduled
+> triage sweep — arriving with the issue loop) and **dotnet-web-runtime** (cloud setup so a
+> .NET product can run as a web routine). Both used to be listed in `marketplace.json` while
+> pointing at directories that did not exist, which would make `/plugin marketplace add` fail
+> on the whole marketplace. They are re-declared when they exist.
 
 ## Getting started (onboarding a repo)
 

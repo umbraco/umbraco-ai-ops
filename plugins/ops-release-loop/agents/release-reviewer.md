@@ -1,7 +1,7 @@
 ---
 name: release-reviewer
 description: >-
-  Pre-publish reviewer for auto-release-loop (Step 2.5). Given a release PR's facts, it
+  Pre-publish reviewer for ops-release-loop (Step 3). Given a release PR's facts, it
   checks the PR against the release-review-checklist AND reasons about whether anything
   looks wrong or risky to ship, then returns VERDICT: PASS or VERDICT: BLOCK + findings.
   Read-only by design — it inspects and judges; it cannot merge, tag, publish, push, or
@@ -31,7 +31,7 @@ when it ships one, and fall back to the engine default otherwise. Resolve it in 
    `.claude/release-review-checklist.md`, then `release-review-checklist.md` at the repo root.
    (The release branch is checked out, so you can **Read** these directly.) If found, this is
    authoritative — it may add, tighten, or relax checks for this repo.
-2. **The engine default** — the `auto-release-loop` skill's
+2. **The engine default** — the `ops-release-loop` skill's
    `references/release-review-checklist.md`. Use this when the repo ships no checklist.
 
 State which checklist you used at the top of your output (repo-provided path, or "engine

@@ -1,6 +1,6 @@
 # Capabilities-model migration plan
 
-Status: **Phases 0–1 landed; Phase 2 next** (28-07-2026) · Author: audit of `umbraco-ai-ops@main`
+Status: **Phases 0–3 landed; Phase 4 next** (28-07-2026) · Author: audit of `umbraco-ai-ops@main`
 against the two design docs, both now committed here:
 
 - **[`ops-capability-skills.md`](ops-capability-skills.md)** — Layer 1, the informative explainer.
@@ -17,10 +17,12 @@ Layer 2 also names a **Layer 3** — "reference skills + scaffolder templates (`
 `ops-repo-meta`, catalog)" — which does not exist in either repo. That absence is why this plan's
 phase order departs from layer 1 §10 (§4).
 
-**Phases 0, 1 and 2 are complete.** All nine §6 decisions are resolved, §6.8a with them, §9a's seven
-conformance gaps are closed, the catalog exists — **[`catalog.json`](../catalog.json)**, 8
-capabilities and 19 actions — and routing is on the spec's shape with base ⊕ overlay merging at the
-edge. **Nothing is open.** Phase 3 is next.
+**Phases 0 through 3 are complete.** All nine §6 decisions are resolved, §6.8a with them, §9a's
+seven conformance gaps are closed, the catalog exists — **[`catalog.json`](../catalog.json)**, 8
+capabilities and 19 actions — routing is on the spec's shape with base ⊕ overlay merging at the
+edge, and the merge and release loops now command services by name while five framework-default
+capability skills ship in `ops-capabilities`. **The four-way base-branch drift is closed.**
+**Nothing is open.** Phase 4 is next: the placeholder loops.
 
 > **Where execution changed the plan, read [§10](#10-deviations-log--what-execution-changed-about-this-plan).**
 > Three logs, three jobs: **§6** is what we decided before building, **§9b** is where we knowingly
@@ -520,19 +522,32 @@ the catalog — was **not** taken, so an interface mistake here still surfaces t
 the checks it must do to route correctly (valid JSON, events in the vocabulary) and no more; proving
 an overlay conforms to `ops-routing.schema.json` is the installer's job per conformance §8.
 
-**Phase 3 — Framework loops invoke *services* by name.** *(Unblocked — §6.8 and §6.9 are settled.)*
-Rewrite `merge-flow`→`ops-merge-loop` to command **`ops-integrate · land`** plus the cross-cutting
-reads `ops-ci · status` / `ops-repo-meta · topology` — and to **stop resolving `base` /
-`release_base` / `merge_strategy` itself** (today `merge-flow/SKILL.md:40-59` tabulates all three,
-`:87-94` compares against two of them, `:99` passes the strategy into the merge). Build
-`ops-integrate` as the new home for the four gates **plus the release-base skip** (§6.9 = b),
-returning the structured outcome the loop comments on; the loop keeps orchestration only — sweep,
-CI-poll cadence, the 15-minute cap and the per-run cap of 10. Rewrite
-`auto-release-loop`→`ops-release-loop` to call `ops-release` only, never `ops-branching`. Extract
-`ops-ci` (`status` + `log`) from `github-ops`, keeping forge mechanics as framework. Demote
-`release-and-branching`→`ops-branching` framework default **with its values private** and
-**command-only** (no `classify-pr`); its base knowledge must be a **set** of live integration
-branches, not one branch (§8). Fold `sync-dev` into `ops-release.sync`.
+**Phase 3 — Framework loops invoke *services* by name. Complete.** The first phase where the
+catalog is exercised by a caller rather than only declared.
+
+- ~~Rewrite `merge-flow`→`ops-merge-loop` to command `ops-integrate · land` and stop resolving
+  `base` / `release_base` / `merge_strategy`.~~ Done. The loop is now **scheduling only** — sweep,
+  CI-poll cadence, the 15-minute cap, the cap of 10, the comment. It has no merge path at all.
+- ~~Build `ops-integrate`.~~ Done: the four gates **plus** the release-base skip, returning a
+  structured outcome. It re-checks CI itself rather than trusting the loop's poll, because with no
+  branch protection that check is the only gate that holds.
+- ~~Rewrite `auto-release-loop`→`ops-release-loop` to call `ops-release` only.~~ Done, and it never
+  calls `ops-branching`.
+- ~~Extract `ops-ci` (`status` + `log`) from `github-ops`.~~ Done. Forge mechanics stay framework;
+  the CI **provider** is now internal to `ops-ci`, which is what kills the
+  `ci.provider`/`ci_provider` spelling split.
+- ~~Demote `release-and-branching`→`ops-branching`, values private, command-only.~~ Done. Base is
+  **set membership over the live lines**, re-read from `ops-repo-meta · lines` every invocation and
+  never cached, so a major-version cutover needs no engine change.
+- ~~Fold `sync-dev` into `ops-release · sync`.~~ Done — the skill is gone; its contract survives as
+  a reference for whoever writes a repo's `ops-release`, since that capability has no framework
+  default.
+
+**The four-way base-branch drift (§7) is closed.** All four holders are gone: `merge-flow`'s
+resolve-and-compare (the loop no longer resolves anything), `release-and-branching` (demoted),
+`operation-catalog.json`'s `detect-base-branch` (**deleted**), and `ai-ops.schema.json`'s
+`branching.*` (still on disk until Phase 8, but now read by exactly one skill —
+`ops-repo-meta` — as a transitional bridge, not by any loop).
 
 **Phase 4 — Build the placeholder loops directly in capability form.** `ops-issue-loop` (commands
 `ops-change`, which itself wraps `ops-workspace`; reads `ops-ci` / `ops-repo-meta`), `ops-rework-loop`,
@@ -655,7 +670,7 @@ the **Decided** line is what binds. The resolution of 8 opened one sub-question,
      human PRs leave the loop with no replacement, and `ops-change · land` would have to handle PRs
      it never created, reconstructing change context it doesn't have.
 
-   **Resolution: A.** Narrowing would drop working dependabot and human ops/auto-merges, and the
+   **Resolution: A.** Narrowing would drop working dependabot and human auto-merges, and the
    evidence for the general case is stronger than "it's the status quo": Automate has eight merged
    dependabot PRs and one open into `v18/dev` right now, one of which was merged by hand — exactly
    the work the label automates (§8). None of the four gates depends on the PR's provenance, so the
@@ -746,10 +761,15 @@ That was the last thing blocking Phase 3.
   Don't carry it forward; the capability is the source.
 - **Route-map lives in two places** (`route-map.json` + the `case` fallback in `route-event.sh`).
   Collapse to one during Phase 2.
-- **Two marketplace entries point at directories that don't exist.** `marketplace.json` declares
-  eight plugins; `plugins/` holds six. `learning` and `dotnet-web-runtime` have a `source` path but
+- ~~**Two marketplace entries point at directories that don't exist.**~~ **Fixed in Phase 3.**
+  `learning` and `dotnet-web-runtime` were **removed from `marketplace.json`** — an entry whose
+  `source` resolves to nothing makes `/plugin marketplace add` fail for the *whole* marketplace,
+  so a placeholder entry is worse than no entry. Phase 4 re-declares `learning` when it exists.
+  `scripts/validate-manifests.sh` now fails CI on a phantom entry, an undeclared plugin, or a
+  name/version/description that drifts between the two manifests. Original note kept below.
+- ~~`learning` and `dotnet-web-runtime` have a `source` path but
   no directory and no `plugin.json`, which `CLAUDE.md` requires of every declared plugin — so
-  `/plugin marketplace add` would fail on them. They read as shipped rather than as placeholders.
+  `/plugin marketplace add` would fail on them. They read as shipped rather than as placeholders.~~
   Either scaffold them or mark them unreleased. (An earlier revision warned that `learning`'s
   description was the **only** written spec for `ops-triage-loop`; the prototype's `triage-learnings`
   skill is a far fuller one (§2a), so the entry is no longer load-bearing.)
@@ -942,3 +962,10 @@ Kind: **added** = did more than the plan asked · **changed** = did it different
 | 11 | 2 | **changed** | Phase 2: "remove the duplicated `case` fallback." | Removed, and its *behaviour inverted*. A missing table, absent jq, or a rule with an invented event now **exits 2** instead of resolving to `loop=none`. The plan said what to delete but not what should happen instead; a silent `none` means loops stop firing and nobody notices. |
 | 12 | 2 | **added** | Phase 2 listed the table shape, the merge, the renames and the tests. | Also **deleted the `state` field** from the rule shape (no rule used it, and review events aren't in the vocabulary, so it implied a matching mode the spec doesn't have), renamed the *output* key `route=` → `loop=` for one vocabulary, added a **caller-repo checkout** to `loop-dispatch.yml` (without it the overlay isn't on disk at the edge), and shipped `ops-routing.schema.json` + an example. |
 | 13 | 2 | **added** | Nothing in the plan says anything about label naming. | **Every engine-owned label is namespaced `ops/`** — `ops/ready-for-ai`, `ops/auto-merge`, `ops/auto-rework`, `ops/auto-release`, `ops/generated-by-ai`, `ops/ai-blocked`, `ops/proto-learning`, `ops/triaged`, `ops/loop-improvement`, `ops/release-blocked`. Requested in review (28-07-2026). The prefix says at a glance that a label drives automation and keeps engine labels out of a repo's existing triage vocabulary. Enforced by pattern in `route-map.schema.json` (engine-owned) and a test; a **SHOULD** only in `ops-routing.schema.json`, because an overlay legitimately routes on labels a repo had before the engine arrived. Every §8/Phase 6 prerequisite about creating labels now means the prefixed names. Shortening `ops/auto-merge` → `ops/merge` and friends was raised in the same review and **declined** — the `auto-` is redundant under the prefix, but the churn buys nothing. |
+| 14 | 3 | **added** | Phase 3 named `ops-integrate`, `ops-ci` and `ops-branching`. | Also built **`ops-repo-meta`** and **`ops-notify`**, because Phase 3's own work needs them: `ops-branching` reads `lines` from repo-meta, `ops-merge-loop` reads `topology` and the landing label, and the release loop pushed notifications inline in four places. Building the loops without them would have meant hard-coding the very facts this phase exists to centralise. `ops-workspace` is still deferred — nothing in Phase 3 calls it. |
+| 15 | 3 | **added** | The §1 roster gives `ops-release-loop` these callees: `ops-release` and `ops-ci`. | It also commands **`ops-change · implement` / `verify`**, to fix a red release branch — behaviour `auto-release-loop` already had ("fix failures on the release branch, the 8-attempt cap applies"). Dropping it would have quietly removed a working capability. Legal under the visibility rules: `ops-change` is a service, and a loop may command a service. |
+| 16 | 3 | **added** | §6.9 fixed the outcome vocabulary at five values. | **Seven.** Writing the gates surfaced two states the five could not express: `blocked:wrong-base` (a base that is neither an integration branch nor a release base — §7 says this *will* happen on a multi-line repo) and `blocked:no-label` (the label was pulled between the loop's sweep and the service's gate). Folding either into an existing value would have made the loop comment the wrong blocker. Still a convention, not a contract (§9a.6). |
+| 17 | 3 | **added** | `ai-ops.yml` is read by every loop until Phase 8 deletes it. | **Exactly one skill reads it now** — `ops-repo-meta`, as an explicitly transitional step. The loops already speak only the capability interface, so Phase 8 becomes a deletion inside one skill instead of a rewrite of all of them. Recorded in that skill as transitional, with "do not add a key" attached. |
+| 18 | 3 | **changed** | Nothing in the plan says where framework-default capability skills live. | One new plugin, **`ops-capabilities`**, holding all five. The README already groups them as "you inherit these", so one install gets a consumer the whole inherited set; scattering them across the loop plugins would have made "what do I inherit?" unanswerable. |
+| 19 | 3 | **added** | The hazard register only said the two phantom marketplace entries should be "scaffolded or marked unreleased". | **Removed them**, and added **`scripts/validate-manifests.sh`** + 12 tests. An entry whose `source` resolves to nothing makes `/plugin marketplace add` fail for the *whole* marketplace, so this was live breakage, not untidiness. The validator also catches an undeclared plugin and any name/version/description drift between the two manifests — drift that already existed on `ops-setup`. |
+| 20 | 3 | **added** | Not mentioned: `operation-catalog.json`'s `detect-base-branch`. | **Deleted.** §7 named it as the fourth place base-branch knowledge lived, and its own title said "defer to release-and-branching" — a forge operation that existed only to point at a skill that no longer exists. Leaving it would have left the fourth leak open while claiming §7 was closed. |

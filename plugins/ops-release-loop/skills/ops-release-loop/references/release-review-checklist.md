@@ -1,6 +1,6 @@
-# Release-PR review checklist (auto-release-loop) — ENGINE DEFAULT
+# Release-PR review checklist (ops-release-loop) — ENGINE DEFAULT
 
-The pre-publish sanity gate for `auto-release-loop` (Step 2.5). Because publishing is
+The pre-publish sanity gate for `ops-release-loop` (Step 3). Because publishing is
 irreversible and un-gated by a human, review the release PR against **every** check
 below before merging/tagging/publishing.
 

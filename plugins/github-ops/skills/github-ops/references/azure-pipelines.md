@@ -48,7 +48,7 @@ curl -sS -u ":$AZURE_DEVOPS_PAT" \
   | jq -r '.value[0] | "\(.id) \(.status) \(.result)"'
 ```
 
-**The gate (mirror `merge-flow`):** poll until `status == "completed"`, then require
+**The gate (mirror `ops-integrate`):** poll until `status == "completed"`, then require
 `result == "succeeded"`. Anything else is not-green — `failed`/`partiallySucceeded` is a
 real failure (diagnose it), `canceled` is a re-run. Never treat a red build as flaky from
 the summary alone.

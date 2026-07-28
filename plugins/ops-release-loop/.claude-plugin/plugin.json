@@ -1,0 +1,19 @@
+{
+  "name": "ops-release-loop",
+  "version": "0.2.0",
+  "description": "The release loop: issue-triggered, CI-gated, no mid-flow human approval. Labelling a `release <version>` issue `ops/auto-release` makes it command the repo's `ops-release` through plan → cut → publish → sync, driving CI green in between and gating on an Opus pre-publish review against a repo-overridable checklist (a BLOCK files an issue, notifies, and de-labels rather than shipping). Every release mechanic — version files, changelog, tagging, publish target, back-merge — belongs to `ops-release`, which is ALWAYS repo-provided; this loop only orchestrates and gates, and never calls `ops-branching`. Bundles the release-reviewer agent, the default review checklist, and the `sync` contract. Requires ops-capabilities and github-ops.",
+  "author": {
+    "name": "Umbraco",
+    "url": "https://github.com/umbraco"
+  },
+  "homepage": "https://github.com/umbraco/umbraco-ai-ops/tree/main/plugins/ops-release-loop",
+  "license": "MIT",
+  "keywords": [
+    "release",
+    "tagging",
+    "publish",
+    "ci-gate",
+    "pre-publish-review",
+    "cloud-routine"
+  ]
+}

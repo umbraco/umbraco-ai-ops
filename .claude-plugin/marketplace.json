@@ -13,7 +13,7 @@
     {
       "name": "ops-setup",
       "source": "./plugins/ops-setup",
-      "description": "Interactive onboarding: /umbraco-ops-setup investigates a repo (branching model from git history, CI host, release approach), confirms and fills the gaps via the question tool, then generates the consumer files — .claude/ai-ops.yml, a build-playbook scaffold, any override skills, and the caller workflow(s). Run once per repo after installing the engine.",
+      "description": "Interactive onboarding: /umbraco-ops-setup investigates a repo (branching model from git history, CI host, release approach), confirms and fills the gaps via the question tool, then generates the consumer files — .claude/ai-ops.yml, a build-playbook scaffold, any override skills the repo needs, and the caller workflow(s). Run once per repo after installing the engine.",
       "version": "0.1.0",
       "category": "workflow",
       "keywords": [
@@ -75,15 +75,31 @@
       ]
     },
     {
-      "name": "merge-flow",
-      "source": "./plugins/merge-flow",
-      "description": "Guardrail loop that merges PRs labelled `ops/auto-merge` — the maintainer's deliberate go-signal (the human approval, since you can't review-approve your own PR) — but only once they are also CI-green, conflict-free, on the right base, and free of an unresolved 'changes requested'. Replaces error-prone manual merges: it never merges on an unmet gate, and drives each PR to a clean merge (branch deleted) or flags the blocker. Uses /goal so a merge job is provably finished. Repo-agnostic; runs locally or as a scheduled cloud routine.",
+      "name": "ops-capabilities",
+      "source": "./plugins/ops-capabilities",
+      "description": "The framework-default capability skills a consumer inherits: ops-integrate (land an approved PR — owns every merge gate and the release-base skip), ops-branching (the repo's branch model, with the integration branches, release base and merge strategy PRIVATE — callers ask for outcomes, never values), ops-ci (CI status + failing-build logs, read-only, provider internal), ops-repo-meta (ambient repo facts as data: identity, topology, live lines), and ops-notify (tell a human). Each is a skill named ops-<capability>, invoked by name with (action, context-json) per catalog.json; a repo overrides one by shipping its own skill of the same name. The two capabilities that are ALWAYS the repo's — ops-change and ops-release — are deliberately absent.",
       "version": "0.1.0",
+      "category": "workflow",
+      "keywords": [
+        "capability",
+        "framework-default",
+        "merge",
+        "branching",
+        "ci",
+        "repo-meta",
+        "notify"
+      ]
+    },
+    {
+      "name": "ops-merge-loop",
+      "source": "./plugins/ops-merge-loop",
+      "description": "The landing loop. Sweeps the PRs a maintainer has labelled `ops/auto-merge` — the deliberate go-signal that stands in for a review approval, since you cannot approve your own PR — and hands each to `ops-integrate · land`, then comments the outcome. It owns scheduling only: the sweep, the CI poll cadence and its 15-minute cap, the cap of 10 PRs per run, and the report. Every merge gate, the release-base skip and the merge itself belong to `ops-integrate`, so this loop never resolves a base branch or a merge strategy and never calls `ops-branching`. Uses /goal so a landing job is provably finished. Repo-agnostic; runs locally or as a scheduled cloud routine. Requires ops-capabilities and github-ops.",
+      "version": "0.2.0",
       "category": "workflow",
       "keywords": [
         "pull-request",
         "merge",
-        "ops/auto-merge",
+        "landing",
         "ci",
         "guardrail",
         "automation",
@@ -91,48 +107,18 @@
       ]
     },
     {
-      "name": "learning",
-      "source": "./plugins/learning",
-      "description": "The self-learning machinery: read-only capture hooks (SubagentStop/SessionEnd) that file proto-learning issues off the critical path, the proto-learning schema, and triage-learnings (dedupe + threshold + route to owning repo / shared-skills PR / loop-improvement issue). Mechanism is generic; the inbox repo and routing table are per-consumer config.",
-      "version": "0.1.0",
+      "name": "ops-release-loop",
+      "source": "./plugins/ops-release-loop",
+      "description": "The release loop: issue-triggered, CI-gated, no mid-flow human approval. Labelling a `release <version>` issue `ops/auto-release` makes it command the repo's `ops-release` through plan → cut → publish → sync, driving CI green in between and gating on an Opus pre-publish review against a repo-overridable checklist (a BLOCK files an issue, notifies, and de-labels rather than shipping). Every release mechanic — version files, changelog, tagging, publish target, back-merge — belongs to `ops-release`, which is ALWAYS repo-provided; this loop only orchestrates and gates, and never calls `ops-branching`. Bundles the release-reviewer agent, the default review checklist, and the `sync` contract. Requires ops-capabilities and github-ops.",
+      "version": "0.2.0",
       "category": "workflow",
       "keywords": [
-        "self-learning",
-        "proto-learning",
-        "triage",
-        "hooks",
-        "compounding",
-        "automation"
-      ]
-    },
-    {
-      "name": "release-flow",
-      "source": "./plugins/release-flow",
-      "description": "Branching, merge, release, and dev-sync workflow skills for any repo — reads the branch model from the consumer's `.claude/ai-ops.yml` (gitflow, main-only, versioned-gitflow, or custom) and resolves base/release_base from config, falling back to branch detection. Branching/merge/release are applied-repo seams: when `branching.release_skill` is set the loop delegates the cut/bump/tag/back-merge mechanics to it and only orchestrates + gates. Bundles release-and-branching, sync-dev (the dev-sync/back-merge/cleanup contract — no engine bash), and auto-release-loop (issue+label-triggered release, two automated gates — green CI + an Opus pre-publish review against a repo-overridable checklist — no approval pause, Claude push notifications).",
-      "version": "0.1.0",
-      "category": "workflow",
-      "keywords": [
-        "git",
-        "gitflow",
-        "branching",
         "release",
         "tagging",
-        "dev-sync",
-        "workflow"
-      ]
-    },
-    {
-      "name": "dotnet-web-runtime",
-      "source": "./plugins/dotnet-web-runtime",
-      "description": "Cloud-environment setup that lets a .NET product run as a Claude web routine: the dotnet-restore internal-NuGet-feed proxy / 401 fix and SessionStart wiring. Needed by any .NET consumer (Forms, Automate); TypeScript products don't need it.",
-      "version": "0.1.0",
-      "category": "workflow",
-      "keywords": [
-        "dotnet",
-        "nuget",
-        "cloud-routine",
-        "web-runtime",
-        "setup"
+        "publish",
+        "ci-gate",
+        "pre-publish-review",
+        "cloud-routine"
       ]
     }
   ]

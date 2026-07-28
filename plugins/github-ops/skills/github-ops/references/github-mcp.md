@@ -53,8 +53,9 @@ straight through the API:
 
 ## Base branch
 
-Defer to `release-and-branching` for gitflow vs main-only. To inspect: `list_branches`
-(does a `dev` exist?), or read repo metadata via the server's repository/search tools.
+**Branch model is private to `ops-branching`; never resolve it here.** These are the raw reads
+it uses: `list_branches` to list branches, or repo metadata via the server's
+repository/search tools.
 
 ## Notes
 

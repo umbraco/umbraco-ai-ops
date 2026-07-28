@@ -49,9 +49,9 @@ gh pr create --base <base> --head chore/<slug> --title "<t>" --body "<b>"
 
 ## Base branch
 
-Defer to the `release-and-branching` skill to detect gitflow (`dev`+`main`) vs
-main-only. Quick check: `gh api repos/<repo> --jq .default_branch`, and
-`gh api repos/<repo>/branches --jq '.[].name'` to see if a `dev` exists.
+**Branch model is private to `ops-branching`; never resolve it here.** These are the raw reads
+it uses, not a decision this skill makes: `gh api repos/<repo> --jq .default_branch`, and
+`gh api repos/<repo>/branches --jq '.[].name'` to list branches.
 
 ## Notes
 

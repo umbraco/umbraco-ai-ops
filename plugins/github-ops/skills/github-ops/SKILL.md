@@ -66,27 +66,33 @@ operations by id.
 ## CI provider — GitHub checks vs Azure Pipelines
 
 Two operations above — **Get PR CI / check-run status** and **Read a failing check's
-log** — depend on *which CI system the repo uses*, not on the GitHub mechanism. Resolve
-them by the consumer's `ci_provider`:
+log** — depend on *which CI system the repo uses*, not on the GitHub mechanism:
 
 - **`github-checks`** (default) — CI is GitHub Actions / checks on the PR. Use the CI
   rows in [`gh-cli.md`](references/gh-cli.md) / [`github-mcp.md`](references/github-mcp.md).
 - **`azure-pipelines`** — CI runs in Azure DevOps, triggered by the push but reported
   outside GitHub's check API. Use [`references/azure-pipelines.md`](references/azure-pipelines.md).
 
+> **Which one is not decided here.** It is internal to the **`ops-ci`** capability, which is
+> the only caller of these two operations and the only thing that knows the answer. That is
+> why there is no longer a `ci_provider` config key: it was spelled two ways in two places,
+> and the capability replaces both. This skill just implements each provider's mechanics.
+
 Everything else in the catalog (issues, PRs, branches, files, merge) is **always GitHub**
-regardless of `ci_provider` — Azure-Pipelines consumers (Forms, Automate) keep their
-PRs/issues on GitHub and only their *CI reads* go to Azure. So on an `azure-pipelines`
-repo you use the GitHub mechanism (gh / MCP) for every row **except** those two CI rows,
-which use the Azure reference.
+whatever the CI provider — Azure-Pipelines consumers keep their PRs and issues on GitHub and
+only their *CI reads* go to Azure. So on an Azure repo you use the GitHub mechanism (gh / MCP)
+for every row **except** those two CI rows.
 
 ## Rules that hold in both mechanisms
 
 These are policy, not mechanism — they apply whichever reference you use:
 
-- **Never merge without green CI + approval** (poll status; don't rely on an
-  ops/auto-merge that bypasses the gate). See `merge-flow`.
+- **Never merge without green CI + approval** (poll status; don't rely on GitHub's native
+  auto-merge to bypass the gate). The gates themselves live in **`ops-integrate`** — this
+  skill provides the merge operation, it does not decide whether to use it.
 - **Never force-push; never edit a protected branch directly.**
 - **On the web, no local clone** — create the branch and push file contents through
   the MCP server; you don't have a working tree.
-- Branch model / base branch is **detected via `release-and-branching`**, not assumed.
+- **Never resolve a base branch here.** Branch knowledge is private to **`ops-branching`**;
+  this skill takes the base it is given. The old `detect-base-branch` operation was removed
+  for exactly this reason — it was a fourth place base knowledge lived.
