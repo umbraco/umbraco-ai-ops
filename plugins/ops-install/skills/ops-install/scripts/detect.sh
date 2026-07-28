@@ -26,6 +26,13 @@ branches="$(git branch -a --format='%(refname:short)' 2>/dev/null | sed 's#^orig
 has() { printf '%s\n' "$branches" | grep -qx "$1"; }
 top_major="$(printf '%s\n' "$branches" | grep -E '^v[0-9]+/dev$' | grep -oE '[0-9]+' | sort -n | tail -1)"
 
+# Every `vN` line that has a branch, newest first. A SEED for the installer's question about
+# which lines are live — a line can exist and be finished, so this is the candidate list to
+# offer a human, never the answer. Empty for a repo with no version lines.
+lines_seen="$(printf '%s\n' "$branches" \
+  | sed -n 's#^\(v[0-9]\+\)/\(dev\|main\)$#\1#p' \
+  | sort -u -t v -k2 -n -r)"
+
 model="custom"; base=""; release_base=""
 if [ -n "$top_major" ] && has "v${top_major}/main"; then
   model="versioned-gitflow"; base="v${top_major}/dev"; release_base="v${top_major}/main"
@@ -45,8 +52,22 @@ elif [ -n "$(git ls-files '.github/workflows/*.yml' '.github/workflows/*.yaml' 2
 fi
 
 # --- release hints --------------------------------------------------------
-nbgv=false; [ -n "$(git ls-files 'version.json' 2>/dev/null | head -1)" ] && nbgv=true
-has_release_tags=false; [ -n "$(git tag --list 'release-*' 2>/dev/null | head -1)" ] && has_release_tags=true
+# Nerdbank.GitVersioning: a `version.json` ANYWHERE, not just the root — a multi-product
+# repo versions each product separately (`Umbraco.Automate/version.json`), so a root-only
+# pathspec reported false for a repo that plainly uses it. The package reference in the
+# build props is the second signal, and either alone is enough.
+nbgv=false
+[ -n "$(git ls-files '*version.json' 2>/dev/null | head -1)" ] && nbgv=true
+if [ "$nbgv" = false ]; then
+  for f in Directory.Packages.props Directory.Build.props Directory.Build.targets; do
+    [ -f "$f" ] && grep -q 'Nerdbank\.GitVersioning' "$f" 2>/dev/null && { nbgv=true; break; }
+  done
+fi
+
+# Release tags: ANY tag, not a `release-*` naming guess. Real repos tag `2026.07.1` or
+# `Umbraco.Automate@1.2.3`; the old pattern matched neither and reported false for a repo
+# with 28 tags. The honest question is "does this repo tag at all", and any tag answers it.
+has_release_tags=false; [ -n "$(git tag --list 2>/dev/null | head -1)" ] && has_release_tags=true
 release_skill=""
 [ -d .claude/skills/release-management ] && release_skill="release-management"
 
@@ -61,9 +82,11 @@ if command -v jq >/dev/null 2>&1; then
     --arg source "$source_repo" --arg model "$model" --arg base "$base" \
     --arg rbase "$release_base" --arg def "$default_branch" --arg ci "$ci" \
     --argjson nbgv "$nbgv" --argjson rtags "$has_release_tags" \
+    --argjson lines "$(printf '%s\n' "$lines_seen" | grep -v '^$' | jq -R . | jq -s -c .)" \
     --arg rskill "$release_skill" --arg stack "$stack" '
     { source: $source,
-      branching: { model: $model, base: $base, release_base: $rbase, default_branch: $def },
+      branching: { model: $model, base: $base, release_base: $rbase, default_branch: $def,
+                   lines_seen: $lines },
       ci: { provider: $ci },
       release: { nbgv: $nbgv, has_release_tags: $rtags, release_skill: $rskill },
       stack: $stack }'

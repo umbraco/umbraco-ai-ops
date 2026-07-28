@@ -18,7 +18,9 @@
 set -uo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-engine="${ENGINE_ROOT:-$here/../../../../..}"
+
+. "$here/engine-root.sh"
+engine="$(ops_engine_root "$here")"
 catalog="${CATALOG_FILE:-$engine/catalog.json}"
 
 repo="${1:-}"
@@ -33,9 +35,13 @@ jq empty "$catalog" 2>/dev/null || { echo "ERROR: catalog is not valid JSON" >&2
 # Read from disk rather than from the catalog's framework_default flag, so the report
 # reflects what is actually installable — a flag saying a default exists is a claim, and
 # this script's job is to check claims.
+# Scan the engine's plugins/ when that layout exists (git checkout); otherwise scan the
+# engine root, because installed plugins sit directly under the marketplace directory
+# with no intervening plugins/.
 defaults=""
-if [ -d "$engine/plugins" ]; then
-  defaults="$(find "$engine/plugins" -type f -name SKILL.md 2>/dev/null \
+search_root="$engine/plugins"; [ -d "$search_root" ] || search_root="$engine"
+if [ -d "$search_root" ]; then
+  defaults="$(find "$search_root" -type f -name SKILL.md 2>/dev/null \
               | sed -n 's#.*/skills/\(ops-[a-z0-9-]*\)/SKILL\.md$#\1#p' | sort -u)"
 fi
 

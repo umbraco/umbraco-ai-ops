@@ -50,6 +50,45 @@ d="$(mkrepo)"; echo "trigger: none" > "$d/azure-pipelines.yml"; git -C "$d" -c u
 check "ci azure" azure-pipelines "$(field "$d" '.ci.provider')"
 rm -rf "$d"
 
+# --- nbgv: version.json at ANY depth, not just the root -------------------
+# A multi-product repo versions each product separately, so a root-only pathspec reported
+# false for a repo that plainly uses Nerdbank.GitVersioning. Reported from a real install.
+d="$(mkrepo)"; check "no version.json means no nbgv" false "$(field "$d" '.release.nbgv')"; rm -rf "$d"
+
+d="$(mkrepo)"; : > "$d/version.json"
+git -C "$d" add -A && git -C "$d" -c user.email=t@t -c user.name=t commit -q -m v
+check "a root version.json is nbgv" true "$(field "$d" '.release.nbgv')"; rm -rf "$d"
+
+d="$(mkrepo)"; mkdir -p "$d/Product.One"; : > "$d/Product.One/version.json"
+git -C "$d" add -A && git -C "$d" -c user.email=t@t -c user.name=t commit -q -m v
+check "a NESTED version.json is nbgv too" true "$(field "$d" '.release.nbgv')"; rm -rf "$d"
+
+d="$(mkrepo)"; printf '<Project><PackageVersion Include="Nerdbank.GitVersioning" /></Project>' \
+  > "$d/Directory.Packages.props"
+git -C "$d" add -A && git -C "$d" -c user.email=t@t -c user.name=t commit -q -m v
+check "a package reference alone is nbgv" true "$(field "$d" '.release.nbgv')"; rm -rf "$d"
+
+# --- release tags: any tag, not a `release-*` naming guess ----------------
+d="$(mkrepo)"; check "no tags means no release tags" false "$(field "$d" '.release.has_release_tags')"; rm -rf "$d"
+
+d="$(mkrepo)"; git -C "$d" tag 2026.07.1
+check "a date-style tag counts" true "$(field "$d" '.release.has_release_tags')"; rm -rf "$d"
+
+d="$(mkrepo)"; git -C "$d" tag 'Product.One@1.2.3'
+check "a product-scoped tag counts" true "$(field "$d" '.release.has_release_tags')"; rm -rf "$d"
+
+# --- lines_seen: the candidate list the installer's question is seeded from
+d="$(mkrepo)"; check "no version lines means an empty list" 0 "$(field "$d" '.branching.lines_seen | length')"; rm -rf "$d"
+
+d="$(mkrepo)"
+for b in v17/dev v17/main v18/dev v18/main v13/main; do git -C "$d" branch "$b"; done
+check "every vN line is listed once" 3 "$(field "$d" '.branching.lines_seen | length')"
+check "  newest first"           v18 "$(field "$d" '.branching.lines_seen[0]')"
+check "  and the oldest last"    v13 "$(field "$d" '.branching.lines_seen[-1]')"
+check "  a main-only line is still a line" 1 \
+  "$(field "$d" '[.branching.lines_seen[] | select(. == "v13")] | length')"
+rm -rf "$d"
+
 # not a git repo
 check "non-repo error" "not a git repo" "$(bash "$DETECT" "$(mktemp -d)" | jq -r '.error')"
 

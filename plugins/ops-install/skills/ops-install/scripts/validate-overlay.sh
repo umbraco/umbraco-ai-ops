@@ -20,7 +20,8 @@
 set -uo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-engine="${ENGINE_ROOT:-$here/../../../../..}"
+. "$here/engine-root.sh"
+engine="$(ops_engine_root "$here")"
 base="${BASE_MAP:-$engine/plugins/loop-dispatch/skills/loop-dispatch/scripts/route-map.json}"
 
 overlay="${1:-}"

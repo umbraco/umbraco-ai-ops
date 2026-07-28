@@ -54,13 +54,24 @@ Write what the human just told you to **`.claude/ops-repo-meta.json`**, shaped b
 `ops-repo-meta.schema.json` in the `ops-capabilities` plugin. This is the file every loop and
 the edge router read, so getting it right is the whole of onboarding's data half.
 
-| Ask when | Key |
-|---|---|
-| issues live in another repo | `topology.issues` |
-| you publish from another repo | `topology.releases` |
-| proto-learnings go somewhere other than the code repo | `topology.learnings` |
-| the repo has version lines | `lines.live`, `lines.primary`, `lines.port_order` |
-| the repo already has a label meaning one of ours | `labels.<purpose>` |
+**Ask with `AskUserQuestion`, and seed every question from Step 1's output.** Do not ask in
+prose and do not ask what detection already answered. A question with the detected value as its
+first option, marked recommended, is one click; the same question asked blind is homework. Step 1
+gives you `branching.lines_seen`, `branching.default_branch`, `ci.provider`, `release.nbgv`,
+`release.has_release_tags` and `release.release_skill` — use them.
+
+| Ask when | Key | Seed the options with |
+|---|---|---|
+| `lines_seen` is non-empty | `lines.live` | the detected lines, multi-select, all pre-selected — a line can exist and be **finished**, so the human is removing, not adding |
+| `lines.live` has more than one | `lines.primary` | each live line as an option. **Never** pre-pick the newest or the default branch: Forms' primary is v17 while its default is `v15/dev` |
+| `lines.live` has more than one | `lines.port_order` | `upward` / `downward`, with no recommendation — the engine cannot infer it and a wrong guess ports every change the wrong way |
+| always, unless the repo plainly holds its own issues | `topology.issues` | "this repo" first, then ask for `owner/name` |
+| you publish from another repo | `topology.releases` | "this repo" first |
+| proto-learnings go somewhere other than the code repo | `topology.learnings` | "this repo" first. Warn if `topology.issues` is set and **public** — a proto-learning is an internal note |
+| the repo already has a label meaning one of ours | `labels.<purpose>` | the existing label names, read from the repo |
+
+**One question per fact, and skip any whose answer is forced.** A single-line repo is asked
+nothing about lines. A repo with one live line has no primary to choose and no port order.
 
 **Every key is optional.** A single-repo project on one line needs **no file** — say so rather
 than writing an empty one.
@@ -188,18 +199,30 @@ Pass the repo's own skills directory too, so a repo-provided loop resolves.
 
 ## Step 8 — what is genuinely left for a human
 
-List these; do not try to do them.
+List these **in this order**, and say why the order matters; do not try to do them.
 
-1. **The two routine secrets** — `LOOP_DISPATCH_FIRE_URL` and `LOOP_DISPATCH_TOKEN`, per repo or
-   per org.
-3. **CI credentials and egress**, if CI is not GitHub checks. An Azure Pipelines repo needs a
-   read-only ADO PAT.
-4. **Repo settings.** Turn `allow_update_branch` **on**, so a stale branch can be refreshed
+1. **Repo settings.** Turn `allow_update_branch` **on**, so a stale branch can be refreshed
    before the merge gate. Leave GitHub's **native auto-merge off** — landing is
-   `ops-integrate`'s decision, and native auto-merge would race it.
-5. **Stand up the routine** with `new-loop-routine`.
+   `ops-integrate`'s decision, and native auto-merge would race it. Independent of the rest,
+   so it can be done now.
+2. **CI credentials and egress**, if CI is not GitHub checks. An Azure Pipelines repo needs a
+   read-only ADO PAT. Needed *by* the routine's environment, so it comes before the routine.
+3. **Stand up the routine** with `new-loop-routine`. **This is what produces the Fire URL and
+   the token** — they do not exist until it does.
+4. **Add the two routine secrets** — `LOOP_DISPATCH_FIRE_URL` and `LOOP_DISPATCH_TOKEN`, per
+   repo or per org, using the two values step 3 just gave you. In a split topology they go on
+   **every** repo that has a caller workflow, not only the code repo.
+5. **Smoke-test before writing any capability.** Open a throwaway PR whose base is **not** one
+   of the live lines and label it with the landing label. The whole chain should fire and
+   `ops-integrate` should refuse with `blocked:wrong-base`. That exercises the router, the
+   workflow, the secrets, the routine and the gates while making a merge impossible — refusing
+   *is* the pass. Only then label something real.
 
-The labels and the declared facts are **not** on this list any more. Steps 2 and 5 do both.
+**Order is causal, not cosmetic.** An earlier version of this list asked for the secrets first
+and created the routine last, which cannot be followed: the routine is what mints them.
+Reported from a real install (28-07-2026).
+
+The labels and the declared facts are **not** on this list. Steps 2 and 5 do both.
 
 ## Rules
 

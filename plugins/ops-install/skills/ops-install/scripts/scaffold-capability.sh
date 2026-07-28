@@ -21,11 +21,19 @@
 set -uo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-catalog="${CATALOG_FILE:-$here/../../../../../catalog.json}"
+
+. "$here/engine-root.sh"
+catalog="${CATALOG_FILE:-$(ops_engine_root "$here")/catalog.json}"
 
 cap="${1:-}"
 dest="${2:-}"
 [ -n "$cap" ] && [ -n "$dest" ] || { echo "usage: $(basename "$0") <capability> <dest-dir>|--stdout" >&2; exit 2; }
+
+# Accept the SKILL name as well as the catalog key. The catalog keys capabilities bare
+# (`change`) but every other surface a human sees — the coverage report, the scaffolded
+# folder, the invocation — uses the prefixed skill name (`ops-change`). Rejecting the
+# name the previous command just printed is a papercut, not a contract (28-07-2026).
+cap="${cap#ops-}"
 [ -f "$catalog" ] || { echo "ERROR: no catalog at $catalog" >&2; exit 2; }
 command -v jq >/dev/null 2>&1 || { echo "ERROR: jq required" >&2; exit 2; }
 
