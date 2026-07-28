@@ -29,17 +29,19 @@ Consumer shape follows **repo cardinality**:
 | **MCP server family** | many repos, one toolchain | **not supported yet** — see below |
 
 > **One product = one repo → your two skills live in-repo.** That is the shape the engine supports
-> today, and both single-repo consumers use it.
+> today. It is what both single-repo consumers will use; neither has written its two skills yet.
 
-**The many-repos-one-toolchain shape is deferred.** One shared `ops-change` serving a whole repo
-family is a real need — it avoids duplicating an identical build skill across the family — but it is
-**not designed and not tested**, and it needs input from whoever owns that family. Two things are
-genuinely unsettled: how a shared skill gets **on disk** in each member repo's session, and what
-`ops-repo-meta · topology` means when the `code` repo is different on every run. The reasoning, and
-when to re-open it, are in
+**The many-repos-one-toolchain shape is deferred.** One toolchain serving a whole repo family is a
+real need, and the `umbraco-mcp-ops` prototype **did solve it** — so this is a port, not a blank
+page. What it is *not* is ported onto the convention model, and that needs input from whoever owns
+that family. The reasoning and when to re-open it are in
 **[the plan, §6.10](docs/capabilities-migration-plan.md#610-the-repo-family-consumer-shape--deferred-not-designed)**.
-Nothing breaks while it waits: the one feature that assumes a family — triage's `shared-skills`
-destination — already degrades to a plain issue and says so.
+
+The one feature that assumes a family is triage's `shared-skills` destination. On a single-repo
+consumer the skill says only `code` and `loop-self` are live, and to **hold** a lesson rather than
+mis-file it — so a family lesson stays an open `ops/proto-learning` issue for a human. Nothing is
+lost, but the skill does not say where such a lesson *should* go on a single repo. That is a known
+small gap, not a safety net.
 
 ## Plugins
 

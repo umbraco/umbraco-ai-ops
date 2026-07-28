@@ -5,7 +5,7 @@
     "url": "https://github.com/umbraco/umbraco-ai-ops"
   },
   "metadata": {
-    "description": "The generic engine for AI-driven issue automation across Umbraco products — orchestration, GitHub/CI ops, gated merge, cross-repo dispatch, and the self-learning loop. Product-agnostic: each consumer supplies only a build playbook + a config block. Extracted from the umbraco-mcp-ops prototype.",
+    "description": "The generic engine for AI-driven issue automation across Umbraco products — orchestration, GitHub/CI ops, gated merge, cross-repo dispatch, and the self-learning loop. Product-agnostic: each consumer supplies two skills it owns, ops-change and ops-release, found by name. Extracted from the umbraco-mcp-ops prototype.",
     "version": "0.1.0",
     "homepage": "https://github.com/umbraco/umbraco-ai-ops"
   },

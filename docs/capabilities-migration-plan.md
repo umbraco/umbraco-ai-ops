@@ -842,21 +842,40 @@ migrated onto the convention model, even though the two design docs this plan po
 family** — not a decision this engine repo can make alone. Recorded rather than quietly dropped,
 because it is a shape we advertise.
 
-Why defer rather than design it now:
+**The prototype already solved this, and its answer does not survive the port.** Checked
+28-07-2026 rather than assumed — the deviations log records this exact mistake twice (§10.2,
+§10.3). `hifi-phil/umbraco-mcp-ops` ships **`mcp-issue-loop`**, which serves the whole
+`@umbraco-cms/mcp-*` family, and `scripts/cloud-skill-sync/` delivers it to every member repo. So:
 
-- Neither single-repo consumer has run end to end yet. Designing the harder shape before the simple
-  one has proved itself is guessing at requirements.
-- Convention-by-name does not obviously cover it. A capability is found **by name, on disk, in the
-  session** — so a shared `ops-change` needs the same cloud delivery `cloud-skill-sync.sh` does for
-  the engine, and that is a delivery question, not a capability question.
-- It needs a ruling this plan cannot give: what `ops-repo-meta · topology` means when `code` is a
-  **different repo on every run**. Today the file answers "what is this repo"; a family shared skill
-  needs "which of my N repos am I in", which may be a genuinely new action.
+- **Delivery is a solved problem, not an open question.** `cloud-skill-sync.sh` is how a shared
+  skill reaches each member repo's session, and we have **already ported it** (§10.34). Do not
+  re-litigate this part.
+- **The prototype's actual mechanism is illegal here.** It puts the product knowledge *inside the
+  loop skill* — `mcp-issue-loop` resolves "the current repo" at runtime, hard-codes `ready-for-ai`
+  and `dev`, and refuses to run unless the repo "looks like an MCP repo" (`src/umbraco-api/tools/`,
+  worktree hooks). That is precisely what `CLAUDE.md`'s golden rule forbids: a framework loop
+  carrying one family's facts. The convention model would push all of that down into `ops-change` —
+  and *that* is the part nobody has designed.
 
-**What it costs while deferred.** One thing, and it fails safe: `ops-triage-loop`'s `shared-skills`
-destination never fires. The skill already says plainly that where `shared-skills` is unreachable the
-threshold gates nothing and to say so in the run summary (§10.24), so a family lesson lands in the
-loop-self destination instead of being lost. Nothing else in the engine assumes the shape exists.
+So what is genuinely unsettled is narrower than "the whole shape", and it is two things:
+
+1. **Name collision.** A capability is found **by name**. If the family's shared skill is called
+   `ops-change` and a member repo also has one, there is no defined precedence — the very problem
+   §1 cites as the reason the engine binds by convention rather than by shadowing.
+2. **`ops-repo-meta · topology` when `code` varies per run.** Today the file answers "what is this
+   repo". A shared skill needs "which of my N repos am I in", which may be a new action.
+
+And the reason to defer even those: **neither single-repo consumer has run end to end yet.**
+Designing the harder shape before the simple one has proved itself is guessing at requirements.
+
+**What it costs while deferred.** `ops-triage-loop`'s `shared-skills` destination never fires. On a
+single-repo consumer the skill names only two live destinations, `code` and `loop-self`, says the
+threshold therefore gates nothing and to say so in the run summary (§10.24), and tells the triager
+to **hold** a lesson — leave the proto-learning open and uncommented — rather than mis-file it. So a
+family lesson is **not lost**; it waits as an open issue for a human. But the skill does not say
+where a generalizable lesson *should* go on a single repo, which is a small unspecified gap rather
+than a designed fallback. Worth closing when the shape is. Nothing else in the engine assumes a
+family exists.
 
 **When to re-open.** After Forms has run a full issue → PR → merge → release cycle, and with the MCP
 family owner in the room.
@@ -867,7 +886,8 @@ family owner in the room.
 
 **Read the strikethroughs.** Execution closed most of this register; the rows below are kept with
 their original wording so the reasoning survives, because a closed hazard that leaves no trace gets
-re-discovered. Of what remains: the **repo-family shape is deferred by ruling** (§6.10),
+re-discovered. **Nothing below is still open.** Of what remains: the **repo-family shape is deferred
+by ruling** (§6.10),
 **no-static-typing is permanent by design**, and the rest are **live Phase 6 hazards** — facts about
 Forms and Automate that whoever writes their two skills has to hold, not engine work.
 
@@ -904,7 +924,7 @@ Forms and Automate that whoever writes their two skills has to hold, not engine 
   Either scaffold them or mark them unreleased. (An earlier revision warned that `learning`'s
   description was the **only** written spec for `ops-triage-loop`; the prototype's `triage-learnings`
   skill is a far fuller one (§2a), so the entry is no longer load-bearing.)
-- **⚠ OPEN — the repo-family consumer shape is never migrated.** `README.md` names three consumer
+- **DEFERRED BY RULING — the repo-family consumer shape is never migrated.** `README.md` names three consumer
   shapes — Forms, Automate, and the MCP server family with its shared consumer repo
   (`umbraco-mcp-ops`) — and this plan covers only the first two (Phase 6). The
   one-`ops-change`-serving-many-repos case is neither migrated nor tested against the convention
@@ -1133,3 +1153,4 @@ Kind: **added** = did more than the plan asked · **changed** = did it different
 | 38 | 8b | **added** | Nothing said the router should read declared facts. | `route-event.sh` gained `--repo-meta` / `$REPO_META` and derives the cross-repo target from `topology.code`. **`with.target_repo` is deprecated** — it was a second hand-written copy of one fact, in a different file in a different repo. A missing or unreadable file must never break routing, so both cases fall through to no target; tested. |
 | 39 | 5 | **added** | `ops-install` listed "create the labels" as a **manual** step for a human. | **The installer creates them.** `plan-labels.sh` (32 tests) resolves every label's name, colour and **target repo** — issue labels to `issues`, PR labels to `code`, learnings labels to `learnings`, per conformance §7.3 — with the repo's overrides applied, and `github-ops` → **`create-label`** does the writes. That operation did not exist and is added to the catalog and both provider references, with `gh label create --force` for idempotency and a read-then-skip on the MCP path, which has no upsert. Manual was the right call when label names were prose in twenty files; once names, overrides and target repos are all readable, making a person copy them out of a document is just work we had not done. Asked for in review 28-07-2026. |
 | 40 | — | **corrected** | *(the plan describing itself)* | **§7's hazard register was six rows out of date**, still written in the present tense about hazards execution had closed — the placeholder central loop, the four-way base-branch drift, the `ci.provider` spelling split, the duplicated route map, label names as prose, and a missing `cloud-skill-sync.sh`. A register that reads as open when it is closed is worse than no register: the next reader re-opens settled questions and stops trusting the rows that *are* live. Swept, each closure pointing at the §10 row or phase that did it, and the **one genuinely open item flagged `⚠ OPEN`** — the repo-family consumer shape, which needs a ruling, not more building. `README.md` was stale in the same direction: it still called evals outstanding, still said `cloud-skill-sync.sh` was "not here yet", and its Status section still read "work in progress". `CLAUDE.md` had one structural bug — the "grep for product-specifics" rule and the CI paragraph had drifted out of **Before you commit** into the middle of the evals section, so "the first two are enforced in CI" pointed at nothing. |
+| 41 | — | **corrected** | *(§6.10, one commit after writing it)* | **A code review caught four overclaims in the deferral ruling, and re-reading the prototype corrected a fifth.** (a) Both docs claimed triage's `shared-skills` destination "degrades" to a safe landing spot — the README said a plain issue, the plan said `loop-self`, and the skill says **neither**: it names two live destinations on a single repo and tells the triager to *hold* rather than mis-file. Nothing is lost, but there is no designed fallback, and saying there was is exactly the kind of claim §7 exists to stop. (b) The §7 row still opened `⚠ OPEN` while its own tail, the section intro and the summary all said "deferred by ruling" — the failure row 40 had just been written to prevent. (c) The README said "both single-repo consumers use it"; neither has written its two skills. (d) `marketplace.json` still described consumers as supplying "a build playbook + a config block", a model deleted in Phase 8. (e) Worst of the five: §6.10 called the family shape "not designed and not tested". **Checking `hifi-phil/umbraco-mcp-ops` disproved it** — `mcp-issue-loop` serves the whole family today and `cloud-skill-sync/` delivers it, so *delivery is solved* and the open part is much narrower (name collision, and `topology` when `code` varies per run). That is §10.2 and §10.3 for the third time: **this repo keeps declaring prototype-solved problems unsolved.** The rule is now written into the ruling itself — check the prototype before calling anything undesigned. |
