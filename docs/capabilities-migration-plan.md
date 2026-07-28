@@ -128,7 +128,7 @@ ruled out by a settled §6 decision.
 | `ops-ci` | `status` | **exists** | operation `get-ci-status` |
 | | `log` | **exists** | operation `read-failing-ci-log` |
 | `ops-notify` | `send` | proposed | loops emit "Reworked PR #N…" inline today |
-| ~~`ops-learnings`~~ | — | **not a capability** | framework capture hook + `ops-triage`; destinations are `ops-repo-meta` data (§6.2) |
+| ~~`ops-learnings`~~ | — | **not a capability** | framework capture hook + `ops-triage-loop`; destinations are `ops-repo-meta` data (§6.2) |
 
 Counts: **3 exist** (`ops-release · sync`, `ops-ci · status`, `ops-ci · log`), **15 proposed**,
 **1 open** (`ops-change · land`, §6.8a), 1 dropped. If §6.8a resolves against the delegating tail,
@@ -150,7 +150,7 @@ the open row disappears and `land` exists only on `ops-integrate`.
 | `branching.branch_naming` | B | internal to `ops-branching` / `ops-change` | |
 | `branching.release_skill` | B | `ops-release` (whole capability) | the *pointer* becomes the *convention* (`ops-release`) |
 | `learning.inbox` | D | `ops-repo-meta` — **not** a `topology` role | the destination is a *fact*, not behaviour, but `learnings` is **not** a canonical role (conformance §7.2 fixes them at `code`/`issues`/`releases`). Needs either a spec amendment or a home outside `topology` — see §9 |
-| `learning.routing` | — | *removed* → framework capture + `ops-triage` | today a free-form prose string in the schema — never a machine-readable seam (§6.2) |
+| `learning.routing` | — | *removed* → framework capture + `ops-triage-loop` | today a free-form prose string in the schema — never a machine-readable seam (§6.2) |
 | `playbook` (build-skill pointer) | B | `ops-change` · `implement` / `verify` / `close-issue` | the central pointer becomes the convention (`ops-change`) |
 | `version` (schema pin) | F | catalog/spec version | replaced by catalog + spec versioning |
 
@@ -178,7 +178,7 @@ per-capability skills. See §5 for what, if anything, remains.
 |---|---|
 | Whole-file replacement (`$ROUTE_MAP` swaps the entire map) | **base ⊕ per-repo overlay** merged live at the edge; identity key `(event,label)`; overlay wins; `loop:null` disables |
 | Rule shape `{event:"issues", action:"labeled", route}` | `{event:"issues.labeled", label, loop}` — collapse event+action into the event vocab (`issues.labeled`, `pull_request.labeled`, `issues.opened`, `pull_request.opened`), rename `route`→`loop` |
-| Route targets `issue-loop-core` / `auto-release-loop` / `merge-flow` / `rework-loop` | reserved loop names `ops-issue-loop` / `ops-auto-release` / `ops-merge-flow` / `ops-rework`, **plus a fifth row for `ops-triage`** (§2a) |
+| Route targets `issue-loop-core` / `auto-release-loop` / `merge-flow` / `rework-loop` | reserved loop names `ops-issue-loop` / `ops-release-loop` / `ops-merge-loop` / `ops-rework-loop`, **plus a fifth row for `ops-triage-loop`** (§2a) |
 | Built-in `case` fallback duplicating the 4 rules ("keep in sync") | base table is the single source; drop the dup (or generate the fallback from base) |
 | Overlay = ad-hoc `$ROUTE_MAP` file | overlay in the caller workflow input block **or** a committed `.github/ops-routing.yml` |
 | `new-loop-routine` scaffolds caller workflow | evolves into the loop-scaffolder that *writes overlay rows* (§6) |
@@ -200,27 +200,57 @@ normalisation already match the spec — keep them.
 
 ## 2. Framework-skill → framework-loop map
 
-Reserved framework names ([conformance spec](ops-capability-skills-conformance-spec.md) §2.3): `loop-dispatch`, `ops-install`, `ops-issue-loop`,
-`ops-merge-flow`, `ops-auto-release`, `ops-rework`, `ops-triage`.
+### Naming rule for framework loops
+
+**A framework loop is named `ops-<noun>-loop`, where `<noun>` is a single word.** The five:
+
+| Loop | Fires on | Was called |
+|---|---|---|
+| `ops-issue-loop` | an issue labelled ready for work | `ops-issue-loop` (unchanged) |
+| `ops-merge-loop` | a PR labelled for landing | `ops-merge-flow` |
+| `ops-release-loop` | a release trigger | `ops-auto-release` |
+| `ops-rework-loop` | a PR labelled for rework | `ops-rework` |
+| `ops-triage-loop` | a proto-learning labelled for triage | `ops-triage` |
+
+Three reasons it is worth fixing rather than living with:
+
+1. **The old names had three different shapes** — a `-loop` suffix on one, `-flow` on another, an
+   `auto-` prefix on a third. Nothing told you which was which.
+2. **The `-loop` suffix is what keeps loops out of the capability namespace.** A capability is
+   `ops-<capability>`, so `ops-release` is already the release *capability*. The old
+   `ops-auto-release` avoided the clash only by accident, and any tidy-up that shortened it to
+   `ops-release` would have collided head-on. `ops-release-loop` cannot.
+3. **The reader can tell the layer from the name**, which is the same argument the visibility
+   roster makes for capabilities.
+
+**Two reserved names are deliberately exempt**, because neither is a loop: **`loop-dispatch`** is
+the edge router that *chooses* a loop and runs in bash before any session exists, and
+**`ops-install`** is the installer, invoked by a human. Renaming either to `-loop` would claim
+something untrue about what it does.
+
+This **diverges from [conformance spec](ops-capability-skills-conformance-spec.md) §2.3**, which
+fixes the reserved list as `ops-merge-flow` / `ops-auto-release` / `ops-rework` / `ops-triage`.
+Recorded as a deliberate divergence in §9b.7 — the spec needs amending, not this plan bending.
+It also answers the loop-naming question raised in review on PR #4.
 
 | Today | Becomes | Calls (by name) |
 |---|---|---|
 | `issue-loop-core` *(placeholder)* | `ops-issue-loop` | `ops-change` (implement/verify/close-issue) · `ops-ci`, `ops-repo-meta` (reads). **Not** `ops-workspace` — `ops-change` wraps it |
-| `rework-loop` *(placeholder)* | `ops-rework` | `ops-change` · `ops-ci` (status/log), `ops-repo-meta` (reads). **Does not land its own fix** — hands the PR back to `ops-merge-flow` so there is one merge path behind one human gate (§8) |
-| `merge-flow` | `ops-merge-flow` | `ops-integrate` · `land` (§6.8 = A) · `ops-ci` (status), `ops-repo-meta` (topology). **Never `ops-branching` directly** |
-| `auto-release-loop` | `ops-auto-release` | `ops-release` (plan/cut/publish/sync) · `ops-ci`. Reaches `ops-branching` **only through `ops-release`** |
+| `rework-loop` *(placeholder)* | `ops-rework-loop` | `ops-change` · `ops-ci` (status/log), `ops-repo-meta` (reads). **Does not land its own fix** — hands the PR back to `ops-merge-loop` so there is one merge path behind one human gate (§8) |
+| `merge-flow` | `ops-merge-loop` | `ops-integrate` · `land` (§6.8 = A) · `ops-ci` (status), `ops-repo-meta` (topology). **Never `ops-branching` directly** |
+| `auto-release-loop` | `ops-release-loop` | `ops-release` (plan/cut/publish/sync) · `ops-ci`. Reaches `ops-branching` **only through `ops-release`** |
 | `release-and-branching` | *demoted* → `ops-branching` (framework default) | — (becomes a capability, repo may override) |
 | `sync-dev` | folded into `ops-release` · `sync` | — |
 | `github-ops` | split: `ops-ci` (capability) + forge mechanics stay **F** | forge target resolved via `ops-repo-meta` topology |
 | `loop-dispatch` | `loop-dispatch` (unchanged name) | gains base⊕overlay merge + event vocab |
 | `new-loop-routine` | loop-scaffolder (writes overlay rows) | — |
 | `ops-setup` / `umbraco-ops-setup` | `ops-install` | reads catalog; coverage + scaffold + overlay-validate |
-| `learning` *(placeholder)* | framework capture hook + `ops-triage` (loop); destinations are `ops-repo-meta` data | uniform across repos so lessons compound (§6.2, detailed in §2a) |
-| `release-reviewer` (agent) | stays (orchestration internal to `ops-auto-release`) | non-normative |
+| `learning` *(placeholder)* | framework capture hook + `ops-triage-loop` (loop); destinations are `ops-repo-meta` data | uniform across repos so lessons compound (§6.2, detailed in §2a) |
+| `release-reviewer` (agent) | stays (orchestration internal to `ops-release-loop`) | non-normative |
 
-### 2a. `ops-triage` — what it inherits
+### 2a. `ops-triage-loop` — what it inherits
 
-`ops-triage` is a reserved framework loop name (§2) that nothing in this repo implements:
+`ops-triage-loop` is a reserved framework loop name (§2) that nothing in this repo implements:
 `plugins/learning/` does not exist on disk, despite `marketplace.json` declaring it (§7). But it is
 **not undefined** — the `triage-learnings` design it renames is stated across four files, all from
 `633a2a7` ("scaffold engine foundation and generic plugins"). Recording it here so Phase 4 builds
@@ -261,7 +291,7 @@ so it needs either a spec amendment or a home on `ops-repo-meta` outside `topolo
    makes this the one part of the mechanism an eval (Phase 7) should cover.
 2. **Who applies the triage label.** Triage needs no new trigger machinery: it is a **fifth route
    row** in exactly the shape of the other four — `issues.labeled` + a triage label on a
-   `proto-learning` issue → `ops-triage`. `route-event.sh` is already a pure function of
+   `proto-learning` issue → `ops-triage-loop`. `route-event.sh` is already a pure function of
    `(event, action, label)`, and the cross-repo case it documents at `:20-25` is precisely this one:
    the caller workflow is committed in the **inbox** repo, where the label fires, and `--target`
    names the repo the routine works in. Firing per-issue doesn't make triage per-issue —
@@ -382,27 +412,27 @@ alone here.
 event vocab; add base⊕overlay merge to `route-event.sh`; rename route targets to reserved loop
 names; remove the duplicated `case` fallback; move the overlay to a committed
 `.github/ops-routing.yml` (§6.4). Update `route-event.test.sh`. **Add the fifth base route row for
-`ops-triage`** (§2a) — `issues.labeled` + a triage label, fired from the inbox repo — while the base
+`ops-triage-loop`** (§2a) — `issues.labeled` + a triage label, fired from the inbox repo — while the base
 table is being authored anyway; who applies that label is a Phase 4 question, not a routing one.
 
 **Phase 3 — Framework loops invoke *services* by name.** *(Unblocked — §6.8 and §6.9 are settled.)*
-Rewrite `merge-flow`→`ops-merge-flow` to command **`ops-integrate · land`** plus the cross-cutting
+Rewrite `merge-flow`→`ops-merge-loop` to command **`ops-integrate · land`** plus the cross-cutting
 reads `ops-ci · status` / `ops-repo-meta · topology` — and to **stop resolving `base` /
 `release_base` / `merge_strategy` itself** (today `merge-flow/SKILL.md:40-59` tabulates all three,
 `:87-94` compares against two of them, `:99` passes the strategy into the merge). Build
 `ops-integrate` as the new home for the four gates **plus the release-base skip** (§6.9 = b),
 returning the structured outcome the loop comments on; the loop keeps orchestration only — sweep,
 CI-poll cadence, the 15-minute cap and the per-run cap of 10. Rewrite
-`auto-release-loop`→`ops-auto-release` to call `ops-release` only, never `ops-branching`. Extract
+`auto-release-loop`→`ops-release-loop` to call `ops-release` only, never `ops-branching`. Extract
 `ops-ci` (`status` + `log`) from `github-ops`, keeping forge mechanics as framework. Demote
 `release-and-branching`→`ops-branching` framework default **with its values private** and
 **command-only** (no `classify-pr`); its base knowledge must be a **set** of live integration
 branches, not one branch (§8). Fold `sync-dev` into `ops-release.sync`.
 
 **Phase 4 — Build the placeholder loops directly in capability form.** `ops-issue-loop` (commands
-`ops-change`, which itself wraps `ops-workspace`; reads `ops-ci` / `ops-repo-meta`), `ops-rework`,
-and the learnings mechanism as a **uniform framework capture hook + `ops-triage`** with destinations
-read from `ops-repo-meta` (§6.2). Avoids a build-then-migrate double. **Build `ops-triage` to the
+`ops-change`, which itself wraps `ops-workspace`; reads `ops-ci` / `ops-repo-meta`), `ops-rework-loop`,
+and the learnings mechanism as a **uniform framework capture hook + `ops-triage-loop`** with destinations
+read from `ops-repo-meta` (§6.2). Avoids a build-then-migrate double. **Build `ops-triage-loop` to the
 inherited contract in §2a** — dedupe → threshold → route, output a PR — and settle the three things
 history doesn't answer: the threshold value, the dedupe key, and whether a human or the capture hook
 applies the triage label.
@@ -470,13 +500,13 @@ the **Decided** line is what binds. One sub-question was opened by the resolutio
    as A — `ops-integrate`, whose merge gates are engine policy and should be identical everywhere.
    Always-repo-provided:
    `ops-change` and `ops-release` — **those two only**. Learnings is *not* a per-repo capability:
-   capture is uniform framework machinery (+ `ops-triage`) so lessons compound, with destinations as
+   capture is uniform framework machinery (+ `ops-triage-loop`) so lessons compound, with destinations as
    `ops-repo-meta` data. Evidence it was never a real seam: `ai-ops.schema.json` types
    `learning.routing` as a free-form prose string ("Free-form note on where triage routes
    learnings"), so there is nothing behavioural to override.
 3. **Build the placeholders directly in capability form?** → **Decided: yes.** `issue-loop-core`,
-   `rework-loop` and `learning` don't exist, so build once as `ops-issue-loop` / `ops-rework` /
-   framework capture + `ops-triage`.
+   `rework-loop` and `learning` don't exist, so build once as `ops-issue-loop` / `ops-rework-loop` /
+   framework capture + `ops-triage-loop`.
 4. **Overlay home.** → **Decided: a committed `.github/ops-routing.yml`.** Both are spec-legal; the
    committed file is auditable and reviewable in the consumer repo.
 5. **Delivery mechanics.** → **Decided: stacked PRs into `main`, one per phase**, as with the engine
@@ -509,7 +539,7 @@ the **Decided** line is what binds. One sub-question was opened by the resolutio
    operation doesn't belong to the thing that produced the PR.
 
    **Follow-on this settles:** `ops-integrate` owns merge *policy* (the four gates + the
-   release-base skip); `ops-merge-flow` keeps *orchestration* — sweeping labelled PRs, the CI poll
+   release-base skip); `ops-merge-loop` keeps *orchestration* — sweeping labelled PRs, the CI poll
    cadence and 15-minute cap, the per-run cap of 10, and reporting. Policy in the service,
    scheduling in the loop.
 
@@ -526,21 +556,21 @@ the **Decided** line is what binds. One sub-question was opened by the resolutio
      tail isn't reachable from the same invocation anyway.
 
    Under that reading `ops-change` ends at `close-issue`, which fires when **all** target lines have
-   landed, and every merge enters through `ops-merge-flow → ops-integrate`. **Not settled** —
+   landed, and every merge enters through `ops-merge-loop → ops-integrate`. **Not settled** —
    it removes one row from the catalog and changes nothing else, so Phase 1 can carry it either way.
 
 9. **If `base` is private, who skips a release-base PR?** → **Decided: (b) — the service.**
 
    `merge-flow` currently decides this itself, comparing the PR's base against the resolved
    `release_base` (`SKILL.md:87-94`, guardrail `:118`) and skipping release PRs as
-   `ops-auto-release`'s job. A private `ops-branching` forbids that comparison.
+   `ops-release-loop`'s job. A private `ops-branching` forbids that comparison.
 
    - **Option (a) — a classification read.** `ops-branching · classify-pr` returns
      `integration | release | wrong-base`; the loop routes on the classification and never sees a
      branch name. Satisfies the privacy rule (a classification is not a branch name) but adds a
      read to a primitive we just defined as command-only, and leaves merge policy split across loop
      and service.
-   - **Option (b) — the skip lives in the service.** `ops-merge-flow` hands every labelled PR to
+   - **Option (b) — the skip lives in the service.** `ops-merge-loop` hands every labelled PR to
      `ops-integrate`, which asks `ops-branching` and declines release-base PRs. All merge policy in
      one place, and the wrong-base flag is authored by the thing that knows what right looks like.
 
@@ -582,15 +612,15 @@ That was the last thing blocking Phase 3.
   no directory and no `plugin.json`, which `CLAUDE.md` requires of every declared plugin — so
   `/plugin marketplace add` would fail on them. They read as shipped rather than as placeholders.
   Either scaffold them or mark them unreleased; `learning`'s description is currently the **only**
-  written spec for `ops-triage` (§2a), so deleting the entry would lose it.
+  written spec for `ops-triage-loop` (§2a), so deleting the entry would lose it.
 - **The repo-family consumer shape is never migrated.** `README.md` names three consumer shapes —
   Forms, Automate, and the MCP server family with its shared consumer repo (`umbraco-mcp-ops`) —
   and this plan covers only the first two (Phase 6). The one-`ops-change`-serving-many-repos case is
   neither migrated nor tested against the convention model, even though the design docs this plan
-  ports were written *for* that repo. It also strands `ops-triage`'s `shared-skills` destination
+  ports were written *for* that repo. It also strands `ops-triage-loop`'s `shared-skills` destination
   (§2a), which only means anything for a repo family. Needs either a Phase 6b or an explicit
   out-of-scope ruling.
-- **`ops-triage` has no route row, and its destination can't be a dispatch input.** The trigger
+- **`ops-triage-loop` has no route row, and its destination can't be a dispatch input.** The trigger
   mechanism is fine — a triage label on a `proto-learning` issue in the inbox repo is the same
   `issues.labeled` shape as the other four routes, cross-repo included (`route-event.sh:20-25`). But
   no such label or row exists yet, nobody has decided whether a human or the capture hook applies it,
@@ -686,19 +716,20 @@ recording in the spec rather than silently contradicting it.
 | 3 | **Catalog entries need a `description` per capability *and* per operation.** The plan's §3.1 listed actions, `visibility` and `example`, and omitted the required `description` fields. | conformance §5.2–5.3 |
 | 4 | **Capability skills SHOULD set `disable-model-invocation: true`**, so a loop is the only caller. Nothing in the plan says so, and it is exactly what stops a capability auto-firing on a `description` match. Belongs in the Phase 1 scaffold and the Phase 6 skills. | conformance §2.4, layer 1 §03 |
 | 5 | **The caller workflow must be installed on *both* repos in a split topology.** Forms' issues live in `Umbraco.Forms.Issues`, so the router needs installing there *and* on the code repo — issue-label rules to the public repo, PR-label rules to the private one. Missing from the Phase 6 prerequisites. | conformance §7.5, layer 1 §07 |
-| 6 | **`ops-integrate`'s outcome vocabulary is a convention, not a contract.** §6.9 specifies `merged \| skipped:release-base \| blocked:ci \| …` as though it were enforced; the spec says there is *no* required error vocabulary and the result shape is a SHOULD verified by evals. It is promotable to a MUST **only if a non-model consumer parses it** — so if `ops-merge-flow` branches on the string deterministically, say that explicitly and invoke §4.5. | conformance §4.2, §4.5 |
+| 6 | **`ops-integrate`'s outcome vocabulary is a convention, not a contract.** §6.9 specifies `merged \| skipped:release-base \| blocked:ci \| …` as though it were enforced; the spec says there is *no* required error vocabulary and the result shape is a SHOULD verified by evals. It is promotable to a MUST **only if a non-model consumer parses it** — so if `ops-merge-loop` branches on the string deterministically, say that explicitly and invoke §4.5. | conformance §4.2, §4.5 |
 | 7 | **The invocation contract is more specific than the plan's `(action, context-json)`.** Two positional arguments, `context` MUST be a single JSON object as a string, absent context MUST be treated as `{}`, and an unknown action MUST be rejected rather than guessed. Phase 1's scaffold should encode all four. | conformance §3.1–3.4 |
 
 ### 9b. Deliberate — amend the spec, don't drift from it
 
 | # | Divergence | Standing |
 |---|---|---|
-| 1 | **`learnings` is not a capability here.** Both design docs list `ops-learnings` with `route` / `file` actions; this plan demotes capture to framework mechanics + `ops-triage`, with destinations as data. Reviewed and agreed on PR #4 (§6.2), and the schema evidence supports it. | agreed — needs writing back into the spec |
+| 1 | **`learnings` is not a capability here.** Both design docs list `ops-learnings` with `route` / `file` actions; this plan demotes capture to framework mechanics + `ops-triage-loop`, with destinations as data. Reviewed and agreed on PR #4 (§6.2), and the schema evidence supports it. | agreed — needs writing back into the spec |
 | 2 | **`ops-integrate` does not exist in either design doc.** It comes out of §6.8, and adds a capability the catalog must declare (conformance §2.2 forbids a capability skill absent from the catalog, so the catalog is where it becomes legal). | agreed — §6.8 |
 | 3 | **`ops-branching` is command-only.** Both docs expose `resolve-base` and `merge-strategy` as caller-visible actions; §0 and §6.9 make those values private. This is the single biggest departure from the design docs, and the one with the most evidence behind it (§7's four-way drift). | agreed — PR #4 |
 | 4 | **`visibility` is an extra catalog field** the spec neither requires nor forbids (§3.1). | additive, low risk |
 | 5 | **`ops-ci` has a `log` action**; both docs list `status` only. | additive, agreed on PR #4 |
 | 6 | **The spec relies on same-name shadowing; this repo found it doesn't work.** Conformance §2.3 permits a repo to take a reserved name "if it intends to *shadow*", §6.6 states a same-named repo loop "**shadows**" a core loop, and layer 1 §06 offers shadowing as a customisation route. `CLAUDE.md:18` records the opposite from experience: plugin skills are namespaced, project skills are not, cloud delivers both flat into overlapping locations with undocumented precedence — which is *why* this engine binds by config pointer today and why §1's whole model is convention-by-name. **The spec's customisation story is unsound on this point**; overlay-plus-a-differently-named-loop is the mechanism that actually works. Needs correcting in the spec, not worked around here. | **conflict — spec is wrong** |
+| 7 | **Framework loops are renamed to `ops-<noun>-loop`** (§2). Conformance §2.3 fixes the reserved list as `ops-merge-flow` / `ops-auto-release` / `ops-rework` / `ops-triage`; we use `ops-merge-loop` / `ops-release-loop` / `ops-rework-loop` / `ops-triage-loop`. One consistent shape, and the suffix keeps loops out of the `ops-<capability>` namespace, so a loop can never collide with the capability of the same name. `loop-dispatch` and `ops-install` stay as they are, being a router and an installer rather than loops. | agreed — raised in review on PR #4 |
 
 ### 9c. Worth mining, not yet decided
 

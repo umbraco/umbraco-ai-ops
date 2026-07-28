@@ -52,9 +52,11 @@ notifications are cross-cutting.**
 | Term | Means |
 |---|---|
 | **engine** | This repo. Product-agnostic; ships framework loops, framework defaults, the catalog, the router. |
-| **framework loop** | An engine-owned orchestrator triggered by an event, named from the reserved list: `ops-issue-loop`, `ops-merge-flow`, `ops-auto-release`, `ops-rework`, `ops-triage`. Commands services; never touches a primitive. |
+| **framework loop** | An engine-owned orchestrator triggered by an event. **Named `ops-<noun>-loop`** with a single-word noun: `ops-issue-loop`, `ops-merge-loop`, `ops-release-loop`, `ops-rework-loop`, `ops-triage-loop`. Commands services; never touches a primitive. |
+| **the `-loop` suffix** | What separates a loop from a capability. A capability is `ops-<capability>`, so `ops-release` is the release *capability* and `ops-release-loop` is the loop that drives it. Without the suffix the two namespaces overlap. |
 | **framework mechanics** | Engine internals that are *not* a capability and cannot be overridden — e.g. forge mechanism (gh CLI vs GitHub MCP). |
-| **edge router** | `loop-dispatch` — maps an inbound event to a framework loop. |
+| **edge router** | `loop-dispatch` — maps an inbound event to a framework loop. **Not** a loop, so it takes no `-loop` suffix: it chooses one, and runs in bash at the CI edge before any session exists. |
+| **installer** | `ops-install` — proves coverage and validates wiring. Also not a loop, so also no suffix. A human invokes it. |
 | **routing table** | The `{event, label, loop}` rows the router reads: a **base** table shipped by the engine ⊕ a per-repo **overlay**. Overlay wins; `loop: null` disables a row. |
 | **event vocabulary** | The permitted event strings — `issues.labeled`, `issues.opened`, `pull_request.labeled`, `pull_request.opened`. |
 | **caller workflow** | The workflow in a consumer repo that calls the engine's reusable dispatch workflow. |

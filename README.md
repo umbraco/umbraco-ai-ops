@@ -162,8 +162,8 @@ which, so review can hold the line:
 flowchart TD
   subgraph L["framework loops (engine)"]
     IL[ops-issue-loop]
-    MF[ops-merge-flow]
-    AR[ops-auto-release]
+    MF[ops-merge-loop]
+    AR[ops-release-loop]
   end
   subgraph S["services: all a loop may command"]
     CH[ops-change]
