@@ -139,6 +139,12 @@ engine labels out of a repo's existing triage vocabulary.
 
 When you add a label, prefix it, and add it to the list above.
 
+**Keep the `auto-` names as they are.** With `ops/` in front, the `auto-` in `ops/auto-merge`
+/ `ops/auto-rework` / `ops/auto-release` is arguably redundant, and shortening them to
+`ops/merge` / `ops/rework` / `ops/release` was raised and **declined** (28-07-2026): the
+labels are already live in people's heads and the churn buys nothing. Don't re-open it as a
+tidy-up.
+
 ## Line endings
 
 Scripts run on Linux routine/CI runners. `.gitattributes` forces `*.sh`/`*.yml` to **LF** —
