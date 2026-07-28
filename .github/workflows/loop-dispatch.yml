@@ -13,6 +13,10 @@ name: loop-dispatch (reusable)
 # `with.target_repo: <code repo>`; the router then emits `target=<code repo>` so the
 # routine works in that repo while reading the issue from the event repo.
 #
+# ROUTING OVERLAY: the effective table is the framework base merged with an optional
+# `.github/ops-routing.json` in the caller repo (identity `(event,label)`, overlay wins,
+# `"loop": null` disables a base rule). Most repos need none.
+#
 # Caller must provide two secrets (repo or org level):
 #   LOOP_DISPATCH_FIRE_URL  — the routine's Fire URL (Routines UI -> Call via API)
 #   LOOP_DISPATCH_TOKEN     — the token generated for that routine
@@ -48,7 +52,15 @@ jobs:
           ref: main
           path: ops
 
-      - name: Decide the route (deterministic, at the edge)
+      # The effective routing table is the framework BASE (in ops/) merged with this
+      # repo's optional OVERLAY at .github/ops-routing.json — so the caller repo has to
+      # be on disk too. Nothing else in this workflow reads it.
+      - name: Check out this repo (for its routing overlay, if any)
+        uses: actions/checkout@v4
+        with:
+          path: repo
+
+      - name: Decide the loop (deterministic, at the edge)
         id: route
         env:
           # route-event.sh reads $TARGET_REPO and emits target= only when it differs
@@ -56,19 +68,28 @@ jobs:
           TARGET_REPO: ${{ inputs.target_repo }}
         run: |
           set -uo pipefail
+          # An overlay is optional: most repos run the base table unchanged. A PRESENT but
+          # broken overlay makes route-event.sh exit 2, which fails this step loudly —
+          # deliberately, because a silently ignored overlay means loops stop firing.
+          overlay=""
+          if [ -f repo/.github/ops-routing.json ]; then
+            overlay="repo/.github/ops-routing.json"
+            echo "routing overlay: $overlay"
+          fi
           # $GITHUB_EVENT_PATH / $GITHUB_EVENT_NAME are the CALLER repo's triggering event.
           # route-event.sh reads the payload for action/label/repo/number (the event NAME
           # is a header, not body, so it is passed explicitly).
-          out="$(bash ops/plugins/loop-dispatch/skills/loop-dispatch/scripts/route-event.sh --event "$GITHUB_EVENT_NAME")"
+          out="$(bash ops/plugins/loop-dispatch/skills/loop-dispatch/scripts/route-event.sh \
+                   --event "$GITHUB_EVENT_NAME" ${overlay:+--overlay "$overlay"})"
           echo "route-event: $out"
-          route="${out#route=}"; route="${route%% *}"
+          loop="${out#loop=}"; loop="${loop%% *}"
           {
-            echo "route=$route"
+            echo "loop=$loop"
             echo "result=$out"
           } >> "$GITHUB_OUTPUT"
 
       - name: Fire the routine (only when the event maps to a loop)
-        if: steps.route.outputs.route != 'none' && steps.route.outputs.route != ''
+        if: steps.route.outputs.loop != 'none' && steps.route.outputs.loop != ''
         env:
           FIRE_URL: ${{ secrets.LOOP_DISPATCH_FIRE_URL }}
           TOKEN: ${{ secrets.LOOP_DISPATCH_TOKEN }}
@@ -79,7 +100,7 @@ jobs:
             echo "::error::LOOP_DISPATCH_FIRE_URL / LOOP_DISPATCH_TOKEN secret not set on this repo (or org)."
             exit 1
           fi
-          text="loop-dispatch (cloud worker). A GitHub loop event was routed at the edge: ${RESULT}. Run the loop-dispatch skill and dispatch this already-resolved route to its loop for that number, following loop-dispatch's guardrails (do all GitHub work via github-ops). Re-check the entity still qualifies before acting; quiet no-op if not."
+          text="loop-dispatch (cloud worker). A GitHub loop event was routed at the edge: ${RESULT}. Run the loop-dispatch skill and dispatch this already-resolved loop for that number, following loop-dispatch's guardrails (do all GitHub work via github-ops). Re-check the entity still qualifies before acting; quiet no-op if not."
           # Retry transient upstream errors (e.g. a Cloudflare 520 from the Fire endpoint):
           # --fail-with-body makes any HTTP >=400 an error, and --retry-all-errors makes
           # --retry cover non-standard 5xx codes that plain --retry ignores. A retried fire

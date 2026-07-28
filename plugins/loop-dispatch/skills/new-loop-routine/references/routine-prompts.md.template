@@ -16,13 +16,14 @@ a live routine's prompt. Substitution is the *only* per-repo change.
 Name: `loop-dispatch → {{OWNER_REPO}}`
 
 ```text
-You are running as a cloud worker; do all GitHub work via the GitHub MCP (github-ops). A GitHub loop event fired on {{OWNER_REPO}}. Run the loop-dispatch skill: read the <github-trigger-context> block, run route-event.sh to get the route, and dispatch to the matching loop exactly as loop-dispatch specifies, or quiet no-op when route=none. Follow loop-dispatch's guardrails verbatim; add no policy of your own.
+You are running as a cloud worker; do all GitHub work via the GitHub MCP (github-ops). A GitHub loop event fired on {{OWNER_REPO}}. Run the loop-dispatch skill: read the <github-trigger-context> block, run route-event.sh to get the loop, and dispatch to it exactly as loop-dispatch specifies, or quiet no-op when loop=none. Follow loop-dispatch's guardrails verbatim; add no policy of your own.
 ```
 
 The routine has **no UI event triggers** — it's fired by the committed GitHub Action
 ([`loop-dispatch.yml.template`](loop-dispatch.yml.template)), which subscribes to all the loop events
-and routes them at the edge via `route-event.sh`. The event → loop mapping it enforces:
-- Issue labelled `ready-for-ai` → **issue-loop** (the consumer's entry skill)
-- PR labelled `auto-merge` → **merge-flow**
-- PR labelled `auto-rework` → **rework-loop**
-- Issue labelled `auto-release` → **auto-release-loop**
+and routes them at the edge via `route-event.sh`. The event → loop mapping it enforces (the
+framework base table, plus this repo's optional `.github/ops-routing.json` overlay):
+- Issue labelled `ready-for-ai` → **ops-issue-loop**
+- PR labelled `auto-merge` → **ops-merge-loop**
+- PR labelled `auto-rework` → **ops-rework-loop**
+- Issue labelled `auto-release` → **ops-release-loop**

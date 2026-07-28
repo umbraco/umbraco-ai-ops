@@ -23,47 +23,61 @@ own gates, models, and notifications. loop-dispatch adds no policy of its own.
 
 ## The routing table
 
-The mapping is **data, not prose** — it lives in
-[`route-map.json`](scripts/route-map.json) (schema: [`route-map.schema.json`](scripts/route-map.schema.json)),
-and `route-event.sh` resolves the route deterministically from it (first matching rule wins;
-run **at the edge** by the caller workflow — see new-loop-routine and
-[`references/webhook-context.md`](references/webhook-context.md)). Anything unmatched → the
-routine is **never fired**. This table just renders the built-in `route-map.json`; a consumer
-**extends routing by shipping its own `route-map.json`** (same schema — add labels or
-re-target loops), never by editing this skill.
+The mapping is **data, not prose**, in **two layers** that `route-event.sh` merges at the
+edge:
 
-| event | action | label / state | Run |
-|---|---|---|---|
-| `issues` | `labeled` | label = `ready-for-ai` | **`/issue-loop-core`** (cloud mode) |
-| `issues` | `labeled` | label = `auto-release` (issue title `release <version>`) | **`/auto-release-loop`** |
-| `pull_request` | `labeled` | label = `auto-merge` | **`/merge-flow`** |
-| `pull_request` | `labeled` | label = `auto-rework` | **`/rework-loop`** |
+| Layer | Where | Who owns it |
+|---|---|---|
+| **base** | [`route-map.json`](scripts/route-map.json) (schema: [`route-map.schema.json`](scripts/route-map.schema.json)) | the engine — a consumer **never** edits it |
+| **overlay** | `.github/ops-routing.json` in the consumer repo (schema: [`ops-routing.schema.json`](scripts/ops-routing.schema.json), [example](scripts/ops-routing.example.json)) | the consumer, optional |
+
+A rule's identity is the pair **`(event, label)`**. An overlay rule with the same key
+**wins**; an overlay rule with **`"loop": null` disables** the base rule. Keys in only one
+layer are taken as-is. Most repos need no overlay at all.
+
+The base table, rendered:
+
+| event | label | Run |
+|---|---|---|
+| `issues.labeled` | `ready-for-ai` | **`ops-issue-loop`** (cloud mode) |
+| `issues.labeled` | `auto-release` (issue title `release <version>`) | **`ops-release-loop`** |
+| `pull_request.labeled` | `auto-merge` | **`ops-merge-loop`** |
+| `pull_request.labeled` | `auto-rework` | **`ops-rework-loop`** |
+
+**The event vocabulary is closed**: `issues.labeled`, `pull_request.labeled`,
+`issues.opened`, `pull_request.opened`. `pull_request_target.labeled` normalises to
+`pull_request.labeled`. A rule using anything else is a **hard error**, not a rule that
+quietly never fires.
+
+**`ops-triage-loop` is deliberately absent.** It is a *scheduled* sweep of the learnings
+inbox, not an event route, so it has no row here.
 
 Rework is a **label**, not the review event — uniform with the rest, and it works with one
 account (you can't fire a `pull_request_review` workflow by reviewing your *own* PR, and
 the loop's identity is often the reviewer's). Flow: a reviewer leaves comments, then adds
-`auto-rework` to say "address these". Review events route nowhere.
+`auto-rework` to say "address these". Review events are not in the vocabulary at all, so
+they route nowhere.
 
-Everything else — `pull_request.opened`, a PR labelled `dependencies`/`javascript`, an
-issue labelled anything else, any review event — matches **no row**, so the edge never
-fires the routine. This is what kills the wasteful fires: a Dependabot PR labelled
-`dependencies` woke merge-flow **4× overnight** under per-event routines; here the edge
-stops immediately, waking no routine.
+Everything else — a PR labelled `dependencies`/`javascript`, an issue labelled anything
+else, any review event — matches **no rule**, so the edge never fires the routine. This is
+what kills the wasteful fires: a Dependabot PR labelled `dependencies` woke the merge loop
+**4× overnight** under per-event routines; here the edge stops immediately, waking no
+routine.
 
 ## Config (resolve once)
 
 - **Repo** — identify the current repo (github-ops → *Detect base branch / repo*).
 - **github-ops required** — every downstream loop uses it; it must be installed.
 
-## Step 1 — take the resolved route
+## Step 1 — take the resolved loop
 
 Your turn contains the decision the **edge already made** — e.g.
-`route=merge-flow repo=umbraco/… number=269`. The caller workflow ran `route-event.sh`
-and only fired you because it matched, so **take that route as given; don't re-derive it.**
-(If a fire ever arrives with no resolved route, **quiet no-op** — never go looking for work.)
+`loop=ops-merge-loop repo=umbraco/… number=269`. The caller workflow ran `route-event.sh`
+and only fired you because it matched, so **take that loop as given; don't re-derive it.**
+(If a fire ever arrives with no resolved loop, **quiet no-op** — never go looking for work.)
 
-**Cross-repo issues.** When a repo's issues live in a *separate* repo from its source, the
-route also carries a `target=<code repo>` distinct from the event's `repo` (where the label
+**Cross-repo issues.** When a repo's issues live in a *separate* repo from its code, the
+output also carries a `target=<code repo>` distinct from the event's `repo` (where the label
 fired). In that case **work against `target`** — check it out and load *its* skills/config —
 while reading the issue from the event `repo`. When no `target` is present, event repo ==
 work repo (the common case).
@@ -73,19 +87,22 @@ removed or the PR/issue closed. Fetch it (github-ops → `issue_read`/`pull_requ
 `method: "get"`, exact `owner`/`repo`/`number`) and confirm it still carries the
 triggering label / is still open. If not, **quiet no-op**.
 
-## Step 2 — dispatch the route
+## Step 2 — dispatch the loop
 
 Invoke the matched skill exactly as its own dedicated routine would, scoped to the
 specific issue/PR, and **follow that skill's instructions verbatim**:
 
-- `ready-for-ai` issue → **`/issue-loop-core`** (cloud mode) for that issue — the engine
-  orchestration reads the repo's `.claude/ai-ops.yml` and dispatches a build subagent that
-  follows the repo's own build skill (named by `playbook`, default `issue-loop`). Local run
-  → its local mode.
-- `auto-merge` PR → **`/merge-flow`** (it sweeps all `auto-merge` PRs; the event is
+- `ready-for-ai` issue → **`ops-issue-loop`** (cloud mode) for that issue — the engine
+  orchestration commands `ops-change` for the work itself. Local run → its local mode.
+- `auto-merge` PR → **`ops-merge-loop`** (it sweeps all `auto-merge` PRs; the event is
   just the wake-up).
-- PR review changes-requested → **`/rework-loop`** for that PR.
-- `auto-release` issue → **`/auto-release-loop`**, version taken from the issue title.
+- `auto-rework` PR → **`ops-rework-loop`** for that PR.
+- `auto-release` issue → **`ops-release-loop`**, version taken from the issue title.
+
+> **Names in flight.** The loops above are the target names (§2 of the migration plan). Until
+> Phase 3/4 rename the skills themselves, dispatch to the skill that exists today:
+> `ops-issue-loop` → `issue-loop-core`, `ops-merge-loop` → `merge-flow`,
+> `ops-release-loop` → `auto-release-loop`, `ops-rework-loop` → `rework-loop`.
 
 **One event → one loop.** Do not chain (don't build *then* merge *then* release in a
 single fire) — each of those has its own event that will dispatch its own run. Hand

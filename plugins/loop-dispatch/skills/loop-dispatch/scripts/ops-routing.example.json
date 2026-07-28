@@ -1,0 +1,7 @@
+{
+  "version": 2,
+  "routes": [
+    { "event": "issues.labeled", "label": "needs-ai", "loop": "ops-issue-loop" },
+    { "event": "pull_request.labeled", "label": "auto-rework", "loop": null }
+  ]
+}

@@ -1,9 +1,9 @@
 {
-  "version": 1,
+  "version": 2,
   "routes": [
-    { "event": "issues",       "action": "labeled", "label": "ready-for-ai", "route": "issue-loop-core" },
-    { "event": "issues",       "action": "labeled", "label": "auto-release", "route": "auto-release-loop" },
-    { "event": "pull_request", "action": "labeled", "label": "auto-merge",   "route": "merge-flow" },
-    { "event": "pull_request", "action": "labeled", "label": "auto-rework",  "route": "rework-loop" }
+    { "event": "issues.labeled",       "label": "ready-for-ai", "loop": "ops-issue-loop" },
+    { "event": "issues.labeled",       "label": "auto-release", "loop": "ops-release-loop" },
+    { "event": "pull_request.labeled", "label": "auto-merge",   "loop": "ops-merge-loop" },
+    { "event": "pull_request.labeled", "label": "auto-rework",  "loop": "ops-rework-loop" }
   ]
 }

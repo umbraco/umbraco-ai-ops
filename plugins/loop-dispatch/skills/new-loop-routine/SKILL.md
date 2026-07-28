@@ -59,7 +59,7 @@ Never use `fable`. Never put secrets in the prompt or config.
 4. **Commit the caller workflow** — copy [`references/loop-dispatch.yml.template`](references/loop-dispatch.yml.template)
    **verbatim** to the repo as `.github/workflows/loop-dispatch.yml` (open a PR).
 5. **Smoke-test** — label a throwaway issue `ready-for-ai` (Action fires → routine builds
-   a PR), and label a PR `dependencies` (Action computes `route=none` → routine never fires).
+   a PR), and label a PR `dependencies` (Action computes `loop=none` → routine never fires).
 
 ### Cross-repo consumers (issues and PRs in different repos)
 

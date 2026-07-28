@@ -1,44 +1,41 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/umbraco/umbraco-ai-ops/loop-dispatch/route-map.schema.json",
-  "title": "loop-dispatch route map",
-  "description": "The extension point that maps a GitHub webhook event to a loop. route-event.sh resolves a route by finding the FIRST rule whose fields all match the event; unmatched events resolve to route=none (a quiet no-op). The rules below are the built-in defaults; a consumer extends routing by shipping its own route-map.json (same schema) — add rules for extra labels, or point an existing label at a different loop.",
+  "title": "loop-dispatch base routing table",
+  "description": "The framework BASE table mapping a GitHub event to a framework loop. The effective table a consumer runs is base ⊕ per-repo overlay (see ops-routing.schema.json): a rule's identity is the pair (event, label), an overlay rule with the same key wins, and an overlay rule with loop:null disables the base rule. A consumer therefore NEVER edits this file — it ships an overlay. route-event.sh resolves exactly one rule, or none, and never invokes more than one loop per event.",
   "type": "object",
   "required": ["version", "routes"],
   "additionalProperties": false,
   "properties": {
-    "version": { "type": "integer", "const": 1 },
+    "version": { "type": "integer", "const": 2, "description": "Bumped to 2 when the rule shape became {event,label,loop} and event+action collapsed into the event vocabulary." },
     "routes": {
       "type": "array",
-      "description": "Ordered rules; first match wins.",
-      "items": {
-        "type": "object",
-        "required": ["event", "action", "route"],
-        "additionalProperties": false,
-        "properties": {
-          "event": {
-            "type": "string",
-            "description": "GitHub event name (pull_request_target is normalised to pull_request before matching).",
-            "examples": ["issues", "pull_request"]
-          },
-          "action": {
-            "type": "string",
-            "description": "The event's action.",
-            "examples": ["labeled"]
-          },
-          "label": {
-            "type": "string",
-            "description": "Optional. If set, the event's label must equal this."
-          },
-          "state": {
-            "type": "string",
-            "description": "Optional. If set, the event's (lowercased) review state must equal this."
-          },
-          "route": {
-            "type": "string",
-            "description": "The loop this rule dispatches to (the skill loop-dispatch invokes). route=none is reserved for 'no match'.",
-            "examples": ["issue-loop-core", "auto-release-loop", "merge-flow", "rework-loop"]
-          }
+      "uniqueItems": true,
+      "description": "The base rules. Order is not significant: (event, label) is unique, so at most one rule can match.",
+      "items": { "$ref": "#/$defs/rule" }
+    }
+  },
+  "$defs": {
+    "event": {
+      "type": "string",
+      "enum": ["issues.labeled", "pull_request.labeled", "issues.opened", "pull_request.opened"],
+      "description": "The event vocabulary. `<github event>.<action>`, collapsed into one string. `pull_request_target.labeled` is normalised to `pull_request.labeled` before matching. A repo MUST NOT invent a string outside this list; route-event.sh rejects one rather than silently never firing."
+    },
+    "label": {
+      "type": "string",
+      "description": "The label that fired. Matched exactly. Use \"\" for an event that carries no label, which is how an `.opened` rule is written."
+    },
+    "rule": {
+      "type": "object",
+      "required": ["event", "label", "loop"],
+      "additionalProperties": false,
+      "properties": {
+        "event": { "$ref": "#/$defs/event" },
+        "label": { "$ref": "#/$defs/label" },
+        "loop": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]*$",
+          "description": "The framework loop this rule dispatches to. MUST resolve to an installed skill, and MUST be one of catalog.json's reserved_skill_names unless the repo ships a loop skill of its own name. `none` is reserved for the no-match outcome and is not a legal value here."
         }
       }
     }

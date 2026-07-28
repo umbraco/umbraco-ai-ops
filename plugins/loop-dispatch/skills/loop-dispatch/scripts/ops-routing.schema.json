@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/umbraco/umbraco-ai-ops/loop-dispatch/ops-routing.schema.json",
+  "title": "Per-repo routing overlay",
+  "description": "A consumer's routing overlay, committed as .github/ops-routing.json in the repo the events fire from. Merged over the framework base table (route-map.schema.json) at the edge: identity is the pair (event, label), an overlay rule with the same key WINS, and an overlay rule with loop:null DISABLES the base rule with that key. Keys present in only one source are taken as-is. Most repos need no overlay at all — the base table is the whole point. JSON rather than YAML because route-event.sh runs at the CI edge with bash + jq only and no yq; see docs/capabilities-migration-plan.md §6.4.",
+  "type": "object",
+  "required": ["version", "routes"],
+  "additionalProperties": false,
+  "properties": {
+    "version": { "type": "integer", "const": 2, "description": "Matches the base table's version. A mismatch means the overlay was written against a different rule shape." },
+    "routes": {
+      "type": "array",
+      "uniqueItems": true,
+      "description": "Overlay rules. An empty array is legal and means 'the base table, unchanged'.",
+      "items": {
+        "type": "object",
+        "required": ["event", "label", "loop"],
+        "additionalProperties": false,
+        "properties": {
+          "event": {
+            "type": "string",
+            "enum": ["issues.labeled", "pull_request.labeled", "issues.opened", "pull_request.opened"],
+            "description": "Must come from the framework event vocabulary. Inventing a string here is a conformance violation and route-event.sh rejects it loudly rather than never firing."
+          },
+          "label": {
+            "type": "string",
+            "description": "The label that fired. Use \"\" for an event carrying no label."
+          },
+          "loop": {
+            "type": ["string", "null"],
+            "pattern": "^[a-z][a-z0-9-]*$",
+            "description": "The loop to dispatch to, overriding the base rule with this (event, label). NULL disables the base rule entirely, which is how a repo opts out of one of the framework loops without forking the base table."
+          }
+        }
+      }
+    }
+  }
+}

@@ -69,7 +69,8 @@ ships the default data; a consumer overrides by shipping its own file of the sam
 | Seam | Data | Schema |
 |------|------|--------|
 | **Capability catalog** (which capabilities exist, their actions, `visibility`) | `catalog.json` | `catalog.schema.json` |
-| Event → loop routing (framework **base ⊕ per-repo overlay**) | `loop-dispatch/.../scripts/route-map.json` | `route-map.schema.json` |
+| Event → loop routing, framework **base** | `loop-dispatch/.../scripts/route-map.json` | `route-map.schema.json` |
+| Event → loop routing, **per-repo overlay** (merged over the base at the edge) | `<consumer>/.github/ops-routing.json` | `loop-dispatch/.../scripts/ops-routing.schema.json` |
 | GitHub/CI provider interface | `github-ops/.../operation-catalog.json` | `operation-catalog.schema.json` |
 | ~~Per-repo consumer config~~ | ~~`<consumer>/.claude/ai-ops.yml`~~ | *retired in Phase 8 — absorbed by `ops-repo-meta` plus the capabilities* |
 

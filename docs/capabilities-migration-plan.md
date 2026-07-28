@@ -485,13 +485,35 @@ preamble warned. The action names, the `example` shapes and the `input`/`output`
 unexercised by a caller. The mitigation §4 suggested — write one reference `ops-repo-meta` alongside
 the catalog — was **not** taken, so an interface mistake here still surfaces two phases later.
 
-**Phase 2 — Routing to spec (edge).** Convert `route-map` to the `{event,label,loop}` shape +
-event vocab; add base⊕overlay merge to `route-event.sh`; rename route targets to reserved loop
-names; remove the duplicated `case` fallback; move the overlay to a committed
-`.github/ops-routing.yml` (§6.4). Update `route-event.test.sh`. **No route row for
-`ops-triage-loop`** — it is a weekly scheduled sweep, not an event (§2a), so the base table stays at
-**four** rows. An earlier revision of this plan called for a fifth; that was built on the assumption
-that a triage label triggers it, which the prototype disproves.
+**Phase 2 — Routing to spec (edge). Complete.**
+
+- ~~Convert `route-map` to the `{event,label,loop}` shape + event vocab.~~ Done, `version: 2`.
+  `action` folded into the event string, `route` renamed `loop`, and the `state` field **deleted** —
+  no rule used it, and review events aren't in the vocabulary, so it was dead weight that implied a
+  matching mode the spec doesn't have.
+- ~~Add base⊕overlay merge to `route-event.sh`.~~ Done, in **one jq pass** so the semantics aren't
+  half in bash. Identity is `(event, label)` encoded as JSON, so no separator can collide with a
+  label; overlay wins; `loop: null` disables.
+- ~~Rename route targets to reserved loop names.~~ Done, and the test now cross-checks every
+  `loop` against **`catalog.json`'s `reserved_skill_names`** rather than a second hard-coded list.
+  The loop *skills* still have their old names until Phase 3/4, so `loop-dispatch`'s SKILL.md
+  carries an explicit translation table for the interim.
+- ~~Remove the duplicated `case` fallback.~~ Done, and replaced by the opposite behaviour: a
+  missing/unreadable table, absent jq, or a rule with an invented event now **exits 2** rather than
+  printing `loop=none`. The old fallback silently kept working while drifting from the map; a silent
+  `none` means loops stop firing and nobody notices.
+- ~~Move the overlay to a committed file.~~ Done, as `.github/ops-routing.json` —
+  **JSON, not the `.yml` §6.4 recorded**, for the reason amended there. `loop-dispatch.yml` gained a
+  checkout of the caller repo, without which the overlay simply isn't on disk at the edge.
+- ~~Update `route-event.test.sh`.~~ Done: **42 cases**, up from 21, covering the merge semantics,
+  the closed vocabulary, exact-label matching, the cross-repo `target`, every loud-failure path, and
+  the base table's own conformance.
+- **No route row for `ops-triage-loop`** — it is a weekly scheduled sweep, not an event (§2a), so
+  the base table stays at **four** rows, and a test asserts that count.
+
+**Left for Phase 5**, deliberately: full schema validation of a consumer's overlay. The router does
+the checks it must do to route correctly (valid JSON, events in the vocabulary) and no more; proving
+an overlay conforms to `ops-routing.schema.json` is the installer's job per conformance §8.
 
 **Phase 3 — Framework loops invoke *services* by name.** *(Unblocked — §6.8 and §6.9 are settled.)*
 Rewrite `merge-flow`→`ops-merge-loop` to command **`ops-integrate · land`** plus the cross-cutting
@@ -595,8 +617,16 @@ the **Decided** line is what binds. The resolution of 8 opened one sub-question,
 3. **Build the placeholders directly in capability form?** → **Decided: yes.** `issue-loop-core`,
    `rework-loop` and `learning` don't exist, so build once as `ops-issue-loop` / `ops-rework-loop` /
    framework capture + `ops-triage-loop`.
-4. **Overlay home.** → **Decided: a committed `.github/ops-routing.yml`.** Both are spec-legal; the
-   committed file is auditable and reviewable in the consumer repo.
+4. **Overlay home.** → **Decided: a committed `.github/ops-routing.json`.** Both candidate homes
+   were spec-legal; the committed file is auditable and reviewable in the consumer repo.
+
+   **Amended in Phase 2: JSON, not YAML.** The decision was recorded as `.yml`, which does not
+   survive contact with the edge. `route-event.sh` runs in a GitHub Action *before any session
+   exists*, with bash and jq and nothing else — the same hermetic constraint `CLAUDE.md` puts on
+   every test. jq cannot read YAML, and requiring `yq` would either break the hermetic rule or make
+   the router depend on what a runner happens to have installed. This is the same reasoning that
+   already chose JSON over the spec's YAML examples for the catalog (§6.6), so the two seams now
+   agree. Nothing else about the decision changes: same home, same shape, same merge semantics.
 5. **Delivery mechanics.** → **Decided: stacked PRs into `main`, one per phase**, as with the engine
    baseline. Keeps CI green and each phase reviewable on its own.
 6. **Catalog format.** → **Decided: JSON** — `catalog.json` + `catalog.schema.json`, matching the

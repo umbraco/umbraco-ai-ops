@@ -39,8 +39,9 @@ supersedes that; the field contract is identical either way.)
    No inference, no guessing what to look up.
 3. **Gate on the exact tuple *before* doing any work — with a script, not judgement.**
    loop-dispatch ships [`route-event.sh`](../scripts/route-event.sh): pass it the parsed fields and
-   it prints `route=<loop|none>`. Act only on a named route; **any other value → quiet
-   no-op.** Do **not** wake a loop and let it sweep on a label you don't care about —
+   it prints `loop=<name|none>`. Act only on a named loop; **`none` → quiet no-op.** A
+   non-zero exit means the router is misconfigured (see its exit codes) — that is a build
+   failure, not a no-op. Do **not** wake a loop and let it sweep on a label you don't care about —
    that's the wasteful pattern (a Dependabot PR labelled `dependencies` must *not* trigger
    the `auto-merge` path; that's what caused merge-flow to fire 4× overnight). A scripted
    decision is byte-identical across firings and model instances.
