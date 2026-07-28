@@ -1,6 +1,6 @@
 {
   "name": "ops-install",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Onboarding, and the proof that a repo is actually covered. `/ops-install` detects the repo's branching, CI and release setup, reports capability coverage against catalog.json (present / inherited / missing, by matching ops-<capability> skill names), scaffolds a stub for every missing capability GENERATED from its catalog entry, then interviews the human to fill that stub's TODOs rather than handing over a wall of them — carrying disable-model-invocation, the reject-unknown-action rule and the per-action idempotency requirement — installs the caller workflow on every repo that emits routed events (both repos in a split topology), validates the routing overlay against the event vocabulary and checks every routed loop resolves to an installed skill, then lists the manual steps. Six of its nine steps are deterministic scripts, because a coverage report a model produces by reading directories can be quietly wrong. Writes no central config: a capability is found by its name.",
   "author": {
     "name": "Umbraco",

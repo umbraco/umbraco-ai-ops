@@ -2,7 +2,7 @@
 # cloud-skill-sync — deliver the engine to a Claude Code cloud environment.
 #
 # Paste this into a cloud environment's **Setup script** field. It runs once when the
-# environment builds, BEFORE any session starts, clones this public repo, and installs:
+# environment builds, BEFORE any session starts, clones this repo, and installs:
 #
 #   every skill under plugins/*/skills/*   -> $HOME/.claude/skills
 #   every agent under plugins/*/agents/*   -> $HOME/.claude/agents
@@ -11,8 +11,17 @@
 #
 # Cloud routines in that environment then invoke those skills by name, spawn the agents, and
 # fire the capture hooks. No per-repo marketplace marker, no committed skill files, no manual
-# upload, and no token: the repo is public, so the clone is anonymous and the runner's egress
-# proxy stays free for the routine's own GitHub work.
+# upload.
+#
+# AUTHENTICATION. `umbraco/umbraco-ai-ops` is **private**, so an anonymous clone fails and the
+# environment ends up with no skills at all. Set **`OPS_TOKEN`** (or `GH_TOKEN` /
+# `GITHUB_TOKEN`, which a runner often already has) to a token that can read this repo. An
+# anonymous clone is still attempted when no token is set, so a public fork keeps working with
+# no configuration.
+#
+# The token is used for the clone and then dropped: `.git` is deleted from the checkout, so no
+# credential is persisted anywhere on the runner, and nothing this script logs ever contains it.
+# If you would rather not manage a token, making this repo public removes the need for one.
 #
 # WHY IT COPIES EVERYTHING. The prototype kept a hand-maintained list of skills to deliver,
 # which is one more thing to forget when a skill is added — a routine then fails at run time
@@ -31,12 +40,13 @@
 # environment *build* log is not visible to the session, which is why this logs to a file.
 #
 # Env knobs (ops + test):
-#   OPS_SRC   use an existing checkout instead of cloning (a branch-pointed env, or a test)
-#   OPS_REPO  clone a different repo/fork
-#   OPS_HOME  install under this root instead of $HOME
+#   OPS_SRC    use an existing checkout instead of cloning (a branch-pointed env, or a test)
+#   OPS_REPO   clone a different repo/fork
+#   OPS_HOME   install under this root instead of $HOME
+#   OPS_TOKEN  read token for a private OPS_REPO; falls back to GH_TOKEN, then GITHUB_TOKEN
 set -u
 
-VERSION="1"
+VERSION="2"
 REPO="${OPS_REPO:-https://github.com/umbraco/umbraco-ai-ops}"
 HOME_DIR="${OPS_HOME:-$HOME}"
 SKILLS_DEST="$HOME_DIR/.claude/skills"
@@ -55,11 +65,31 @@ mkdir -p "$SKILLS_DEST" "$AGENTS_DEST"
     OPS_DIR="$OPS_SRC"; echo "using provided source (no clone): $OPS_DIR"
   else
     rm -rf /tmp/ops
-    if git clone --depth 1 "$REPO" /tmp/ops >/dev/null 2>&1; then
-      OPS_DIR=/tmp/ops; echo "cloned $REPO"
+    # The repo is private, so build an authenticated URL when a token is available. It lives
+    # only in this local variable: it is never echoed, and `.git` is deleted straight after the
+    # clone so the credential is not left in /tmp/ops/.git/config for the rest of the session.
+    # Anonymous is still tried when there is no token, so a public fork needs no configuration.
+    TOKEN="${OPS_TOKEN:-${GH_TOKEN:-${GITHUB_TOKEN:-}}}"
+    clone_url="$REPO"
+    case "$REPO" in
+      https://github.com/*)
+        [ -n "$TOKEN" ] && clone_url="https://x-access-token:${TOKEN}@github.com/${REPO#https://github.com/}"
+        ;;
+    esac
+    [ -n "$TOKEN" ] && echo "using a token for the clone" || echo "no token set — trying an anonymous clone"
+
+    if git clone --depth 1 "$clone_url" /tmp/ops >/dev/null 2>&1; then
+      rm -rf /tmp/ops/.git
+      OPS_DIR=/tmp/ops; echo "cloned $REPO"   # $REPO, never $clone_url — that carries the token
     else
       echo "FATAL: could not clone $REPO — the environment will have no skills"
+      if [ -z "$TOKEN" ]; then
+        echo "HINT: this repo is private. Set OPS_TOKEN (or GH_TOKEN / GITHUB_TOKEN) to a token that can read it."
+      else
+        echo "HINT: a token was set but the clone still failed — check it can read $REPO and has not expired."
+      fi
     fi
+    unset TOKEN clone_url
   fi
 
   if [ -n "${OPS_DIR:-}" ]; then

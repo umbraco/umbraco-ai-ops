@@ -4,9 +4,10 @@ description: >-
   Onboard a repo to the engine, and prove it is covered. Detects the repo's setup, writes the
   facts detection cannot reach to `.claude/ops-repo-meta.json`, reports capability coverage
   against the catalog (present / inherited / missing), scaffolds a stub for every missing
-  capability from its catalog entry, interviews the human to fill that stub's TODOs, creates
-  every `ops/` label on the repo its role implies, installs the caller workflow on every repo
-  that emits routed events, and validates the routing overlay. Six of its nine steps are
+  capability from its catalog entry, asks whether each INHERITED default actually fits (coverage
+  matches names, not behaviour), interviews the human to fill that stub's TODOs, creates every
+  `ops/` label on the repo its role implies, installs the caller workflow on every repo that
+  emits routed events, and validates the routing overlay. Six of its nine steps are
   deterministic scripts. Interactive, run once per repo.
   Trigger on "onboard this repo", "install the ops engine", "check capability coverage".
 ---
@@ -130,6 +131,41 @@ know how a product builds or ships. Everything else should read `inherited`.
 
 **Show the report verbatim.** It is the honest answer to "is this repo onboarded?", and a
 summary of it is not.
+
+### `inherited` is a name match, not a fitness check
+
+This is the gap that lets a repo finish onboarding green and fail on its first real run.
+Coverage compares **skill names**. It cannot tell a default that suits this repo from one that
+does not, so an inherited-but-wrong capability reads exactly like a pass.
+
+So **ask**. The report prints an `override <trigger>` line per inherited capability, straight
+from the catalog's `override_when`. Turn those into one batched `AskUserQuestion` — four at a
+time — and **seed each from Step 1's `override_signals`**:
+
+| Signal | Means | Ask about |
+|---|---|---|
+| `workspace` | a compose file, a Dockerfile, a demo/seed script, or existing worktrees | `ops-workspace` — the default is a bare worktree with no database, port or container |
+| `private_feed` | a `NuGet.config` or `.npmrc` | `ops-workspace` again — a restore needing credentials fails inside a fresh worktree |
+| `branching` | more than one live line | `ops-branching` — per-line strategy, or a major-version cutover that creates a line |
+| `notify` | a Slack or Teams skill in the repo | `ops-notify` — the default comments on the issue |
+
+A signal is a **hint, not a verdict**: a repo with a Dockerfile may still be fine on the
+default. Recommend **keeping** the default in every case. The point is that the human sees the
+six and gets one chance to say "not that one" — not that they are pushed into writing six skills.
+
+**When they do want to override**, scaffold from the default rather than from a blank stub:
+
+```
+scripts/scaffold-capability.sh <capability> <repo>/.claude/skills --from-default
+```
+
+That writes a copy of the framework default with a header explaining what it is. Overriding is
+almost always a one-action change, and a copy is a diff where a stub is a rewrite. Then treat it
+as `present`, not `inherited`, and include it in Step 5.
+
+**Do not record the answers anywhere.** A "confirmed" flag that something later reads is the
+central config this design deleted, arriving by the back door. Onboarding runs once; ask again
+if it runs again.
 
 ## Step 4 — scaffold what is missing
 
@@ -264,14 +300,32 @@ List these **in this order**, and say why the order matters; do not try to do th
    before the merge gate. Leave GitHub's **native auto-merge off** — landing is
    `ops-integrate`'s decision, and native auto-merge would race it. Independent of the rest,
    so it can be done now.
-2. **CI credentials and egress**, if CI is not GitHub checks. An Azure Pipelines repo needs a
-   read-only ADO PAT. Needed *by* the routine's environment, so it comes before the routine.
-3. **Stand up the routine** with `new-loop-routine`. **This is what produces the Fire URL and
+2. **The cloud environment — and be explicit about which case they are in.** A routine runs in
+   an environment, and the engine only exists inside it because `scripts/cloud-skill-sync.sh`
+   put it there as the **Setup script**. Ask which applies and say so plainly:
+
+   - **No environment yet** → **a human must create one.** You cannot. Tell them: create the
+     environment, paste `cloud-skill-sync.sh` into its **Setup script** field, and set
+     `OPS_TOKEN` (or `GH_TOKEN` / `GITHUB_TOKEN`) — `umbraco/umbraco-ai-ops` is **private**, so
+     without a token the clone fails and the environment comes up with **no skills at all**,
+     which looks like the loops silently doing nothing.
+   - **An environment already exists** → it is almost certainly running an **older copy** of the
+     engine. Its snapshot is cached, and *changing the source repo does not bust that cache* —
+     only editing the Setup script does. So say: re-paste the current `cloud-skill-sync.sh`,
+     or bump its `VERSION` line, and re-save. Without that, a fix pushed to this repo never
+     reaches the routine and the symptom is behaviour that does not match the code.
+
+   Either way, name the case out loud. "Set up the cloud environment" read as done-if-it-exists
+   is how a stale environment survives an onboarding.
+
+3. **CI credentials and egress**, if CI is not GitHub checks. An Azure Pipelines repo needs a
+   read-only ADO PAT. Needed *by* the environment, so it goes in alongside step 2.
+4. **Stand up the routine** with `new-loop-routine`. **This is what produces the Fire URL and
    the token** — they do not exist until it does.
-4. **Add the two routine secrets** — `LOOP_DISPATCH_FIRE_URL` and `LOOP_DISPATCH_TOKEN`, per
+5. **Add the two routine secrets** — `LOOP_DISPATCH_FIRE_URL` and `LOOP_DISPATCH_TOKEN`, per
    repo or per org, using the two values step 3 just gave you. In a split topology they go on
    **every** repo that has a caller workflow, not only the code repo.
-5. **Smoke-test before writing any capability.** Open a throwaway PR whose base is **not** one
+6. **Smoke-test before writing any capability.** Open a throwaway PR whose base is **not** one
    of the live lines and label it with the landing label. The whole chain should fire and
    `ops-integrate` should refuse with `blocked:wrong-base`. That exercises the router, the
    workflow, the secrets, the routine and the gates while making a merge impossible — refusing
@@ -298,5 +352,9 @@ The labels and the declared facts are **not** on this list. Steps 2 and 5 do bot
 - **Never claim a repo is onboarded while anything is `missing`, or while a stub still has
   TODOs.** A scaffold is not an implementation, and saying otherwise is the one failure mode of
   this skill that costs a real debugging session later.
+- **Never treat `inherited` as proven.** It is a name match. Ask whether each default fits,
+  seeded from `override_signals`, before calling coverage good.
+- **Never persist the answers to the override questions.** A flag something later reads is the
+  central config this design deleted, coming back in disguise.
 - **Ask about declared facts; never infer them.** The primary line is not the newest line and not
   the default branch.

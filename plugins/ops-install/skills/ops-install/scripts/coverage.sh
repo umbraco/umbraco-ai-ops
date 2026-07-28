@@ -56,24 +56,41 @@ while IFS= read -r cap; do
   else
     state="missing"; where="-"; missing=$((missing+1))
   fi
-  rows="$rows$skill	$state	$where
+  # `inherited` is the state that can be quietly wrong. Coverage matches skill NAMES, so a
+  # default that does not suit this repo reports a clean `inherited` and fails at run time.
+  # Carry the catalog's `override_when` alongside it so the caller can ask a real question
+  # instead of showing a row that looks like a pass.
+  when=""
+  [ "$state" = "inherited" ] && when="$(jq -r --arg c "$cap" \
+    '.capabilities[] | select(.capability == $c) | .override_when // ""' "$catalog" | tr -d '\r')"
+  rows="$rows$skill	$state	$where	$when
 "
 done < <(jq -r '.capabilities[].capability' "$catalog" | tr -d '\r')
 
 if [ "$fmt" = "--json" ]; then
   printf '%s' "$rows" | jq -Rsc 'split("\n") | map(select(length > 0) | split("\t"))
-    | { capabilities: map({ skill: .[0], state: .[1], source: .[2] }),
+    | { capabilities: map({ skill: .[0], state: .[1], source: .[2], override_when: (.[3] // "") }),
         summary: { present: (map(select(.[1]=="present")) | length),
                    inherited: (map(select(.[1]=="inherited")) | length),
                    missing: (map(select(.[1]=="missing")) | length) } }'
 else
   printf 'Capability coverage for %s\n\n' "$repo"
-  printf '%s' "$rows" | while IFS=$'\t' read -r s st w; do
+  printf '%s' "$rows" | while IFS=$'\t' read -r s st w _; do
     [ -n "$s" ] || continue
     printf '  %-18s %-10s %s\n' "$s" "$st" "$w"
   done
   printf '\n  %d present, %d inherited, %d missing\n' "$present" "$inherited" "$missing"
   [ "$missing" -gt 0 ] && printf '\n  A missing capability has no implementation and no default — scaffold a stub for it.\n'
+
+  # Inherited is NOT a clean bill of health, and printing it like one is how a repo finishes
+  # onboarding green and fails on its first run.
+  if [ "$inherited" -gt 0 ]; then
+    printf '\n  %d inherited — this is a NAME match, not a fitness check. Ask about each:\n\n' "$inherited"
+    printf '%s' "$rows" | while IFS=$'\t' read -r s st _ when; do
+      [ "$st" = "inherited" ] && [ -n "$when" ] || continue
+      printf '    %-18s override %s\n' "$s" "$when"
+    done
+  fi
 fi
 
 # Exit 1 when anything is missing, so a caller can gate on coverage.

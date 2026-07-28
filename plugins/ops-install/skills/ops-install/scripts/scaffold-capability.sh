@@ -25,9 +25,42 @@ here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "$here/engine-root.sh"
 catalog="${CATALOG_FILE:-$(ops_engine_root "$here")/catalog.json}"
 
+from_default=false
+args=""
+for a in "$@"; do
+  case "$a" in
+    --from-default) from_default=true ;;
+    *) args="$args${args:+ }$a" ;;
+  esac
+done
+# shellcheck disable=SC2086
+set -- $args
+
 cap="${1:-}"
 dest="${2:-}"
-[ -n "$cap" ] && [ -n "$dest" ] || { echo "usage: $(basename "$0") <capability> <dest-dir>|--stdout" >&2; exit 2; }
+[ -n "$cap" ] && [ -n "$dest" ] || {
+  echo "usage: $(basename "$0") <capability> <dest-dir>|--stdout [--from-default]" >&2; exit 2; }
+
+engine_root="$(ops_engine_root "$here")"
+
+# Emit the framework default with a header saying what it is and what to do with it. Without
+# that header a copy is indistinguishable from a hand-written override, and the next person
+# cannot tell which parts were deliberate.
+copy_default() {
+  cat <<HDR
+<!--
+  STARTED AS A COPY of the framework default for ops-$cap.
+
+  You are overriding, so change only what differs for this repo and leave the rest — the
+  default already gets the contract right: two positional arguments, an absent context is {},
+  unknown actions are rejected, every action idempotent.
+
+  Do NOT add, rename or remove an action. Those names come from the engine's catalog and are
+  the invocation contract. Delete this comment once you have made your changes.
+-->
+HDR
+  cat "$1"
+}
 
 # Accept the SKILL name as well as the catalog key. The catalog keys capabilities bare
 # (`change`) but every other surface a human sees — the coverage report, the scaffolded
@@ -105,6 +138,30 @@ render() {
     "- TODO: add the rules that are specific to this repo."
   '
 }
+
+# --from-default: start an OVERRIDE from a copy of the framework default rather than a blank
+# stub. Overriding is usually a one-action change — a workspace that also seeds a database, a
+# branching model that handles a major cutover — so handing the author six TODOs makes them
+# re-derive behaviour the engine already has right. A copy is a diff; a stub is a rewrite.
+# Only meaningful where a default exists; for ops-change / ops-release there is nothing to copy.
+if [ "$from_default" = true ]; then
+  src=""
+  search_root="$engine_root/plugins"; [ -d "$search_root" ] || search_root="$engine_root"
+  src="$(find "$search_root" -type f -path "*/skills/ops-$cap/SKILL.md" 2>/dev/null | head -1)"
+  [ -n "$src" ] || {
+    echo "ERROR: no framework default for 'ops-$cap' to copy — scaffold it without --from-default." >&2
+    exit 2; }
+  if [ "$dest" = "--stdout" ]; then copy_default "$src"; exit 0; fi
+  out="$dest/ops-$cap"
+  if [ -f "$out/SKILL.md" ]; then
+    echo "SKIP: $out/SKILL.md already exists — not overwriting" >&2
+    exit 0
+  fi
+  mkdir -p "$out" || { echo "ERROR: cannot create $out" >&2; exit 2; }
+  copy_default "$src" > "$out/SKILL.md" || { echo "ERROR: failed to write $out/SKILL.md" >&2; exit 2; }
+  echo "Wrote $out/SKILL.md (copied from the framework default — edit what differs)"
+  exit 0
+fi
 
 if [ "$dest" = "--stdout" ]; then render; exit 0; fi
 

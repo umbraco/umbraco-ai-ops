@@ -40,7 +40,16 @@ check "reserved_skill_names must be a non-empty array of unique slugs" \
 check "capability names must be unique" \
   '([.capabilities[].capability] | length == (unique | length))'
 check "every capability must carry exactly the required keys" \
-  '.capabilities | all((keys_unsorted | sort) == ["capability","description","framework_default","kind","operations","visibility"])'
+  '.capabilities | all((keys_unsorted | sort | map(select(. != "override_when"))) == ["capability","description","framework_default","kind","operations","visibility"])'
+# `override_when` is optional and only meaningful on a framework default: it is the trigger for
+# shipping your own instead of inheriting, which the installer reads to ask whether the default
+# fits. On an always-repo-provided capability there is nothing to override, so it is an error.
+check "override_when must be a non-empty string where present" \
+  '.capabilities | all((has("override_when") | not) or (.override_when | type == "string" and length > 0))'
+check "override_when only belongs on a framework default" \
+  '.capabilities | all((has("override_when") | not) or .framework_default)'
+check "every framework default must say when to override it" \
+  '.capabilities | all((.framework_default | not) or has("override_when"))'
 check "every capability name must match ^[a-z][a-z0-9-]*$" \
   '.capabilities | all(.capability | test("^[a-z][a-z0-9-]*$"))'
 check "every kind must be behavioral or data" \

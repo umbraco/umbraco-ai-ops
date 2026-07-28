@@ -69,5 +69,38 @@ out="$(bash "$SC" notify --stdout 2>/dev/null)"
 check "--stdout emits the stub" "name: ops-notify" "$(printf '%s' "$out" | sed -n '2p')"
 check "--stdout creates no directory" 0 "$( [ -d "$TMP/all/ops-notify-x" ] && echo 1 || echo 0)"
 
+# --- --from-default: start an override from a copy, not a blank stub -------
+# Overriding is usually a one-action change, so the author should be editing a diff rather than
+# re-deriving behaviour the default already has right.
+FD="$TMP/fd"; mkdir -p "$FD"
+out="$(bash "$SC" ops-workspace "$FD" --from-default 2>&1)"
+check "--from-default writes the skill" 1 "$(printf '%s' "$out" | grep -c 'copied from the framework default')"
+body="$(cat "$FD/ops-workspace/SKILL.md" 2>/dev/null)"
+check "  it says it started as a copy" 1 "$(printf '%s' "$body" | grep -c 'STARTED AS A COPY')"
+check "  it warns off renaming actions" 1 "$(printf '%s' "$body" | grep -c 'Do NOT add, rename or remove an action')"
+check "  and it is the real default, not a stub" 0 "$(printf '%s' "$body" | grep -c '^\*\*TODO:\*\* write the steps')"
+check "  the frontmatter survives" 1 "$(printf '%s' "$body" | grep -c '^name: ops-workspace')"
+
+# Copying is meaningless where there is no default — ops-change is always the repo's.
+bash "$SC" change "$FD" --from-default >/dev/null 2>&1
+check "--from-default on an always-repo-provided capability exits 2" 2 $?
+check "  and writes nothing" 0 "$( [ -e "$FD/ops-change" ] && echo 1 || echo 0)"
+
+# It must still refuse to clobber, exactly as the stub path does.
+out="$(bash "$SC" ops-workspace "$FD" --from-default 2>&1)"
+check "--from-default never overwrites" 1 "$(printf '%s' "$out" | grep -c 'not overwriting')"
+
+# Flag order must not matter — it is parsed out before the positional arguments.
+FD2="$TMP/fd2"; mkdir -p "$FD2"
+bash "$SC" --from-default ops-notify "$FD2" >/dev/null 2>&1
+check "the flag may come first" 1 "$( [ -f "$FD2/ops-notify/SKILL.md" ] && echo 1 || echo 0)"
+
+# Without the flag the same capability still yields a stub, not a copy.
+FD3="$TMP/fd3"; mkdir -p "$FD3"
+bash "$SC" ops-workspace "$FD3" >/dev/null 2>&1
+# `grep -c` prints 0 AND exits 1 on no match, so `|| echo 0` would append a second 0.
+check "without the flag it is still a stub" 0 \
+  "$(grep -c 'STARTED AS A COPY' "$FD3/ops-workspace/SKILL.md" 2>/dev/null)"
+
 printf '\n%s: %d passed, %d failed\n' "$(basename "$0")" "$pass" "$fail"
 [ "$fail" -eq 0 ]

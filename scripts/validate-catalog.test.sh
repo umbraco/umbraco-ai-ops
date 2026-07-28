@@ -114,5 +114,21 @@ accepts "an empty example (the action takes no context)" \
 accepts "input and output omitted entirely" \
   "$(mutate no-io 'del(.capabilities[0].operations[0].input, .capabilities[0].operations[0].output)')"
 
+# --- override_when ---------------------------------------------------------
+# The field the installer reads to ask "does this default actually fit your repo?" — the one
+# thing coverage cannot check, since it matches skill NAMES, so an inherited default that is
+# wrong for this repo reports a clean `inherited` and only fails at run time.
+#
+# The fixture's single capability is always-repo-provided, so start by making it a default.
+DEF='.capabilities[0].framework_default = true | .capabilities[0].override_when = "when X."'
+accepts "a framework default that says when to override it" \
+  "$(mutate ok-override "$DEF")"
+rejects "a framework default with no override_when" \
+  "$(mutate no-override '.capabilities[0].framework_default = true')"
+rejects "an empty override_when" \
+  "$(mutate empty-override "$DEF | .capabilities[0].override_when = \"\"")"
+rejects "override_when on an always-repo-provided capability" \
+  "$(mutate override-on-repo-cap '.capabilities[0].override_when = "nope"')"
+
 printf '\n%s: %d passed, %d failed\n' "$(basename "$0")" "$pass" "$fail"
 [ "$fail" -eq 0 ]

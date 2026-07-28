@@ -76,6 +76,29 @@ stack="unknown"
 if [ -n "$(git ls-files '*.slnx' '*.sln' '*.csproj' 2>/dev/null | head -1)" ]; then stack="dotnet"
 elif [ -n "$(git ls-files 'package.json' 2>/dev/null | head -1)" ]; then stack="node"; fi
 
+# --- override signals ------------------------------------------------------
+# Hints that an INHERITED framework default probably does not fit this repo. Coverage matches
+# skill names, so it cannot tell a suitable default from an unsuitable one; these give the
+# installer something concrete to ask about instead of a generic "are you sure?".
+#
+# Every one is a hint, never a conclusion. A repo with a docker-compose.yml may still be fine
+# on the bare-worktree default — the point is that a human is asked, having been shown why.
+sig_workspace=false
+[ -n "$(git ls-files 'docker-compose*' 'Dockerfile' '*.docker-compose.yml' 2>/dev/null | head -1)" ] && sig_workspace=true
+[ "$sig_workspace" = false ] && [ -n "$(git ls-files 2>/dev/null | grep -Ei '(demo|test)-?site|install-.*site|seed.*\.(sql|ps1|sh)' | head -1)" ] && sig_workspace=true
+[ "$sig_workspace" = false ] && [ -d .claude/worktrees ] && sig_workspace=true
+
+sig_feed=false
+[ -n "$(git ls-files 'NuGet.config' 'NuGet.Config' 'nuget.config' '.npmrc' 2>/dev/null | head -1)" ] && sig_feed=true
+
+sig_notify=false
+[ -n "$(git ls-files '.claude/skills/*' 2>/dev/null | grep -Ei 'slack|teams' | head -1)" ] && sig_notify=true
+
+# More than one live line means branching is doing real work — cutover, per-line strategy — and
+# is the case where the default is most likely to be too simple.
+sig_branching=false
+[ "$(printf '%s\n' "$lines_seen" | grep -c '^v[0-9]')" -gt 1 ] && sig_branching=true
+
 # --- emit -----------------------------------------------------------------
 if command -v jq >/dev/null 2>&1; then
   jq -n \
@@ -83,13 +106,17 @@ if command -v jq >/dev/null 2>&1; then
     --arg rbase "$release_base" --arg def "$default_branch" --arg ci "$ci" \
     --argjson nbgv "$nbgv" --argjson rtags "$has_release_tags" \
     --argjson lines "$(printf '%s\n' "$lines_seen" | grep -v '^$' | jq -R . | jq -s -c .)" \
+    --argjson sws "$sig_workspace" --argjson sfd "$sig_feed" \
+    --argjson snt "$sig_notify" --argjson sbr "$sig_branching" \
     --arg rskill "$release_skill" --arg stack "$stack" '
     { source: $source,
       branching: { model: $model, base: $base, release_base: $rbase, default_branch: $def,
                    lines_seen: $lines },
       ci: { provider: $ci },
       release: { nbgv: $nbgv, has_release_tags: $rtags, release_skill: $rskill },
-      stack: $stack }'
+      stack: $stack,
+      override_signals: { workspace: $sws, private_feed: $sfd,
+                          notify: $snt, branching: $sbr } }'
 else
   printf '{"source":"%s","branching":{"model":"%s","base":"%s","release_base":"%s","default_branch":"%s"},"ci":{"provider":"%s"},"stack":"%s"}\n' \
     "$source_repo" "$model" "$base" "$release_base" "$default_branch" "$ci" "$stack"

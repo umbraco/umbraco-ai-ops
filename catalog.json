@@ -159,6 +159,7 @@
       "kind": "behavioral",
       "visibility": "service",
       "framework_default": true,
+      "override_when": "your repo needs a gate the engine does not have — a required sign-off, a freeze window, a compliance check — or it must decline a merge the standard gates would allow.",
       "description": "Land an approved PR. Owns every piece of merge policy: the gates, the release-base skip, and the merge itself. A loop hands it a PR and reads an outcome; the loop never holds a branch name or a merge strategy. The gates are engine policy, so the framework default should fit every repo.",
       "operations": [
         {
@@ -186,6 +187,7 @@
       "kind": "behavioral",
       "visibility": "supporting",
       "framework_default": true,
+      "override_when": "your branch model is not the one detection found, or a release creates or retires a line (a major-version cutover), or your merge strategy differs per line.",
       "description": "This repo's branch model, and the only holder of it. The integration branches, the release base and the merge strategy are private: callers ask for an outcome, never for a value. Command-only — it answers no reads, and it reads the live-line set from `repo-meta` every time rather than caching it, because a new major adds a line without an engine change.",
       "operations": [
         {
@@ -247,6 +249,7 @@
       "kind": "behavioral",
       "visibility": "supporting",
       "framework_default": true,
+      "override_when": "a build needs more than a bare worktree: a database to seed, a container, a free port, a demo site, or credentials for a private package feed.",
       "description": "An isolated place to build and test one change: worktree, database, dependencies, credentials. Prepared and torn down by `ops-change`, never by a loop.",
       "operations": [
         {
@@ -283,6 +286,7 @@
       "kind": "data",
       "visibility": "cross-cutting",
       "framework_default": true,
+      "override_when": "the facts change at run time rather than being declared once — for example the label set differs per line, or a role is resolved dynamically.",
       "description": "Ambient facts about this repo and its family, as data. A data capability: the structure is the deliverable, so every action MUST return well-formed structured output rather than prose. Detection fills in what it can; a repo declares the rest.",
       "operations": [
         {
@@ -323,6 +327,7 @@
       "kind": "behavioral",
       "visibility": "cross-cutting",
       "framework_default": true,
+      "override_when": "your CI is neither GitHub checks nor Azure Pipelines, or a green build is not sufficient on its own (a required external check, a manual gate, a second pipeline).",
       "description": "This repo's CI, read-only. Both actions are reads: nothing here starts, retries or cancels a build. The CI provider is internal — no caller learns which one this repo uses.",
       "operations": [
         {
@@ -368,6 +373,7 @@
       "kind": "behavioral",
       "visibility": "cross-cutting",
       "framework_default": true,
+      "override_when": "a human should be told somewhere other than a comment on the issue or PR — Slack, Teams, email, an on-call rota.",
       "description": "Tell a human something happened, through whichever channel this repo uses. Infrastructure: callable from any layer, and never a gate — a failed notification MUST NOT fail the work it was reporting on.",
       "operations": [
         {
