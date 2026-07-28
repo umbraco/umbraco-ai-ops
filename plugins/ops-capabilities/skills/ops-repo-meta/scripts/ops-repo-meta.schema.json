@@ -1,0 +1,97 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/umbraco/umbraco-ai-ops/ops-capabilities/ops-repo-meta.schema.json",
+  "title": "Declared repo facts",
+  "description": "A consumer's `.claude/ops-repo-meta.json`: the facts about a repo that CANNOT be detected and have no other owner. Read by the framework-default `ops-repo-meta`, and by `route-event.sh` at the edge to resolve a cross-repo target. Written by `ops-install`. This is NOT the retired `ai-ops.yml` in JSON — it is a strict subset. Everything that file also held has exactly one owner elsewhere now: branch model, base, release base and merge strategy are private to `ops-branching`; the CI provider is internal to `ops-ci`; skill pointers are gone because a capability is found by its name. `additionalProperties: false` at every level is deliberate, so an attempt to put any of that back fails loudly instead of drifting. Every key is optional except `version`: a single-repo project on one line needs no file at all.",
+  "type": "object",
+  "required": ["version"],
+  "additionalProperties": false,
+  "properties": {
+    "version": {
+      "type": "integer",
+      "const": 1,
+      "description": "The file's shape. Bump only on a breaking change to it."
+    },
+    "topology": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Which repo fills each role. The rule is: declare the roles that are NOT the repo this file lives in, and any role left out resolves to this repo. So a single-repo project omits the block entirely; a code repo whose issues live elsewhere declares `issues`; and the issues repo declares `code`, which is the ONLY place the code repo can be named — detection there would read the issues repo's own remote.",
+      "properties": {
+        "code": {
+          "$ref": "#/$defs/repo",
+          "description": "Where the code lives, when this file is NOT in the code repo. On the code repo itself, omit it: detection reads it from the git remote and a stale hand-written copy would be worse. On the issues repo of a split topology this is required, because it is the only way the edge router can learn which repo the routine should work in."
+        },
+        "issues": {
+          "$ref": "#/$defs/repo",
+          "description": "Where the backlog lives, when it is a different repo from the code. Nothing in a code repo points at its issues repo, which is the main reason this file exists."
+        },
+        "releases": {
+          "$ref": "#/$defs/repo",
+          "description": "Where publication happens, if not the code repo."
+        },
+        "learnings": {
+          "$ref": "#/$defs/repo",
+          "description": "Where proto-learning issues are filed. NOT automatically the issues repo: where issues are public and code is not, a proto-learning is an internal note and belongs with the code — which is what omitting this gives you."
+        }
+      }
+    },
+    "lines": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["live", "primary", "port_order"],
+      "description": "The version lines currently taking work. Omit the whole block for a repo with no version lines: the default is a single line and the default branch is the whole story. Declare it as a set, because a repo with several live lines has several legitimate bases and the wrong-base gate tests membership, not equality.",
+      "properties": {
+        "live": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/line" },
+          "description": "Every line taking work now. Detection can list `vN/*` branches but cannot know which lines are still worked — a line may exist and be finished, or exist only as a `main` taking security fixes."
+        },
+        "primary": {
+          "$ref": "#/$defs/line",
+          "description": "The line work starts on before being ported. MUST be a member of `live` — a cross-field rule JSON Schema cannot express, enforced by validate-repo-meta.sh. Not necessarily the newest line, and not necessarily the default branch."
+        },
+        "port_order": {
+          "type": "string",
+          "enum": ["upward", "downward"],
+          "description": "`upward` = primary is older, ports go to newer lines. `downward` = the reverse. A human decision; the engine never infers it."
+        }
+      }
+    },
+    "labels": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Label overrides, keyed by PURPOSE and not by name — which is what lets a repo rename a label without touching a loop. Partial: name only what you are changing, and the `ops/`-namespaced framework defaults fill in the rest. Point a key at a label the repo already has rather than creating a second one that means the same thing.",
+      "properties": {
+        "ready": { "$ref": "#/$defs/label", "description": "Default `ops/ready-for-ai`. The only gate the issue loop acts on." },
+        "in_progress": { "$ref": "#/$defs/label", "description": "Default `ops/generated-by-ai`." },
+        "blocked": { "$ref": "#/$defs/label", "description": "Default `ops/ai-blocked`." },
+        "land": { "$ref": "#/$defs/label", "description": "Default `ops/auto-merge`. The human approval for landing." },
+        "rework": { "$ref": "#/$defs/label", "description": "Default `ops/auto-rework`." },
+        "release": { "$ref": "#/$defs/label", "description": "Default `ops/auto-release`." },
+        "release_blocked": { "$ref": "#/$defs/label", "description": "Default `ops/release-blocked`." },
+        "proto_learning": { "$ref": "#/$defs/label", "description": "Default `ops/proto-learning`." },
+        "triaged": { "$ref": "#/$defs/label", "description": "Default `ops/triaged`. Written by triage, never a trigger." },
+        "loop_improvement": { "$ref": "#/$defs/label", "description": "Default `ops/loop-improvement`." }
+      }
+    }
+  },
+  "$defs": {
+    "repo": {
+      "type": "string",
+      "pattern": "^[^/\\s]+/[^/\\s]+$",
+      "description": "`owner/name`."
+    },
+    "line": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9.-]*$",
+      "description": "A line name, e.g. `v17`. The line is the NAME, not a branch: which of its branches exist is `ops-branching`'s private business, and a line may legitimately have only a `main`."
+    },
+    "label": {
+      "type": "string",
+      "minLength": 1,
+      "description": "A GitHub label name. New labels SHOULD be namespaced `ops/`, but this is not enforced: an override often points at a label the repo had before the engine arrived, and that name is not ours to dictate."
+    }
+  }
+}

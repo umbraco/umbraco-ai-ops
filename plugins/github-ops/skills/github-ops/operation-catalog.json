@@ -6,6 +6,7 @@
     { "id": "create-issue",        "axis": "forge", "title": "Create an issue" },
     { "id": "comment-issue",       "axis": "forge", "title": "Comment on an issue" },
     { "id": "label-issue",         "axis": "forge", "title": "Add / remove a label on an issue" },
+    { "id": "create-label",        "axis": "forge", "title": "Create a label definition (idempotent: skip if it exists)" },
     { "id": "close-issue",         "axis": "forge", "title": "Close an issue" },
     { "id": "list-prs",            "axis": "forge", "title": "List PRs (by label / state)" },
     { "id": "get-pr",              "axis": "forge", "title": "Get a PR (review decision, mergeable, base)" },

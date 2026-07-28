@@ -101,6 +101,47 @@ out="$(bash "$SCRIPT" --event issues --action labeled --label ops/ready-for-ai -
 if [ "$out" = "loop=ops-issue-loop repo=own/code number=5" ]; then pass=$((pass+1))
 else fail=$((fail+1)); echo "FAIL: same-repo target omitted — got [$out]"; fi
 
+# --- the target derived from declared facts -------------------------------
+# The split-topology fact used to live twice: as `with.target_repo` in the caller workflow AND
+# inside the repo's ops-repo-meta. One fact in two files in two repos, with nothing catching a
+# disagreement. The file is now the single source and the router reads it.
+cat > "$TMP/meta-split.json" <<'JSON'
+{ "version": 1, "topology": { "code": "own/code", "issues": "own/issues" } }
+JSON
+cat > "$TMP/meta-single.json" <<'JSON'
+{ "version": 1 }
+JSON
+
+out="$(bash "$SCRIPT" --repo-meta "$TMP/meta-split.json" --event issues --action labeled --label ops/ready-for-ai --number 5 --repo own/issues </dev/null)"
+if [ "$out" = "loop=ops-issue-loop repo=own/issues number=5 target=own/code" ]; then pass=$((pass+1))
+else fail=$((fail+1)); echo "FAIL: target derived from declared topology — got [$out]"; fi
+
+# Fired on the CODE repo, the same file must add no target: the work is already here.
+out="$(bash "$SCRIPT" --repo-meta "$TMP/meta-split.json" --event pull_request --action labeled --label ops/auto-merge --number 8 --repo own/code </dev/null)"
+if [ "$out" = "loop=ops-merge-loop repo=own/code number=8" ]; then pass=$((pass+1))
+else fail=$((fail+1)); echo "FAIL: no target when the event fires on the code repo — got [$out]"; fi
+
+expect_loop "a single-repo file adds no target" ops-issue-loop -- --repo-meta "$TMP/meta-single.json" --event issues --action labeled --label ops/ready-for-ai --number 5 --repo own/code
+out="$(bash "$SCRIPT" --repo-meta "$TMP/meta-single.json" --event issues --action labeled --label ops/ready-for-ai --number 5 --repo own/code </dev/null)"
+if [ "$out" = "loop=ops-issue-loop repo=own/code number=5" ]; then pass=$((pass+1))
+else fail=$((fail+1)); echo "FAIL: a single-repo file must add no target — got [$out]"; fi
+
+# An explicit --target still wins, so a manual run can override the file.
+out="$(bash "$SCRIPT" --repo-meta "$TMP/meta-split.json" --target other/repo --event issues --action labeled --label ops/ready-for-ai --number 5 --repo own/issues </dev/null)"
+if [ "$out" = "loop=ops-issue-loop repo=own/issues number=5 target=other/repo" ]; then pass=$((pass+1))
+else fail=$((fail+1)); echo "FAIL: an explicit --target must win over the file — got [$out]"; fi
+
+# $REPO_META is the env equivalent, which is what the caller workflow sets.
+out="$(REPO_META="$TMP/meta-split.json" bash "$SCRIPT" --event issues --action labeled --label ops/ready-for-ai --number 5 --repo own/issues </dev/null)"
+if [ "${out##* }" = "target=own/code" ]; then pass=$((pass+1))
+else fail=$((fail+1)); echo "FAIL: \$REPO_META honoured — got [$out]"; fi
+
+# A missing or unreadable file must not break routing — the target is an optimisation, and a
+# repo that has no declared facts is the common case.
+expect_loop "a missing repo-meta file still routes" ops-issue-loop -- --repo-meta "$TMP/nope.json" --event issues --action labeled --label ops/ready-for-ai --number 5 --repo own/issues
+printf '{ not json' > "$TMP/meta-broken.json"
+expect_loop "an unreadable repo-meta file still routes" ops-issue-loop -- --repo-meta "$TMP/meta-broken.json" --event issues --action labeled --label ops/ready-for-ai --number 5 --repo own/issues
+
 # --- base + overlay merge -------------------------------------------------
 cat > "$TMP/add.json" <<'JSON'
 { "version": 2, "routes": [ { "event": "issues.labeled", "label": "ops/needs-ai", "loop": "ops-issue-loop" } ] }

@@ -57,16 +57,21 @@ Installed from this marketplace (`.claude-plugin/marketplace.json`):
 1. **Install the engine** in the target repo's workspace:
    `/plugin marketplace add umbraco/umbraco-ai-ops`, then install the plugins.
 2. **Run `/ops-install`.** It reads the branching model out of git history, works out the CI host
-   and release approach, then asks about anything it could not tell. It reports **capability
-   coverage** and scaffolds a stub for whatever is missing — on a fresh repo that is `ops-change`
-   and `ops-release`, the two that are always yours.
-3. **Do the manual steps it lists.** Create the `ops/` labels. Add the routine secrets, and the
-   CI credentials if CI is not GitHub checks. Then stand up the routine with `new-loop-routine`.
+   and release approach, then asks about anything it could not tell. It then:
+   - writes the few facts nothing can detect to `.claude/ops-repo-meta.json`, and validates it,
+   - reports **capability coverage** and scaffolds a stub for whatever is missing (on a fresh
+     repo that is `ops-change` and `ops-release`, the two that are always yours),
+   - **creates every `ops/` label**, on the repo each one's role implies,
+   - installs the caller workflow on every repo that fires events.
+3. **Do what is genuinely left.** Add the two routine secrets, and the CI credentials if CI is
+   not GitHub checks. Turn on `allow_update_branch`. Then stand up the routine with
+   `new-loop-routine`.
 4. **Fill in the TODOs in the scaffolded skills, then review and commit.** A scaffold is not an
    implementation: the loops cannot run until those are done.
 
-Nothing in the engine is product-specific, and there is no config file. Whatever your repo does
-differently lives in a skill you own, named `ops-<capability>`.
+Nothing in the engine is product-specific. Whatever your repo *does* differently lives in a skill
+you own named `ops-<capability>`; the handful of things it *is* differently are declared in
+`.claude/ops-repo-meta.json`.
 
 ## How a consumer links to the engine
 

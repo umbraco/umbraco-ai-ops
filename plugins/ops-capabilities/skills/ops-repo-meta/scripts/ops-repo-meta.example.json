@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "topology": {
+    "issues": "owner/product-issues"
+  },
+  "lines": {
+    "live": ["v13", "v17", "v18"],
+    "primary": "v17",
+    "port_order": "upward"
+  },
+  "labels": {
+    "ready": "needs-ai"
+  }
+}

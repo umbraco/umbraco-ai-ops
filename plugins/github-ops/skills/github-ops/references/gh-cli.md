@@ -12,6 +12,7 @@ is `owner/name`. Mirror of [`github-mcp.md`](github-mcp.md) — keep both in syn
 | Create | `gh issue create --repo <repo> --title "<t>" --body "<b>" --label <label>` |
 | Comment | `gh issue comment <n> --repo <repo> --body "<text>"` |
 | Add / remove label | `gh issue edit <n> --repo <repo> --add-label <l>` / `--remove-label <l>` |
+| Create a label definition | `gh label create <l> --repo <repo> --color <hex> --description "<d>" --force` — `--force` makes it idempotent: it updates an existing label instead of erroring, so re-running the installer is safe |
 | Close | `gh issue close <n> --repo <repo> --comment "<why>"` |
 
 ## Pull requests

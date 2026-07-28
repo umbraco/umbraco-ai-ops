@@ -53,10 +53,15 @@ that, but it also means an engine skill and a repo skill **must never share a na
 repo means to replace it**.
 
 > **There is no central config.** The engine used to bind through `.claude/ai-ops.yml`
-> pointers (`playbook` → build skill, `branching.release_skill` → release skill). That file,
-> its schema and its example are **deleted**. If you find yourself wanting a config key, the
-> answer is a capability — see
+> pointers (`playbook` → build skill, `branching.release_skill` → release skill). That file, its
+> schema and its example are **deleted**. If you find yourself wanting a config key, the answer
+> is a capability — see
 > **[`docs/capabilities-migration-plan.md`](docs/capabilities-migration-plan.md)**.
+>
+> `.claude/ops-repo-meta.json` is **not** that file returning. It is a strict subset: only facts
+> nothing can detect and nothing else owns (which repo holds issues, which lines are live, which
+> is primary, label overrides). Its schema sets `additionalProperties: false` at every level, so
+> putting a branch name, a CI provider or a skill pointer back fails loudly.
 
 ## Data seams are data + schema, never prose
 
@@ -71,6 +76,7 @@ ships the default data; a consumer overrides by shipping its own file of the sam
 | **Capability catalog** (which capabilities exist, their actions, `visibility`) | `catalog.json` | `catalog.schema.json` |
 | Event → loop routing, framework **base** | `loop-dispatch/.../scripts/route-map.json` | `route-map.schema.json` |
 | Event → loop routing, **per-repo overlay** (merged over the base at the edge) | `<consumer>/.github/ops-routing.json` | `loop-dispatch/.../scripts/ops-routing.schema.json` |
+| **Declared repo facts** (topology, live lines, label overrides) | `<consumer>/.claude/ops-repo-meta.json` | `ops-capabilities/.../ops-repo-meta.schema.json` |
 | GitHub/CI provider interface | `github-ops/.../operation-catalog.json` | `operation-catalog.schema.json` |
 
 When you add a seam, follow the same pattern (data file + schema alongside the code that
@@ -157,6 +163,10 @@ keep it that way; never commit CRLF scripts.
   `scripts/catalog-to-readme.sh` (regenerates the README's action table) and
   `scripts/build-evals.sh` (regenerates `evals/`). Never hand-edit the generated table or a
   suite — CI fails on drift in either.
+- **If you touched the declared-facts schema:** run
+  `plugins/ops-capabilities/skills/ops-repo-meta/scripts/validate-repo-meta.sh` against the
+  example beside it. The schema is the readable contract; that script is the enforced one, and
+  it also holds the rule JSON Schema cannot express (`primary` must be in `live`).
 - **If you added, renamed or removed a plugin:** run `scripts/validate-manifests.sh`. A
   marketplace entry pointing at a directory that doesn't exist makes `/plugin marketplace add`
   fail for the **whole** marketplace, not just that entry.

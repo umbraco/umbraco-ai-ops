@@ -43,18 +43,31 @@ idempotency is free.
 
 In this order. Stop at the first that answers.
 
-1. **A repo-declared fact.** If the repo ships its own `ops-repo-meta`, this skill is not
-   running at all — that is what overriding means.
-2. **Detection.** `detect.sh` (in the `ops-install` plugin) reads git branches and repo
+1. **A repo-owned skill.** If the repo ships its own `ops-repo-meta`, this one is not running
+   at all — that is what overriding means. Only needed for *behaviour*; for facts, use 2.
+2. **The repo's declared facts** — `.claude/ops-repo-meta.json`, shaped by
+   [`scripts/ops-repo-meta.schema.json`](scripts/ops-repo-meta.schema.json) and checked by
+   [`scripts/validate-repo-meta.sh`](scripts/validate-repo-meta.sh). **This is the normal way a
+   repo answers.** `ops-install` writes it; every key is optional, so a single-repo project on
+   one line needs no file at all. Read it, don't re-derive it.
+3. **Detection.** `detect.sh` (in the `ops-install` plugin) reads git branches and repo
    settings and returns `source`, `branching.*`, `ci.provider`, `release.*`, `stack`. Use it
    for `identity.repo`, `identity.default_branch`, and as the seed for `lines`.
-3. **The framework defaults** in this file.
+4. **The framework defaults** in this file.
 
-> **There is no config file to read.** The engine used to bind through a central
-> `.claude/ai-ops.yml`, and during the migration this skill read it as a transitional bridge.
-> That file is gone. A repo with facts detection cannot reach **ships its own `ops-repo-meta`**
-> — that is the whole mechanism, and adding a config file back would recreate the drift the
-> capability model exists to remove.
+> **This is not the old config file.** `.claude/ai-ops.yml` bound the engine through skill
+> pointers and held facts that now have exactly one owner each — branch model, base, release
+> base and merge strategy are private to `ops-branching`, the CI provider is internal to
+> `ops-ci`, and a capability is found by its name. That file is deleted, and
+> `ops-repo-meta.json` is a strict subset of what it held: **only facts nothing can detect and
+> nothing else owns.** The schema sets `additionalProperties: false` at every level so an
+> attempt to put the rest back fails loudly rather than drifting.
+
+**Topology in the file reads "what this repo is not."** A role left out resolves to the repo
+the file lives in. So a code repo whose issues live elsewhere declares `issues`, and **the
+issues repo declares `code`** — which is the only place the code repo can be named, because
+detection there would read the issues repo's own remote. `route-event.sh` reads exactly that
+key at the edge to decide which repo a routine should work in.
 
 ## Action: `identity`
 

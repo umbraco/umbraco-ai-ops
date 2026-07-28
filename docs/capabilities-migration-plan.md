@@ -30,8 +30,9 @@ here.**
 | Framework defaults | all six, in `ops-capabilities` |
 | The installer | `ops-install` — conformance §8's three clauses, each by a tested script |
 | Evals | 8 suites, 66 cases, generated from the catalog; opt-in |
-| The old config model | **deleted** — no file, no pointer, no transitional read |
-| Tests | 12 hermetic files in the CI gate |
+| The old config model | **deleted** — no pointer, no CI key, no branch name, no transitional read |
+| Declared facts | `.claude/ops-repo-meta.json` — the undetectable few, schema'd and validated |
+| Tests | 16 hermetic files in the CI gate |
 
 **The four-way base-branch drift is closed**, the `ci.provider` spelling split is gone, and every
 engine label is namespaced `ops/`. **Nothing is open.** What remains is per-consumer: Forms' and
@@ -147,7 +148,7 @@ guidance-only `input` / `output` field lists. The additions beyond the spec are 
 | `branching.merge_strategy` | B | `ops-branching` · `merge` picks it internally | **single source of truth**; no caller passes a strategy |
 | `branching.branch_naming` | B | internal to `ops-branching` / `ops-change` | |
 | `branching.release_skill` | B | `ops-release` (whole capability) | the *pointer* becomes the *convention* (`ops-release`) |
-| `learning.inbox` | D | `ops-repo-meta` · `topology` (role **`learnings`**) | **Decided (§9a.1): a fourth canonical role.** Declarable per consumer, and — like every unspecified role (conformance §7.2) — resolving to `code` when absent. Needs the spec amendment recorded in §9b.8 |
+| `learning.inbox` | D | `ops-repo-meta` · `topology` (role **`learnings`**), declared in `.claude/ops-repo-meta.json` | **Decided (§9a.1): a fourth canonical role.** Declarable per consumer, and — like every unspecified role (conformance §7.2) — resolving to `code` when absent. Needs the spec amendment recorded in §9b.8 |
 | `learning.routing` | — | *removed* → framework capture + `ops-triage-loop` | today a free-form prose string in the schema — never a machine-readable seam (§6.2) |
 | `playbook` (build-skill pointer) | B | `ops-change` · `implement` / `verify` / `close-issue` | the central pointer becomes the convention (`ops-change`) |
 | `version` (schema pin) | F | catalog/spec version | replaced by catalog + spec versioning |
@@ -636,16 +637,16 @@ for the evidence:
 
 | Prerequisite | Forms | Automate | Why |
 |---|---|---|---|
-| Create the trigger labels (`ops/ready-for-ai`, `ops/auto-merge`, …) | needed | needed | none exist in either repo today; nothing can be routed without them |
-| Declare **live lines** + the **primary line** as `ops-repo-meta` facts | needed | needed | multiple majors are live simultaneously; neither is inferable from version numbers |
-| Create the **learnings** labels (`ops/proto-learning`, `ops/triaged`, `ops/loop-improvement`) on the `learnings` repo | needed | needed | the inbox filter is label-based (§2a); `ops/triaged` is written by triage, so it must exist before the first sweep |
-| Declare the **`learnings`** role | on `umbraco/Forms` — explicitly **not** the public issues repo | resolves to `code`, nothing to declare | a proto-learning is an internal note; Forms' issues repo is public (§1a) |
+| Create the trigger labels (`ops/ready-for-ai`, `ops/auto-merge`, …) | **`/ops-install` does it** | **`/ops-install` does it** | none exist in either repo today; nothing routes without them. Step 5 of the installer creates them on the repo each one's role implies |
+| Declare **live lines** + the **primary line** | `.claude/ops-repo-meta.json` | same | multiple majors are live at once, and neither is inferable from version numbers. `/ops-install` writes the file and `validate-repo-meta.sh` checks it — including that `primary` is one of `live` |
+| Create the **learnings** labels (`ops/proto-learning`, `ops/triaged`, `ops/loop-improvement`) | **`/ops-install` does it** | **`/ops-install` does it** | the inbox filter is label-based (§2a); `ops/triaged` is written by triage, so it must exist before the first sweep |
+| Declare the **`learnings`** role | nothing to declare — omitting it resolves to `code`, i.e. `umbraco/Forms`, which is what Forms wants | same | a proto-learning is an internal note and Forms' issues repo is public (§1a). The default is already correct here |
 | Move the default branch off `v15/dev` | needed | — | routines clone the **default branch** (`README.md` caveat), and Forms' default is a line no longer worked on |
 | `allow_update_branch` → true | needed | needed | both `false`; the loop can't refresh a stale branch before the merge gate |
 | Leave native auto-merge **disabled** | keep off | keep off | landing is the service's decision; native auto-merge would race it |
 | Document per-PR labelling for ports | needed | needed | landing is per-PR (§8), so each line's PR carries its own label |
 | Branch protection on live lines | recommended | recommended | not required, but with none (the case today) `ops-integrate`'s own CI re-check is the **only** real gate |
-| Install the caller workflow on **both** repos | needed — code **and** `Umbraco.Forms.Issues` | single repo, one install | conformance §7.5 requires it on every repo emitting consumed events: issue-label rules on the public issues repo, PR-label rules on the code repo (§9a.5) |
+| Install the caller workflow on **both** repos | needed — code **and** `Umbraco.Forms.Issues`, and the issues repo also needs an `ops-repo-meta.json` declaring `topology.code` | single repo, one install | conformance §7.5 requires it on every repo emitting consumed events. The issues repo's file is how the router learns where the routine should work (§10.37) |
 
 **Phase 7 — Evals. Complete.** `evals/` holds **8 suites, 66 cases**, and they are
 **generated** — `scripts/build-evals.sh`, with a `--check` mode a test asserts, so they cannot
@@ -660,6 +661,20 @@ effect). A data capability gets a fifth for structured output (§4.4).
 `scripts/run-evals.sh` runs a suite, LLM-judged against the asserts. It needs `claude` and a real
 repo, so it is **opt-in and not in the CI gate** — and deliberately not named `*.test.sh`, or the
 gate would try to run it. `--list` and `--plan` are hermetic and tested.
+
+**Phase 8b — Give the declared facts a home. Complete.** Added after Phase 8, on review: deleting
+the config file left the handful of *undetectable* facts with nowhere to live but prose inside a
+repo-authored skill, and `CLAUDE.md`'s own rule says a declared thing is a data seam. See §10.36.
+
+**`.claude/ops-repo-meta.json`** + `ops-repo-meta.schema.json` + `validate-repo-meta.sh` (43
+tests). A **strict subset** of what `ai-ops.yml` held: topology roles, the live lines with the
+primary and the port order, and label overrides. `additionalProperties: false` at every level, so
+a branch name, a CI provider or a skill pointer fails loudly rather than creeping back.
+
+It also collapses a duplication nobody had noticed: the split-topology fact used to live **twice**
+— as `with.target_repo` in the caller workflow *and* inside the repo's `ops-repo-meta` — in two
+files in two repos with nothing to catch a disagreement. `route-event.sh` now reads
+`topology.code` at the edge, and `target_repo` is deprecated.
 
 **Phase 8 — Retire the config-pointer model. Complete.** `ai-ops.schema.json` and
 `ai-ops.example.yml` are **deleted** (§6.7 — no remnant; `ai-ops.yml` only ever existed in a
@@ -1049,3 +1064,7 @@ Kind: **added** = did more than the plan asked · **changed** = did it different
 | 33 | 8 | **added** | Phase 8 lists the config files to delete. | Also deleted the **transitional read** inside `ops-repo-meta` that Phase 3 added (§10.17), which is the thing that would otherwise have kept the file alive in spirit. Safe now only because no consumer is onboarded — §8 records that neither repo has a trigger label yet. |
 | 34 | 5 | **added** | The hazard register called `scripts/cloud-skill-sync.sh` a Phase 6 blocker. | **Ported and fixed.** Both `README.md` and `CLAUDE.md` named it as the mechanism that delivers the engine to a cloud routine — the main runtime — and the file did not exist. It now delivers **every** skill and agent rather than a hand-maintained list (one less thing to forget), and it **wires the capture hooks into `settings.json`**, without which proto-learning capture works locally and silently does nothing in cloud. 29 tests, hermetic via `$OPS_SRC` and `$OPS_HOME`. |
 | 35 | — | **corrected** | *(process, not plan)* | Two of my own bugs, worth recording because both were silent: jq's `index` with an **array** argument searches for a subsequence, not an element, so the overlay validator's disable-check never matched; and under `set -o pipefail`, `cmd \| grep -q` reports the *writer's* status because `grep -q` closes the pipe early, so a passing assertion read as a failure. Both are commented at the site. |
+| 36 | 8b | **added** | §6.7 decided to remove `ai-ops.yml` with **no thin remnant**, on the grounds that a second source of the same facts is the drift this migration exists to kill. | **A narrow file comes back, and the decision is narrowed with it.** §6.7's reasoning is right for every fact that had another owner — the skill pointers, `ci.provider`, `branching.*` — and each of those is still dead. It does **not** hold for facts with no other owner: there is no second source for "v17 is the primary line", and after Phase 8 there was no *first* source either, only prose inside a repo-authored skill. `CLAUDE.md`'s own rule settles it: what a consumer *implements* is a capability, what it *declares* is a data seam. Topology and lines are declared. Raised in review 28-07-2026. |
+| 37 | 8b | **corrected** | My own schema forbade `topology.code`, on the grounds that detection reads it from the git remote. | **Wrong, and implementation caught it.** In a split topology the file on the **issues** repo is the only place the code repo can be named — detection there reads the issues repo's own remote. Without it the edge router cannot resolve a target at all, which is the main thing this file exists for. The rule is now "declare the roles that are **not** the repo this file is in", which is symmetric and needs no special case. |
+| 38 | 8b | **added** | Nothing said the router should read declared facts. | `route-event.sh` gained `--repo-meta` / `$REPO_META` and derives the cross-repo target from `topology.code`. **`with.target_repo` is deprecated** — it was a second hand-written copy of one fact, in a different file in a different repo. A missing or unreadable file must never break routing, so both cases fall through to no target; tested. |
+| 39 | 5 | **added** | `ops-install` listed "create the labels" as a **manual** step for a human. | **The installer creates them.** `plan-labels.sh` (32 tests) resolves every label's name, colour and **target repo** — issue labels to `issues`, PR labels to `code`, learnings labels to `learnings`, per conformance §7.3 — with the repo's overrides applied, and `github-ops` → **`create-label`** does the writes. That operation did not exist and is added to the catalog and both provider references, with `gh label create --force` for idempotency and a read-then-skip on the MCP path, which has no upsert. Manual was the right call when label names were prose in twenty files; once names, overrides and target repos are all readable, making a person copy them out of a document is just work we had not done. Asked for in review 28-07-2026. |

@@ -44,16 +44,18 @@
 set -uo pipefail
 
 event="" action="" label="" number="" repo="" target="${TARGET_REPO:-}" overlay="${ROUTE_OVERLAY:-}"
+repo_meta="${REPO_META:-}"
 
 while [ $# -gt 0 ]; do
   case "$1" in
-    --event)   event="${2:-}";   shift 2 ;;
-    --action)  action="${2:-}";  shift 2 ;;
-    --label)   label="${2:-}";   shift 2 ;;
-    --number)  number="${2:-}";  shift 2 ;;
-    --repo)    repo="${2:-}";    shift 2 ;;
-    --target)  target="${2:-}";  shift 2 ;;
-    --overlay) overlay="${2:-}"; shift 2 ;;
+    --event)     event="${2:-}";     shift 2 ;;
+    --action)    action="${2:-}";    shift 2 ;;
+    --label)     label="${2:-}";     shift 2 ;;
+    --number)    number="${2:-}";    shift 2 ;;
+    --repo)      repo="${2:-}";      shift 2 ;;
+    --target)    target="${2:-}";    shift 2 ;;
+    --overlay)   overlay="${2:-}";   shift 2 ;;
+    --repo-meta) repo_meta="${2:-}"; shift 2 ;;
     *) shift ;;
   esac
 done
@@ -124,6 +126,25 @@ loop="$(jq -nr --arg ev "$key" --arg lb "$label" --argjson ov "$ov_json" --slurp
   | if $hit == null or $hit.loop == null then "none" else $hit.loop end
 ' 2>&1)" || die "$(printf '%s' "$loop" | sed 's/^jq: error[^:]*: //')"
 [ -z "$loop" ] && loop="none"
+
+# Derive the cross-repo target from the repo's DECLARED facts when it was not passed in.
+#
+# The split-topology fact used to live twice: once as `with.target_repo` in the caller workflow,
+# and once inside the repo's `ops-repo-meta`. One fact, hand-written in two files in two repos,
+# with nothing to catch them disagreeing — the same drift pattern as the old `ci.provider`
+# spelling split. So the file is the single source and this reads it.
+#
+# `topology.code` is deliberately not declarable, so a file that names an `issues` repo tells us
+# this repo is the issues side, and the target is the code repo. It is not in the file, so we
+# take it from the event when they differ — the workflow that fires here is committed in the
+# issues repo, and `code` is whatever the routine should work in.
+if [ -z "$target" ] && [ -n "$repo_meta" ] && [ -f "$repo_meta" ] && jq empty "$repo_meta" 2>/dev/null; then
+  declared_issues="$(jq -r '.topology.issues // empty' "$repo_meta" 2>/dev/null | tr -d '\r')"
+  # Only meaningful when this event fired on the issues repo: then the work happens elsewhere.
+  if [ -n "$declared_issues" ] && [ "$declared_issues" = "$repo" ]; then
+    target="$(jq -r '.topology.code // empty' "$repo_meta" 2>/dev/null | tr -d '\r')"
+  fi
+fi
 
 # Only emit target= when a distinct work-repo was supplied (cross-repo case). Same-repo
 # consumers get the unchanged `loop= repo= number=` output.

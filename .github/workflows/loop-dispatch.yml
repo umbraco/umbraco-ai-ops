@@ -9,9 +9,10 @@ name: loop-dispatch (reusable)
 # the event maps to a loop — so non-matching events (e.g. a Dependabot `dependencies`
 # label) cost nothing, not even a routine session.
 #
-# CROSS-REPO ISSUES: a caller whose issues live in a SEPARATE code repo passes
-# `with.target_repo: <code repo>`; the router then emits `target=<code repo>` so the
-# routine works in that repo while reading the issue from the event repo.
+# CROSS-REPO ISSUES: when a caller's issues live in a SEPARATE repo from its code, the issues
+# repo declares `topology.code` in `.claude/ops-repo-meta.json` and the router reads it, emitting
+# `target=<code repo>` so the routine works there while reading the issue from the event repo.
+# `with.target_repo` is the deprecated way of saying the same thing by hand.
 #
 # ROUTING OVERLAY: the effective table is the framework base merged with an optional
 # `.github/ops-routing.json` in the caller repo (identity `(event,label)`, overlay wins,
@@ -26,9 +27,10 @@ on:
     inputs:
       target_repo:
         description: >-
-          The code repo the routine should work in, when it differs from the event
-          repo (cross-repo issues case, e.g. Umbraco.Forms.Issues -> the Forms code
-          repo). Omit for same-repo consumers.
+          DEPRECATED and normally omitted. The router now derives the cross-repo target from
+          the caller repo's `.claude/ops-repo-meta.json` (`topology.code`), so the fact lives
+          in one place instead of being hand-set here as well. Set this only to override that
+          for a one-off, and expect it to be removed.
         required: false
         type: string
         default: ""
@@ -76,11 +78,19 @@ jobs:
             overlay="repo/.github/ops-routing.json"
             echo "routing overlay: $overlay"
           fi
+          # The repo's declared facts. In a split topology the issues repo declares
+          # `topology.code`, which is how the router learns where the routine should work —
+          # so `target_repo` no longer has to be set by hand in two places.
+          meta=""
+          if [ -f repo/.claude/ops-repo-meta.json ]; then
+            meta="repo/.claude/ops-repo-meta.json"
+            echo "declared repo facts: $meta"
+          fi
           # $GITHUB_EVENT_PATH / $GITHUB_EVENT_NAME are the CALLER repo's triggering event.
           # route-event.sh reads the payload for action/label/repo/number (the event NAME
           # is a header, not body, so it is passed explicitly).
           out="$(bash ops/plugins/loop-dispatch/skills/loop-dispatch/scripts/route-event.sh \
-                   --event "$GITHUB_EVENT_NAME" ${overlay:+--overlay "$overlay"})"
+                   --event "$GITHUB_EVENT_NAME" ${overlay:+--overlay "$overlay"} ${meta:+--repo-meta "$meta"})"
           echo "route-event: $out"
           loop="${out#loop=}"; loop="${loop%% *}"
           {
