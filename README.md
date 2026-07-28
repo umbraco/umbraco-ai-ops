@@ -26,11 +26,20 @@ Consumer shape follows **repo cardinality**:
 |----------|-------|----------------------------------|
 | **Umbraco.Forms** | single product, one repo | its own `.claude/skills/ops-change` + `ops-release` |
 | **Umbraco.Automate** | single product (multi-package), one repo | its own `.claude/skills/`, same shape |
-| **MCP server family** | many repos, one toolchain | one shared consumer repo (`umbraco-mcp-ops`), delivered like the engine |
+| **MCP server family** | many repos, one toolchain | **not supported yet** — see below |
 
-> **One product = one repo → your two skills live in-repo.**
-> **One product family = many repos → they live in one shared repo**, to avoid duplicating an
-> identical `ops-change` across the family.
+> **One product = one repo → your two skills live in-repo.** That is the shape the engine supports
+> today, and both single-repo consumers use it.
+
+**The many-repos-one-toolchain shape is deferred.** One shared `ops-change` serving a whole repo
+family is a real need — it avoids duplicating an identical build skill across the family — but it is
+**not designed and not tested**, and it needs input from whoever owns that family. Two things are
+genuinely unsettled: how a shared skill gets **on disk** in each member repo's session, and what
+`ops-repo-meta · topology` means when the `code` repo is different on every run. The reasoning, and
+when to re-open it, are in
+**[the plan, §6.10](docs/capabilities-migration-plan.md#610-the-repo-family-consumer-shape--deferred-not-designed)**.
+Nothing breaks while it waits: the one feature that assumes a family — triage's `shared-skills`
+destination — already degrades to a plain issue and says so.
 
 ## Plugins
 
@@ -80,8 +89,7 @@ you own named `ops-<capability>`; the handful of things it *is* differently are 
 copied, nothing depends on one skill shadowing another, and no pointer has to be kept in step.
 
 - **Local:** run `/plugin marketplace add umbraco/umbraco-ai-ops`, then install the engine
-  plugins. A repo's own skills load automatically as project skills. The MCP family loads its
-  shared skills from `umbraco-mcp-ops`.
+  plugins. A repo's own skills load automatically as project skills.
 - **Web routines**, the main runtime: `scripts/cloud-skill-sync.sh` runs as the environment Setup
   script and delivers the engine to `$HOME/.claude/skills`. Single-product repos need nothing
   extra. A routine picks up the checked-out repo's `.claude/skills/` and its

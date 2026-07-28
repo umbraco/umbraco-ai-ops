@@ -10,9 +10,9 @@ each already mean two things here).
 ## Golden rule: the engine is product-agnostic
 
 Nothing here may hard-code one product's facts, toolchain, or branching. Product-specific
-behaviour is supplied by the **consumer** (its own repo's `.claude/skills/`, or the shared
-consumer repo for a repo family) as **capability skills**: one skill per unit of variation,
-named `ops-<capability>`. If you find yourself writing `npm`, an MCP reference, a specific
+behaviour is supplied by the **consumer** — its own repo's `.claude/skills/` — as **capability
+skills**: one skill per unit of variation, named `ops-<capability>`. (One shared skill serving a
+whole repo family is **deferred, not supported**: see the plan's §6.10. Assume one repo.) If you find yourself writing `npm`, an MCP reference, a specific
 product name, or a specific branching rule in an engine skill, it belongs in a
 **capability**, not the engine.
 

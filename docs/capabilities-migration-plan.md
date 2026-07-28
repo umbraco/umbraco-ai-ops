@@ -22,7 +22,7 @@ here.**
 
 | | |
 |---|---|
-| §6 decisions | all nine resolved, §6.8a with them |
+| §6 decisions | all ten resolved, §6.8a with them — §6.10 **defers** the repo-family shape by ruling |
 | §9a conformance gaps | all seven closed |
 | The catalog | **[`catalog.json`](../catalog.json)** — 8 capabilities, 19 actions, with `--check`-gated generation of everything derived from it |
 | Routing | the spec's `{event,label,loop}` shape, base ⊕ overlay merged at the edge, four base rows |
@@ -35,8 +35,12 @@ here.**
 | Tests | 16 hermetic files in the CI gate |
 
 **The four-way base-branch drift is closed**, the `ci.provider` spelling split is gone, and every
-engine label is namespaced `ops/`. **Nothing is open.** What remains is per-consumer: Forms' and
-Automate's own `ops-change` and `ops-release`, against the prerequisites table in Phase 6.
+engine label is namespaced `ops/`. What remains is per-consumer: Forms' and Automate's own
+`ops-change` and `ops-release`, against the prerequisites table in Phase 6.
+
+**Nothing is open in the engine.** One thing is **deferred by ruling** rather than closed: the
+**repo-family consumer shape** — one `ops-change` serving many repos — is out of scope for this plan
+and needs input from whoever owns the MCP family (**§6.10**). It fails safe while deferred.
 
 > **Where execution changed the plan, read [§10](#10-deviations-log--what-execution-changed-about-this-plan).**
 > Three logs, three jobs: **§6** is what we decided before building, **§9b** is where we knowingly
@@ -699,9 +703,10 @@ drift this migration exists to kill. Phase 8 does the deletion.
 
 ## 6. Decisions — settled
 
-All nine were resolved in review on PR #4 (27-07-2026). The arguments are kept as the decision log;
-the **Decided** line is what binds. The resolution of 8 opened one sub-question, §6.8a, which
-**Phase 1 closed** while writing the catalog entry it turned on.
+The first nine were resolved in review on PR #4 (27-07-2026); **§6.10 was added 28-07-2026**, after
+the register sweep surfaced the last open item. The arguments are kept as the decision log; the
+**Decided** line is what binds. The resolution of 8 opened one sub-question, §6.8a, which **Phase 1
+closed** while writing the catalog entry it turned on.
 
 1. **Coexistence vs clean break.** → **Decided: clean break per phase.** The placeholders let us
    build the central loops fresh rather than migrate them, so there is nothing to run in parallel.
@@ -824,14 +829,47 @@ loop or the service?** All four lived in the loop (`merge-flow` Step 2). **Revie
 gates belong to the service** — which gives 8 its `ops-integrate` and answers 9 as (b) in one move.
 That was the last thing blocking Phase 3.
 
+### 6.10. The repo-family consumer shape — **deferred, not designed**
+
+Added 28-07-2026, after the register sweep (§10.40) surfaced it as the last open item.
+
+**The question.** `README.md` names three consumer shapes; Phase 6 covers two. The third — **one
+`ops-change` serving many repos**, the MCP server family with its shared consumer repo — was never
+migrated onto the convention model, even though the two design docs this plan ports were written
+*for* that repo.
+
+**Decided: out of scope for this plan. Deferred, and it needs input from whoever owns the MCP
+family** — not a decision this engine repo can make alone. Recorded rather than quietly dropped,
+because it is a shape we advertise.
+
+Why defer rather than design it now:
+
+- Neither single-repo consumer has run end to end yet. Designing the harder shape before the simple
+  one has proved itself is guessing at requirements.
+- Convention-by-name does not obviously cover it. A capability is found **by name, on disk, in the
+  session** — so a shared `ops-change` needs the same cloud delivery `cloud-skill-sync.sh` does for
+  the engine, and that is a delivery question, not a capability question.
+- It needs a ruling this plan cannot give: what `ops-repo-meta · topology` means when `code` is a
+  **different repo on every run**. Today the file answers "what is this repo"; a family shared skill
+  needs "which of my N repos am I in", which may be a genuinely new action.
+
+**What it costs while deferred.** One thing, and it fails safe: `ops-triage-loop`'s `shared-skills`
+destination never fires. The skill already says plainly that where `shared-skills` is unreachable the
+threshold gates nothing and to say so in the run summary (§10.24), so a family lesson lands in the
+loop-self destination instead of being lost. Nothing else in the engine assumes the shape exists.
+
+**When to re-open.** After Forms has run a full issue → PR → merge → release cycle, and with the MCP
+family owner in the room.
+
 ---
 
 ## 7. Risk / hazard register
 
 **Read the strikethroughs.** Execution closed most of this register; the rows below are kept with
 their original wording so the reasoning survives, because a closed hazard that leaves no trace gets
-re-discovered. **Two rows are still open**: the repo-family consumer shape, and no-static-typing
-(permanent, by design).
+re-discovered. Of what remains: the **repo-family shape is deferred by ruling** (§6.10),
+**no-static-typing is permanent by design**, and the rest are **live Phase 6 hazards** — facts about
+Forms and Automate that whoever writes their two skills has to hold, not engine work.
 
 - ~~**Central loop is a placeholder.** `issue-loop-core` (and `rework-loop`) are routed-to but
   unbuilt; the whole issue→PR path is not exercisable today. Migration and first-build are the same
@@ -872,18 +910,9 @@ re-discovered. **Two rows are still open**: the repo-family consumer shape, and 
   one-`ops-change`-serving-many-repos case is neither migrated nor tested against the convention
   model, even though the design docs this plan ports were written *for* that repo. It also strands
   `ops-triage-loop`'s `shared-skills` destination (§2a), which only means anything for a repo family.
-  **This is the last undecided thing in the plan.** It needs one of:
-  1. **A ruling that it is out of scope**, and the README's third consumer shape marked as
-     unsupported until someone asks for it. `ops-triage-loop` already says plainly that where
-     `shared-skills` is unreachable the threshold gates nothing (§10.24), so nothing breaks — the
-     destination just never fires.
-  2. **A Phase 6b** that works out how a shared consumer repo delivers `ops-change` to N repos.
-     Convention-by-name does not obviously cover it: the skill has to be *on disk* in each repo's
-     session, so it needs the same cloud delivery `cloud-skill-sync.sh` does for the engine, plus a
-     ruling on what `ops-repo-meta · topology` means when `code` is a different repo each run.
-
-  **Recommendation: option 1 for now.** The two single-repo consumers are not onboarded yet, and
-  designing the family case before either of them has run once would be guessing.
+  **Ruled 28-07-2026: deferred, out of scope for this plan, and it needs input from whoever owns the
+  MCP family — see [§6.10](#610-the-repo-family-consumer-shape--deferred-not-designed)** for the
+  reasoning, what it costs while deferred (one destination that fails safe), and when to re-open it.
 - ~~**`ops-triage-loop` has no route row, and its destination can't be a dispatch input.**~~
   **Withdrawn** — it needs no route row. Triage is a weekly scheduled sweep and `ops/triaged` is an
   output marker, not a trigger label (§2a). The other half was true but is now moot: triage picks its
