@@ -4,9 +4,10 @@ description: >-
   Onboard a repo to the engine, and prove it is covered. Detects the repo's setup, writes the
   facts detection cannot reach to `.claude/ops-repo-meta.json`, reports capability coverage
   against the catalog (present / inherited / missing), scaffolds a stub for every missing
-  capability from its catalog entry, creates every `ops/` label on the repo its role implies,
-  installs the caller workflow on every repo that emits routed events, and validates the routing
-  overlay. Six of its eight steps are deterministic scripts. Interactive, run once per repo.
+  capability from its catalog entry, interviews the human to fill that stub's TODOs, creates
+  every `ops/` label on the repo its role implies, installs the caller workflow on every repo
+  that emits routed events, and validates the routing overlay. Six of its nine steps are
+  deterministic scripts. Interactive, run once per repo.
   Trigger on "onboard this repo", "install the ops engine", "check capability coverage".
 ---
 
@@ -30,14 +31,29 @@ events reach the router, and prove all three.
 | 2. Write the repo's declared facts | you + `scripts/validate-repo-meta.sh` |
 | 3. Report capability coverage | `scripts/coverage.sh` |
 | 4. Scaffold a stub per missing capability | `scripts/scaffold-capability.sh` |
-| 5. Create the labels | `scripts/plan-labels.sh` + `github-ops` |
-| 6. Install the caller workflow — on **every** repo that emits routed events | you, with the human |
-| 7. Validate the routing overlay, if there is one | `scripts/validate-overlay.sh` |
-| 8. List what is genuinely left for a human | you |
+| 5. **Fill the stub's TODOs** with the human | you, by interview |
+| 6. Create the labels | `scripts/plan-labels.sh` + `github-ops` |
+| 7. Install the caller workflow — on **every** repo that emits routed events | you, with the human |
+| 8. Validate the routing overlay, if there is one | `scripts/validate-overlay.sh` |
+| 9. List what is genuinely left for a human | you |
 
-**Six of the eight are scripts, deliberately.** A coverage report a model produces by reading
+**Six of the nine are scripts, deliberately.** A coverage report a model produces by reading
 directories is a report that can be quietly wrong, and "you are covered" is exactly the claim
 nobody re-checks. Run the script and show its output.
+
+## Asking the human: batch, and seed from detection
+
+Two rules govern **every** question this skill asks, in Step 2 and Step 5 alike.
+
+**Batch them.** `AskUserQuestion` takes **up to four questions in a single call** and the human
+tabs through them. Ask four at a time. Do **not** make four calls with one question each — that
+turns one screen into four round trips, and it is the single most common complaint about this
+installer. "One question per fact" means do not cram two facts into one question; it does not
+mean one call per question.
+
+**Seed every option from what you already know.** Step 1's output, the repo's existing skills,
+its build files. A question whose first option is the detected value, marked recommended, is one
+click. The same question asked blind is homework. Never ask what detection already answered.
 
 ## Step 1 — detect
 
@@ -54,11 +70,10 @@ Write what the human just told you to **`.claude/ops-repo-meta.json`**, shaped b
 `ops-repo-meta.schema.json` in the `ops-capabilities` plugin. This is the file every loop and
 the edge router read, so getting it right is the whole of onboarding's data half.
 
-**Ask with `AskUserQuestion`, and seed every question from Step 1's output.** Do not ask in
-prose and do not ask what detection already answered. A question with the detected value as its
-first option, marked recommended, is one click; the same question asked blind is homework. Step 1
-gives you `branching.lines_seen`, `branching.default_branch`, `ci.provider`, `release.nbgv`,
-`release.has_release_tags` and `release.release_skill` — use them.
+Ask with `AskUserQuestion`, **batched and seeded** per the two rules above. Everything below fits
+in **one call**: pick the four that apply and send them together. Step 1 gives you
+`branching.lines_seen`, `branching.default_branch`, `ci.provider`, `release.nbgv`,
+`release.has_release_tags` and `release.release_skill` — use them as the options.
 
 | Ask when | Key | Seed the options with |
 |---|---|---|
@@ -70,8 +85,9 @@ gives you `branching.lines_seen`, `branching.default_branch`, `ci.provider`, `re
 | proto-learnings go somewhere other than the code repo | `topology.learnings` | "this repo" first. Warn if `topology.issues` is set and **public** — a proto-learning is an internal note |
 | the repo already has a label meaning one of ours | `labels.<purpose>` | the existing label names, read from the repo |
 
-**One question per fact, and skip any whose answer is forced.** A single-line repo is asked
-nothing about lines. A repo with one live line has no primary to choose and no port order.
+**Skip any question whose answer is forced.** A single-line repo is asked nothing about lines. A
+repo with one live line has no primary to choose and no port order. If that leaves fewer than
+four questions, send fewer — in one call, not one each.
 
 **Every key is optional.** A single-repo project on one line needs **no file** — say so rather
 than writing an empty one.
@@ -131,10 +147,53 @@ author's.
 
 It **never overwrites** an existing skill. A repo that already has one keeps it.
 
-Tell the human plainly: **the loops cannot run until the TODOs in these stubs are filled in.**
-A scaffold is not an implementation.
+Then go straight to Step 5. **Do not hand over a file full of the word `TODO` and call the
+install done** — that is the point at which onboarding stalls.
 
-## Step 5 — create the labels
+## Step 5 — fill the stub's TODOs
+
+A scaffold is not an implementation, and leaving the human to face a wall of `TODO` is leaving
+them the hardest part with the least context. You have just detected the stack, the CI provider,
+the release tooling and every skill the repo already ships. Use it.
+
+**Interview once per capability**, batching four questions per `AskUserQuestion` call, then
+write the answers into the stub as real steps. Seed every option from Step 1 and from a look at
+the repo.
+
+**For `ops-change`:**
+
+| Ask | Seed the options with |
+|---|---|
+| the build command | what the stack implies and what the repo actually contains — the solution/project files, a `package.json` script, a build script in `scripts/` |
+| what `verify` runs before it reports pass | the test command, and the **scope**: only what changed, what changed plus its dependents, or everything. In a multi-project repo, offer dependents as the recommendation and say why |
+| how a PR says which issue it closes | the convention visible in recent merged PRs (`Fixes #N`, a trailer, a branch-name convention) |
+| when a change is ported to another line | only there are several live lines. Offer: only when the issue asks, always, or ask a human. Never recommend "always" |
+
+**For `ops-release`:**
+
+| Ask | Seed the options with |
+|---|---|
+| whether to **delegate to skills the repo already has** | `release.release_skill` from Step 1, plus any changelog/version/cleanup skills you can see. If they exist this is usually the answer, and it is the first question because it can answer most of the others |
+| where the version lives | `release.nbgv` from Step 1 — a `version.json` per project, a single props file, a tag |
+| what `publish` does | `ci.provider`. If CI publishes, the honest answer is usually "wait for the pipeline and report", not "tag and push yourself" |
+| what `sync` puts back in step | the branch model from Step 1 — typically the release branch back into `vN/main` and `vN/dev` |
+
+**Then write it.** Replace each `TODO` with the steps the answers imply, in the file. For
+idempotency, say concretely what the action looks for to know it already ran — an existing PR
+for this version, a tag that exists, a branch already pushed. "Check if it ran" is not an answer.
+
+**What you must not do:**
+
+- **Do not invent a build command you have not seen.** If nothing in the repo shows one, ask,
+  and if the human does not know, leave that one `TODO` with a note saying so.
+- **Do not silently leave a `TODO`.** Every one you cannot fill gets named in Step 9, with why.
+- **Do not delegate to a skill you have not confirmed exists.** Check the path.
+- **Do not touch the action names or the frontmatter.** Those come from the catalog.
+
+End by telling the human plainly which actions are now written and which are still stubs, and
+that **the loops cannot run until the stubs are done.**
+
+## Step 6 — create the labels
 
 ```
 scripts/plan-labels.sh <repo-root>
@@ -156,7 +215,7 @@ labels exist, so do not defer this and do not report success without it.
 **In a split topology the labels land on two different repos.** Check you have write access to
 both before starting, and say which repo each label went to.
 
-## Step 6 — install the caller workflow
+## Step 7 — install the caller workflow
 
 Copy the caller workflow template (see
 [`new-loop-routine`](../../../loop-dispatch/skills/new-loop-routine/SKILL.md), which owns the
@@ -181,7 +240,7 @@ because this is the step that silently half-works:
 loops never fire, with nothing failing to tell you: issue labels on a repo with no workflow are
 simply ignored.
 
-## Step 7 — validate the overlay
+## Step 8 — validate the overlay
 
 Most repos need no overlay: the framework base table is the point. If the repo has one at
 `.github/ops-routing.json`:
@@ -197,7 +256,7 @@ no base rule, which does nothing at all and is always a mistake.
 
 Pass the repo's own skills directory too, so a repo-provided loop resolves.
 
-## Step 8 — what is genuinely left for a human
+## Step 9 — what is genuinely left for a human
 
 List these **in this order**, and say why the order matters; do not try to do them.
 
