@@ -170,6 +170,15 @@ keep it that way; never commit CRLF scripts.
 - **If you added, renamed or removed a plugin:** run `scripts/validate-manifests.sh`. A
   marketplace entry pointing at a directory that doesn't exist makes `/plugin marketplace add`
   fail for the **whole** marketplace, not just that entry.
+- **Grep your change for product-specifics** (`npm`, `mcp`, a product name) — if present, it
+  belongs in a **capability**, not in engine code.
+
+The first two are enforced in CI by `.github/workflows/tests.yml`, which runs **every `*.test.sh`
+in the repo** (skill tests under `plugins/`, engine-wide ones under `scripts/`) and `jq empty` on
+every JSON, on each PR and push to `main` — keep it green. It's hermetic (`bash` + `jq` only): a
+new test must not need network, `gh`, or `claude`. The other workflow,
+`.github/workflows/loop-dispatch.yml`, is **runtime, not CI** — the reusable edge router consumers
+call from their own caller workflow.
 
 Everything generated from the catalog has a `--check` mode with a test asserting it, so the
 catalog stays the single source: the README action table, and the eval suites.
@@ -183,12 +192,6 @@ behaviour, and it is generated from the catalog's worked examples.
 
 Running them needs `claude` and a real repo, so **they are opt-in and not in the CI gate** —
 which is also why the runner is `scripts/run-evals.sh` and deliberately **not** named
-`*.test.sh`. Use `--list` and `--plan <capability>` to inspect a suite without running it.
-- Grep your change for product-specifics (`npm`, `mcp`, a product name) — if present, it
-  belongs in a **capability**, not in engine code.
-
-The first two are enforced in CI by `.github/workflows/tests.yml` (runs every
-`plugins/**/*.test.sh` and `jq empty` on every JSON, on each PR and push to `main`) — keep
-it green. It's hermetic (`bash` + `jq` only): a new test must not need network, `gh`, or
-`claude`. The other workflow, `.github/workflows/loop-dispatch.yml`, is **runtime, not CI** —
-the reusable edge router consumers call from their own caller workflow.
+`*.test.sh` — CI finds `*.test.sh` anywhere in the repo, so a runner named that way would join
+the hermetic gate and fail on every machine without `claude`. Use `--list` and
+`--plan <capability>` to inspect a suite without running it.

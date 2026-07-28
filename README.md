@@ -38,7 +38,7 @@ Installed from this marketplace (`.claude-plugin/marketplace.json`):
 
 | Plugin | What it is |
 |--------|------------|
-| **ops-install** | Onboarding, and the proof it worked. `/ops-install` detects the repo's setup, reports capability coverage, scaffolds a stub for anything missing, installs the caller workflows and validates the routing. Run it first. |
+| **ops-install** | Onboarding, and the proof it worked. `/ops-install` detects the repo's setup, writes the few facts detection can't reach to `.claude/ops-repo-meta.json`, reports capability coverage, scaffolds a stub for anything missing, creates every `ops/` label on the repo its role implies, installs the caller workflows and validates the routing. Six of its eight steps are scripts. Run it first. |
 | **ops-issue-loop** | The orchestrator: queue, dispatch up to three at once, stop at a green PR. It owns sequencing only and commands your `ops-change` for the work. Bundles `ops-rework-loop`. |
 | **ops-learnings** | Self-learning. Read-only hooks file `ops/proto-learning` issues off the critical path; `ops-triage-loop` sweeps them weekly and routes each lesson to whoever owns it. |
 | **github-ops** | All GitHub work, in both environments: `gh`/`git` locally, `mcp__github__*` on web. Also wraps the CI provider, either `github-checks` or `azure-pipelines`. Every loop needs it. |
@@ -93,10 +93,11 @@ copied, nothing depends on one skill shadowing another, and no pointer has to be
 
 ## Capability skills
 
-> **Where things stand.** The engine is on the capability model: the catalog exists, routing is
-> base ⊕ overlay at the edge, every loop commands capabilities by name, the installer proves
-> coverage, and the old central config is deleted. What is left is per-consumer work (Phase 6 —
-> Forms' and Automate's own two skills) and evals (Phase 7). The plan is in
+> **Where things stand.** The engine is **done**. The catalog exists, routing is base ⊕ overlay at
+> the edge, every loop commands capabilities by name, all six framework defaults ship, the
+> installer proves coverage and creates the labels, evals are generated from the catalog, and the
+> old central config is deleted. What is left is per-consumer: Forms' and Automate's own two skills
+> (Phase 6). The plan is in
 > **[`docs/capabilities-migration-plan.md`](docs/capabilities-migration-plan.md)**; shared terms
 > are in **[`docs/vocabulary.md`](docs/vocabulary.md)**.
 
@@ -241,19 +242,22 @@ guard, which is the deliberate trade the spec makes.
 catalog.json               # the capability catalog: capabilities, actions, worked examples
 catalog.schema.json        # its shape (a deliberate superset of the conformance spec's keys)
 docs/                      # migration plan, the two design docs, the vocabulary
+evals/                     # GENERATED from the catalog: one suite per capability, opt-in
 plugins/
   <plugin>/                # one dir per plugin (skills/, agents/, scripts/, references/)
 scripts/                   # engine-wide scripts, not tied to one skill; each has its *.test.sh
   validate-catalog.sh      # enforce catalog.schema.json's rules in jq (hermetic CI has no validator)
   catalog-to-readme.sh     # regenerate this file's action table; --check fails on drift
+  build-evals.sh           # regenerate evals/; --check fails on drift
+  run-evals.sh             # run a suite (needs claude + a real repo, so NOT named *.test.sh)
+  validate-manifests.sh    # plugin.json <-> marketplace.json agreement; no phantom entries
+  cloud-skill-sync.sh      # cloud delivery: the environment Setup script for a web routine
 ```
-
-> **Not here yet:** `scripts/cloud-skill-sync.sh`, referenced above as the cloud delivery
-> mechanism, has not been ported from the prototype.
 
 ## Status
 
-**Work in progress.** Two jobs at once: pulling the proven `umbraco-mcp-ops` plugins out and making
-them generic, and moving from the config contract to the capability model above. The design, the
-phases, the open decisions and the hazard register are all in
+**The engine is complete.** Both jobs are done: the proven `umbraco-mcp-ops` plugins are extracted
+and generic, and the config contract is replaced by the capability model above. What remains is
+per-consumer work in the consumer repos — each product's own `ops-change` and `ops-release`. The
+design, the phases, the decisions, the deviations log and the hazard register are all in
 **[`docs/capabilities-migration-plan.md`](docs/capabilities-migration-plan.md)**.

@@ -828,19 +828,32 @@ That was the last thing blocking Phase 3.
 
 ## 7. Risk / hazard register
 
-- **Central loop is a placeholder.** `issue-loop-core` (and `rework-loop`) are routed-to but
+**Read the strikethroughs.** Execution closed most of this register; the rows below are kept with
+their original wording so the reasoning survives, because a closed hazard that leaves no trace gets
+re-discovered. **Two rows are still open**: the repo-family consumer shape, and no-static-typing
+(permanent, by design).
+
+- ~~**Central loop is a placeholder.** `issue-loop-core` (and `rework-loop`) are routed-to but
   unbuilt; the whole issue→PR path is not exercisable today. Migration and first-build are the same
-  work here — plan accordingly.
-- **Base-branch knowledge lives in *four* places**, not two: `ai-ops.schema.json`
+  work here — plan accordingly.~~ **Closed in Phase 4** — `ops-issue-loop` and `ops-rework-loop`
+  are built, and the review phase was dropped as a second merge path (§10.23). Still unexercised
+  end to end, which is what the first consumer run proves, not this repo.
+- ~~**Base-branch knowledge lives in *four* places**, not two: `ai-ops.schema.json`
   (`branching.base` / `release_base`), runtime detection in `release-and-branching`, `merge-flow`'s
   own resolve-and-compare (`SKILL.md:40-59`, `:87-94`), and `operation-catalog.json`'s
   `detect-base-branch` (a `forge`-axis operation whose title is "defer to release-and-branching").
   Making the values private to `ops-branching` is the only move that collapses all four; migrating
-  them into a caller-visible `resolve-base` action would just relocate the leak.
-- **`ci.provider` vs `ci_provider` spelling split** (schema/detector vs the github-ops references).
-  Don't carry it forward; the capability is the source.
-- **Route-map lives in two places** (`route-map.json` + the `case` fallback in `route-event.sh`).
-  Collapse to one during Phase 2.
+  them into a caller-visible `resolve-base` action would just relocate the leak.~~ **All four
+  closed** — the schema is deleted (Phase 8), `release-and-branching` and `merge-flow` are replaced
+  by `ops-branching` + `ops-integrate` with the values private (§9b.3), and `detect-base-branch` is
+  deleted from the operation catalog (§10.20).
+- ~~**`ci.provider` vs `ci_provider` spelling split** (schema/detector vs the github-ops references).
+  Don't carry it forward; the capability is the source.~~ **Closed** — the provider is **internal to
+  `ops-ci`**, so there is no spelling to agree on. `ops-repo-meta.schema.json` refuses the key
+  outright.
+- ~~**Route-map lives in two places** (`route-map.json` + the `case` fallback in `route-event.sh`).
+  Collapse to one during Phase 2.~~ **Closed in Phase 2**, and the fallback's behaviour inverted: a
+  missing table now **exits 2** rather than silently resolving to `loop=none` (§10.11).
 - ~~**Two marketplace entries point at directories that don't exist.**~~ **Fixed in Phase 3.**
   `learning` and `dotnet-web-runtime` were **removed from `marketplace.json`** — an entry whose
   `source` resolves to nothing makes `/plugin marketplace add` fail for the *whole* marketplace,
@@ -853,32 +866,54 @@ That was the last thing blocking Phase 3.
   Either scaffold them or mark them unreleased. (An earlier revision warned that `learning`'s
   description was the **only** written spec for `ops-triage-loop`; the prototype's `triage-learnings`
   skill is a far fuller one (§2a), so the entry is no longer load-bearing.)
-- **The repo-family consumer shape is never migrated.** `README.md` names three consumer shapes —
-  Forms, Automate, and the MCP server family with its shared consumer repo (`umbraco-mcp-ops`) —
-  and this plan covers only the first two (Phase 6). The one-`ops-change`-serving-many-repos case is
-  neither migrated nor tested against the convention model, even though the design docs this plan
-  ports were written *for* that repo. It also strands `ops-triage-loop`'s `shared-skills` destination
-  (§2a), which only means anything for a repo family. Needs either a Phase 6b or an explicit
-  out-of-scope ruling.
+- **⚠ OPEN — the repo-family consumer shape is never migrated.** `README.md` names three consumer
+  shapes — Forms, Automate, and the MCP server family with its shared consumer repo
+  (`umbraco-mcp-ops`) — and this plan covers only the first two (Phase 6). The
+  one-`ops-change`-serving-many-repos case is neither migrated nor tested against the convention
+  model, even though the design docs this plan ports were written *for* that repo. It also strands
+  `ops-triage-loop`'s `shared-skills` destination (§2a), which only means anything for a repo family.
+  **This is the last undecided thing in the plan.** It needs one of:
+  1. **A ruling that it is out of scope**, and the README's third consumer shape marked as
+     unsupported until someone asks for it. `ops-triage-loop` already says plainly that where
+     `shared-skills` is unreachable the threshold gates nothing (§10.24), so nothing breaks — the
+     destination just never fires.
+  2. **A Phase 6b** that works out how a shared consumer repo delivers `ops-change` to N repos.
+     Convention-by-name does not obviously cover it: the skill has to be *on disk* in each repo's
+     session, so it needs the same cloud delivery `cloud-skill-sync.sh` does for the engine, plus a
+     ruling on what `ops-repo-meta · topology` means when `code` is a different repo each run.
+
+  **Recommendation: option 1 for now.** The two single-repo consumers are not onboarded yet, and
+  designing the family case before either of them has run once would be guessing.
 - ~~**`ops-triage-loop` has no route row, and its destination can't be a dispatch input.**~~
   **Withdrawn** — it needs no route row. Triage is a weekly scheduled sweep and `ops/triaged` is an
   output marker, not a trigger label (§2a). The other half was true but is now moot: triage picks its
   own destination, so nothing could have passed it as `--target`, and a schedule has none to pass.
-- **Label names are prose in twenty-odd files.** The `ops/` prefix sweep (§10.13) had to touch every
+- ~~**Label names are prose in twenty-odd files.** The `ops/` prefix sweep (§10.13) had to touch every
   skill, template and doc that names a trigger label, because the only machine-readable copy is the
   four labels in `route-map.json`. The next label change will be the same sweep. The durable fix is
   already promised by the catalog — `ops-repo-meta · identity` returns "the trigger labels this repo
   uses, by purpose" — so **Phase 3 should make that the single source and have the loops read it**
-  rather than restating names in prose. Until then, a renamed label silently half-lands.
-- **`scripts/cloud-skill-sync.sh` does not exist.** Both `README.md` and `CLAUDE.md` name it as the
+  rather than restating names in prose. Until then, a renamed label silently half-lands.~~ **Closed
+  where it matters.** Every loop now resolves labels **by purpose** off
+  `ops-repo-meta · identity` — `labels.ready`, `labels.land`, `labels.rework`, `labels.release`,
+  `labels.proto_learning` — and none hard-codes a name at a decision point. `plan-labels.sh` (§10.39)
+  is a second reader of the same table, for creation. Literal names still appear in prose *as
+  illustration*, and the two enforced copies are `route-map.json` (patterns + a test) and the
+  defaults in `ops-repo-meta`. A rename now touches those two and the docs, not the behaviour.
+- ~~**`scripts/cloud-skill-sync.sh` does not exist.** Both `README.md` and `CLAUDE.md` name it as the
   mechanism that delivers the engine into a cloud routine — the **main runtime** — and the file was
   never ported from the prototype (which has it, as `scripts/cloud-skill-sync/cloud-skill-sync.sh`).
   Found in Phase 1 while writing the layout section. Nothing can run as a routine until it lands, so
-  it is a **Phase 6 blocker**, not a documentation nit.
-- **The prototype is the only real spec for the learnings mechanism, and it is a different repo.**
+  it is a **Phase 6 blocker**, not a documentation nit.~~ **Ported and fixed in Phase 5** (§10.34) —
+  it now delivers **every** skill and agent rather than a hand-maintained list, and wires the capture
+  hooks into `settings.json`, without which proto-learning capture silently does nothing in cloud.
+  29 hermetic tests.
+- ~~**The prototype is the only real spec for the learnings mechanism, and it is a different repo.**
   Everything in §2a beyond the destination names comes from `hifi-phil/umbraco-mcp-ops`, which this
   engine does not track and which can change or disappear. Phase 4 must **port** that design into
-  this repo rather than cite it, and Phase 4's own skill becomes the spec afterwards.
+  this repo rather than cite it, and Phase 4's own skill becomes the spec afterwards.~~ **Ported in
+  Phase 4.** `ops-triage-loop`, `capture-proto-learning.sh`, the two analyzer prompts and
+  `references/proto-learning-schema.md` are the spec now; the prototype is history, not a dependency.
 - ~~**`README.md` references a "topology map" that doesn't exist.**~~ **Fixed** — the dangling
   sentence was removed and the README now links this plan instead.
 - **"The base branch" is a single value in a repo with several.** Both consumers have **two live
@@ -1068,3 +1103,4 @@ Kind: **added** = did more than the plan asked · **changed** = did it different
 | 37 | 8b | **corrected** | My own schema forbade `topology.code`, on the grounds that detection reads it from the git remote. | **Wrong, and implementation caught it.** In a split topology the file on the **issues** repo is the only place the code repo can be named — detection there reads the issues repo's own remote. Without it the edge router cannot resolve a target at all, which is the main thing this file exists for. The rule is now "declare the roles that are **not** the repo this file is in", which is symmetric and needs no special case. |
 | 38 | 8b | **added** | Nothing said the router should read declared facts. | `route-event.sh` gained `--repo-meta` / `$REPO_META` and derives the cross-repo target from `topology.code`. **`with.target_repo` is deprecated** — it was a second hand-written copy of one fact, in a different file in a different repo. A missing or unreadable file must never break routing, so both cases fall through to no target; tested. |
 | 39 | 5 | **added** | `ops-install` listed "create the labels" as a **manual** step for a human. | **The installer creates them.** `plan-labels.sh` (32 tests) resolves every label's name, colour and **target repo** — issue labels to `issues`, PR labels to `code`, learnings labels to `learnings`, per conformance §7.3 — with the repo's overrides applied, and `github-ops` → **`create-label`** does the writes. That operation did not exist and is added to the catalog and both provider references, with `gh label create --force` for idempotency and a read-then-skip on the MCP path, which has no upsert. Manual was the right call when label names were prose in twenty files; once names, overrides and target repos are all readable, making a person copy them out of a document is just work we had not done. Asked for in review 28-07-2026. |
+| 40 | — | **corrected** | *(the plan describing itself)* | **§7's hazard register was six rows out of date**, still written in the present tense about hazards execution had closed — the placeholder central loop, the four-way base-branch drift, the `ci.provider` spelling split, the duplicated route map, label names as prose, and a missing `cloud-skill-sync.sh`. A register that reads as open when it is closed is worse than no register: the next reader re-opens settled questions and stops trusting the rows that *are* live. Swept, each closure pointing at the §10 row or phase that did it, and the **one genuinely open item flagged `⚠ OPEN`** — the repo-family consumer shape, which needs a ruling, not more building. `README.md` was stale in the same direction: it still called evals outstanding, still said `cloud-skill-sync.sh` was "not here yet", and its Status section still read "work in progress". `CLAUDE.md` had one structural bug — the "grep for product-specifics" rule and the CI paragraph had drifted out of **Before you commit** into the middle of the evals section, so "the first two are enforced in CI" pointed at nothing. |
