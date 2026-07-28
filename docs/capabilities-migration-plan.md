@@ -251,7 +251,8 @@ what was designed rather than reinventing it.
 
 This is consistent with §6.2 rather than in tension with it: `learning.routing` dies because it was
 prose in the schema, while the **destinations** were always real and become `ops-repo-meta` data.
-`learning.inbox` becomes the `learnings` role (§1a).
+Where `learning.inbox` lands is **open** — `learnings` is not a canonical role (conformance §7.2),
+so it needs either a spec amendment or a home on `ops-repo-meta` outside `topology`. See §9a.1.
 
 **What Phase 4 still has to decide** — genuinely open, not recoverable from history:
 
@@ -420,7 +421,8 @@ installer itself are conformance §8.
 issues repo + internal code repo; **live lines + primary line** per §8), `ops-branching`
 (versioned-gitflow, values private), `ops-ci` (azure-pipelines), `ops-workspace` (worktree + SQLite
 DB, wrapped by `ops-change`), `ops-notify`. Learnings needs no Forms-specific capability — only a
-`topology` destination. Then Automate, which differs only in `ops-change` (port direction) and
+declared inbox destination (whose home is open, §9a.1). Then Automate, which differs only in
+`ops-change` (port direction) and
 topology (in-repo issues). Run `/ops-install` and prove full coverage on both.
 
 **Onboarding prerequisites** — repo-side changes both consumers need before a loop can run; see §8
