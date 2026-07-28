@@ -17,10 +17,15 @@ Layer 2 also names a **Layer 3** — "reference skills + scaffolder templates (`
 `ops-repo-meta`, catalog)" — which does not exist in either repo. That absence is why this plan's
 phase order departs from layer 1 §10 (§4).
 
-**Phases 0 and 1 are complete.** All nine §6 decisions are resolved, §6.8a with them, §9a's seven
-conformance gaps are closed, and the catalog exists — **[`catalog.json`](../catalog.json)**, 8
-capabilities and 19 actions. **Nothing is open.** Phase 2 (routing) is next, and Phase 3 is unblocked
-behind it.
+**Phases 0, 1 and 2 are complete.** All nine §6 decisions are resolved, §6.8a with them, §9a's seven
+conformance gaps are closed, the catalog exists — **[`catalog.json`](../catalog.json)**, 8
+capabilities and 19 actions — and routing is on the spec's shape with base ⊕ overlay merging at the
+edge. **Nothing is open.** Phase 3 is next.
+
+> **Where execution changed the plan, read [§10](#10-deviations-log--what-execution-changed-about-this-plan).**
+> Three logs, three jobs: **§6** is what we decided before building, **§9b** is where we knowingly
+> diverge from the *spec*, and **§10** is where we diverged from *this plan* while carrying it out.
+> Every phase appends to §10 before it is called done.
 
 The two design docs are headed **"Repo: umbraco-mcp-ops"** — they describe the target for the
 prototype. This plan ports that target onto the **`umbraco-ai-ops`** engine we shipped, whose
@@ -200,7 +205,7 @@ normalisation already match the spec — keep them.
 |---|---|---|
 | `ops-issue-loop` | an issue labelled ready for work | `ops-issue-loop` (unchanged) |
 | `ops-merge-loop` | a PR labelled for landing | `ops-merge-flow` |
-| `ops-release-loop` | a release trigger | `ops-auto-release` |
+| `ops-release-loop` | a release trigger | `ops-ops/auto-release` |
 | `ops-rework-loop` | a PR labelled for rework | `ops-rework` |
 | `ops-triage-loop` | a proto-learning labelled for triage | `ops-triage` |
 
@@ -210,7 +215,7 @@ Three reasons it is worth fixing rather than living with:
    `auto-` prefix on a third. Nothing told you which was which.
 2. **The `-loop` suffix is what keeps loops out of the capability namespace.** A capability is
    `ops-<capability>`, so `ops-release` is already the release *capability*. The old
-   `ops-auto-release` avoided the clash only by accident, and any tidy-up that shortened it to
+   `ops-ops/auto-release` avoided the clash only by accident, and any tidy-up that shortened it to
    `ops-release` would have collided head-on. `ops-release-loop` cannot.
 3. **The reader can tell the layer from the name**, which is the same argument the visibility
    roster makes for capabilities.
@@ -221,7 +226,7 @@ the edge router that *chooses* a loop and runs in bash before any session exists
 something untrue about what it does.
 
 This **diverges from [conformance spec](ops-capability-skills-conformance-spec.md) §2.3**, which
-fixes the reserved list as `ops-merge-flow` / `ops-auto-release` / `ops-rework` / `ops-triage`.
+fixes the reserved list as `ops-merge-flow` / `ops-ops/auto-release` / `ops-rework` / `ops-triage`.
 Recorded as a deliberate divergence in §9b.7 — the spec needs amending, not this plan bending.
 It also answers the loop-naming question raised in review on PR #4.
 
@@ -268,15 +273,15 @@ all three are specified in the prototype. They are recorded below as inherited, 
 
 | | | Source |
 |---|---|---|
-| **Input** | `proto-learning` issues in the inbox repo, filed by read-only `SubagentStop` / `SessionEnd` hooks that analyse transcripts **off the critical path**. No loop and no subagent ever files one by hand. | `issue-loop-core/SKILL.md:269-277`, `rework-loop/SKILL.md:104-106` |
-| **Inbox filter** | Open issues labelled `proto-learning` and **not** labelled `triaged`. Malformed records get a comment asking for a reformat, not a guess. Empty inbox → report and stop. | prototype `triage-learnings` Step 1 |
+| **Input** | `ops/proto-learning` issues in the inbox repo, filed by read-only `SubagentStop` / `SessionEnd` hooks that analyse transcripts **off the critical path**. No loop and no subagent ever files one by hand. | `issue-loop-core/SKILL.md:269-277`, `rework-loop/SKILL.md:104-106` |
+| **Inbox filter** | Open issues labelled `ops/proto-learning` and **not** labelled `ops/triaged`. Malformed records get a comment asking for a reformat, not a guess. Empty inbox → report and stop. | prototype `triage-learnings` Step 1 |
 | **The record** | Body = one fenced `json` block plus a freeform **Notes** section. Fields: `sourceRepo`, `sourceIssue`, `pr`, `category` (a closed 9-value set), `lesson`, `detail`, `fix`, `guessedHome`, `modelTier`, `phase`. `guessedHome` is a **hint**; triage decides for real. The capture hook skips an exact-title duplicate itself, so the analyzer needs no dedupe. | prototype `references/proto-learning-schema.md` |
 | **Operations** | **cluster/dedupe** → **threshold** → **route** → **mark processed**. | `marketplace.json:96`; prototype `triage-learnings` Steps 1–5 |
 | **Dedupe key** | Same `sourceRepo` + same `category` + a **semantically equivalent** `lesson`. One cluster = one routed item, carrying **every** source issue number as provenance. Judgement, done across the whole open set at once, not per-issue. | prototype `triage-learnings` Step 2 |
 | **Threshold** | **≥ 2** distinct source issues in a cluster, *or* the same lesson seen on **≥ 2** `sourceRepo`s, to earn a shared-skills PR. A single occurrence gets an owning-repo issue or is **held** (left open, uncommented). `loop-self` items are **not** threshold-gated. | prototype `triage-learnings` Step 3 |
-| **Output** | **One routed item per cluster**, and the mechanism differs by destination: an **issue** on the owning repo, a drafted **PR** for shared skills only, a **`loop-improvement` issue** for the loop itself, or close-with-reason. `issue-loop-core/SKILL.md:274`'s "turns those into PRs" is true of exactly one destination in four. | prototype `triage-learnings` routing table |
+| **Output** | **One routed item per cluster**, and the mechanism differs by destination: an **issue** on the owning repo, a drafted **PR** for shared skills only, a **`ops/loop-improvement` issue** for the loop itself, or close-with-reason. `issue-loop-core/SKILL.md:274`'s "turns those into PRs" is true of exactly one destination in four. | prototype `triage-learnings` routing table |
 | **Cadence** | **Weekly, scheduled** — a batch sweep of the open inbox, capped at **10** routed items per run of which **≤ 5** may be PRs; overflow is logged and deferred, never dropped. | prototype `triage-learnings`, "Running as a scheduled routine" + Caps |
-| **The compounding gate** | A routed issue re-enters the work loop **only when a human adds `ready-for-ai`**. Triage must not apply it. | prototype `docs/self-learning-system.md` §2 |
+| **The compounding gate** | A routed issue re-enters the work loop **only when a human adds `ops/ready-for-ai`**. Triage must not apply it. | prototype `docs/self-learning-system.md` §2 |
 
 **The destinations** — named three ways across the two repos, and reconciling cleanly once the
 prototype supplies the mechanism column this plan was missing:
@@ -285,7 +290,7 @@ prototype supplies the mechanism column this plan was missing:
 |---|---|---|---|---|
 | owning repo | `product-repo` | `mcp-repo` | **Issue** on the repo the work was done in, titled `[from-learnings] …`, hinting `CLAUDE.md` vs a project-local skill and letting that repo decide placement. **Never a PR** — "Loop B does not hand-edit product repos." | `ops-repo-meta` role `code` |
 | shared-skills PR | `shared-skills` | `shared-mcp-skills` | **Drafted PR** carrying the *smallest* edit to the shared skill that should have surfaced the lesson. Threshold + provenance required, no exceptions. | the shared **consumer** repo of a repo family — **still no role for it** (§7) |
-| loop-improvement issue | `loop-self` | `loop-self` | **Issue** labelled `loop-improvement`. The loop must not rewrite its own definition unreviewed, so never a PR. | a fixed engine fact, not repo data |
+| loop-improvement issue | `loop-self` | `loop-self` | **Issue** labelled `ops/loop-improvement`. The loop must not rewrite its own definition unreviewed, so never a PR. | a fixed engine fact, not repo data |
 | — | — | *discard* | **Close** the source issue with a one-line reason. | — |
 
 That fourth outcome matters: a plan that only lists three destinations implies every proto-learning
@@ -295,7 +300,7 @@ result.
 Also normative in the prototype and worth carrying: **provenance on every routed item** (the source
 issue numbers linked, the `sourceRepo#issue` / PR each came from, and the occurrence count as
 threshold evidence) — "reviewers approve facts, not vibes". And **marking processed differs by
-destination**: a shared-skills PR labels each source `triaged` but leaves it **open** until the PR
+destination**: a shared-skills PR labels each source `ops/triaged` but leaves it **open** until the PR
 merges, so a rejected PR can't silently lose the lesson; issue destinations close the source, since
 the learning now lives in the new issue.
 
@@ -305,8 +310,8 @@ Where `learning.inbox` lands is now **settled** — `topology` role **`learnings
 `code` when unspecified (§1a, §9b.8).
 
 **Not open any more: the trigger.** Triage is a **weekly scheduled sweep**, not an event route. The
-prototype schedules it as a cloud routine and filters the inbox on `proto-learning` +
-not-`triaged`; **`triaged` is an output marker written by triage**, not an input label a human or a
+prototype schedules it as a cloud routine and filters the inbox on `ops/proto-learning` +
+not-`ops/triaged`; **`ops/triaged` is an output marker written by triage**, not an input label a human or a
 hook applies. So there is no triage label, no fifth route row, and nobody to decide who labels. The
 per-run caps only make sense for a batch, and a sweep is what `issue-loop-core:274`'s "a separate
 triage routine **later**" was describing all along.
@@ -568,9 +573,9 @@ for the evidence:
 
 | Prerequisite | Forms | Automate | Why |
 |---|---|---|---|
-| Create the trigger labels (`ready-for-ai`, `auto-merge`, …) | needed | needed | none exist in either repo today; nothing can be routed without them |
+| Create the trigger labels (`ops/ready-for-ai`, `ops/auto-merge`, …) | needed | needed | none exist in either repo today; nothing can be routed without them |
 | Declare **live lines** + the **primary line** as `ops-repo-meta` facts | needed | needed | multiple majors are live simultaneously; neither is inferable from version numbers |
-| Create the **learnings** labels (`proto-learning`, `triaged`, `loop-improvement`) on the `learnings` repo | needed | needed | the inbox filter is label-based (§2a); `triaged` is written by triage, so it must exist before the first sweep |
+| Create the **learnings** labels (`ops/proto-learning`, `ops/triaged`, `ops/loop-improvement`) on the `learnings` repo | needed | needed | the inbox filter is label-based (§2a); `ops/triaged` is written by triage, so it must exist before the first sweep |
 | Declare the **`learnings`** role | on `umbraco/Forms` — explicitly **not** the public issues repo | resolves to `code`, nothing to declare | a proto-learning is an internal note; Forms' issues repo is public (§1a) |
 | Move the default branch off `v15/dev` | needed | — | routines clone the **default branch** (`README.md` caveat), and Forms' default is a line no longer worked on |
 | `allow_update_branch` → true | needed | needed | both `false`; the loop can't refresh a stale branch before the merge gate |
@@ -634,10 +639,10 @@ the **Decided** line is what binds. The resolution of 8 opened one sub-question,
    spec's YAML examples.
 7. **Remove `ai-ops.yml` entirely** (§5) or keep a thin remnant? → **Decided: remove it entirely**,
    in Phase 8.
-8. **`auto-merge` scope — does `ops-integrate` exist?** → **Decided: A — it exists.**
+8. **`ops/auto-merge` scope — does `ops-integrate` exist?** → **Decided: A — it exists.**
 
    **The status quo is PR-generic, not undecided.** `merge-flow` Step 1 (`SKILL.md:63`) lists open
-   PRs filtered by the label alone — no author check, no `generated-by-ai` filter, no issue link —
+   PRs filtered by the label alone — no author check, no `ops/generated-by-ai` filter, no issue link —
    and every gate in Step 2 (`:70-94`) is a machine-verifiable property of the PR itself: label
    present, CI green, mergeable, base correct. Nothing in the loop needs to know who wrote the PR
    or which issue produced it. `README.md:46` describes it the same way.
@@ -650,7 +655,7 @@ the **Decided** line is what binds. The resolution of 8 opened one sub-question,
      human PRs leave the loop with no replacement, and `ops-change · land` would have to handle PRs
      it never created, reconstructing change context it doesn't have.
 
-   **Resolution: A.** Narrowing would drop working dependabot and human auto-merges, and the
+   **Resolution: A.** Narrowing would drop working dependabot and human ops/auto-merges, and the
    evidence for the general case is stronger than "it's the status quo": Automate has eight merged
    dependabot PRs and one open into `v18/dev` right now, one of which was merged by hand — exactly
    the work the label automates (§8). None of the four gates depends on the PR's provenance, so the
@@ -756,9 +761,15 @@ That was the last thing blocking Phase 3.
   (§2a), which only means anything for a repo family. Needs either a Phase 6b or an explicit
   out-of-scope ruling.
 - ~~**`ops-triage-loop` has no route row, and its destination can't be a dispatch input.**~~
-  **Withdrawn** — it needs no route row. Triage is a weekly scheduled sweep and `triaged` is an
+  **Withdrawn** — it needs no route row. Triage is a weekly scheduled sweep and `ops/triaged` is an
   output marker, not a trigger label (§2a). The other half was true but is now moot: triage picks its
   own destination, so nothing could have passed it as `--target`, and a schedule has none to pass.
+- **Label names are prose in twenty-odd files.** The `ops/` prefix sweep (§10.13) had to touch every
+  skill, template and doc that names a trigger label, because the only machine-readable copy is the
+  four labels in `route-map.json`. The next label change will be the same sweep. The durable fix is
+  already promised by the catalog — `ops-repo-meta · identity` returns "the trigger labels this repo
+  uses, by purpose" — so **Phase 3 should make that the single source and have the loops read it**
+  rather than restating names in prose. Until then, a renamed label silently half-lands.
 - **`scripts/cloud-skill-sync.sh` does not exist.** Both `README.md` and `CLAUDE.md` name it as the
   mechanism that delivers the engine into a cloud routine — the **main runtime** — and the file was
   never ported from the prototype (which has it, as `scripts/cloud-skill-sync/cloud-skill-sync.sh`).
@@ -871,7 +882,7 @@ recording in the spec rather than silently contradicting it.
 | 4 | **Four extra catalog fields**, none of which the spec requires or forbids: **`visibility`** (§3.1); **`kind`** (`behavioral` / `data`, which is what selects whether conformance §4.4's data carve-out applies to a capability); **`framework_default`** (so the installer can report `inherited` rather than `missing` — without it, coverage cannot distinguish the two); and top-level **`reserved_skill_names`** (conformance §2.3's prose list, made machine-readable so the router and the installer validate against one source instead of two restatements). `catalog.schema.json` is therefore a deliberate **superset** of conformance §5.2–5.3, and none of the four may be presented as a spec requirement. | additive, low risk |
 | 5 | **`ops-ci` has a `log` action**; both docs list `status` only. | additive, agreed on PR #4 |
 | 6 | **The spec relies on same-name shadowing; this repo found it doesn't work.** Conformance §2.3 permits a repo to take a reserved name "if it intends to *shadow*", §6.6 states a same-named repo loop "**shadows**" a core loop, and layer 1 §06 offers shadowing as a customisation route. `CLAUDE.md:18` records the opposite from experience: plugin skills are namespaced, project skills are not, cloud delivers both flat into overlapping locations with undocumented precedence — which is *why* this engine binds by config pointer today and why §1's whole model is convention-by-name. **The spec's customisation story is unsound on this point**; overlay-plus-a-differently-named-loop is the mechanism that actually works. Needs correcting in the spec, not worked around here. | **conflict — spec is wrong** |
-| 7 | **Framework loops are renamed to `ops-<noun>-loop`** (§2). Conformance §2.3 fixes the reserved list as `ops-merge-flow` / `ops-auto-release` / `ops-rework` / `ops-triage`; we use `ops-merge-loop` / `ops-release-loop` / `ops-rework-loop` / `ops-triage-loop`. One consistent shape, and the suffix keeps loops out of the `ops-<capability>` namespace, so a loop can never collide with the capability of the same name. `loop-dispatch` and `ops-install` stay as they are, being a router and an installer rather than loops. | agreed — raised in review on PR #4 |
+| 7 | **Framework loops are renamed to `ops-<noun>-loop`** (§2). Conformance §2.3 fixes the reserved list as `ops-merge-flow` / `ops-ops/auto-release` / `ops-rework` / `ops-triage`; we use `ops-merge-loop` / `ops-release-loop` / `ops-rework-loop` / `ops-triage-loop`. One consistent shape, and the suffix keeps loops out of the `ops-<capability>` namespace, so a loop can never collide with the capability of the same name. `loop-dispatch` and `ops-install` stay as they are, being a router and an installer rather than loops. | agreed — raised in review on PR #4 |
 | 8 | **`learnings` is a fourth canonical topology role.** Conformance §7.2 fixes the roles at `code` / `issues` / `releases`; we add **`learnings`** — the repo proto-learning issues are filed on — carrying the same "an unspecified role resolves to `code`" rule and needing one new §7.3 row (file / label / close proto-learnings → `learnings`). It is a role in substance: it answers "what is this repo *to* a loop". It **cannot** collapse into `issues`, because Forms' issues repo is public while a proto-learning is an internal note about how a build went (§1a) — and it cannot be a fixed engine fact either, because the prototype filed into its *own* ops repo and neither consumer would want that. Rides along with the §9b.1 amendment the spec already owes. | agreed — closes §9a.1 |
 
 ### 9c. Worth mining, not yet decided
@@ -899,3 +910,35 @@ written by people thinking about the same problem:
 
 Neither is committed to `docs/` — they are superseded, and committing them as "the spec" would
 create exactly the second source of truth this migration exists to kill.
+
+---
+
+## 10. Deviations log — what execution changed about this plan
+
+**Every phase appends to this table before it is called done.** A phase that changes nothing
+adds a row saying so.
+
+The plan is written before the work; the work always knows more. Two failure modes this table
+exists to prevent: silently doing something other than what was agreed, and re-arguing a
+question that was already settled with evidence nobody wrote down. §6 is the *decision* log
+(what we chose, and why, before building). §9b records where we knowingly diverge from the
+**spec**. This is the third thing: where we diverged from **this plan**, while carrying it out.
+
+Kind: **added** = did more than the plan asked · **changed** = did it differently ·
+**dropped** = did less, on purpose · **corrected** = the plan was factually wrong.
+
+| # | Phase | Kind | The plan said | What we did, and why |
+|---|---|---|---|---|
+| 1 | 0 | **changed** | §9a listed seven "accidental" gaps to fix *in the plan*. | Six were slips and were fixed. The seventh (§9a.1, the `learnings` role) was not a slip but an unmade decision, so it was **promoted to §9b.8** as a deliberate spec divergence rather than papered over. A gap list that can only ever be "fixed" hides decisions inside corrections. |
+| 2 | 0 | **corrected** | §2a: the learnings threshold, dedupe key and trigger were "genuinely open, not recoverable from history". | All three are fully specified in the `umbraco-mcp-ops` prototype, which the audit never read. §2a is rewritten from it. The plan had searched one repo and concluded the design didn't exist. |
+| 3 | 0 | **corrected** | §2a: triage's output is "a PR, not a comment". | True of exactly one destination in four. The owning-repo and loop-self destinations file **issues** — the prototype is explicit that triage never hand-edits a product repo. |
+| 4 | 2 | **dropped** | Phase 2: "Add the fifth base route row for `ops-triage-loop`." | **No fifth row.** Triage is a weekly *scheduled* sweep and `ops/triaged` is an output marker, not a trigger label. The instruction rested on an assumption the prototype disproves, so the base table stays at four rows and a test asserts the count. |
+| 5 | 1 | **added** | The §1 inventory had no line-resolution action; §9c left `resolve-line` open. | Added **`ops-repo-meta · lines`** (live lines, primary line, port order). Settles §9c *as data*, which §8 already implied, and avoids putting a read on `ops-branching` after §9b.3 made it command-only. |
+| 6 | 1 | **added** | §3.1 named one extra catalog field, `visibility`. | **Four**: `visibility`, `kind`, `framework_default`, `reserved_skill_names`. Each earns its place — `kind` selects the §4.4 data carve-out, `framework_default` is the only way coverage can say `inherited` rather than `missing`, and `reserved_skill_names` turns conformance §2.3's prose list into something the router and installer can both check. Recorded in §9b.4. |
+| 7 | 1 | **added** | Phase 1 asked for the catalog, the loop-name reservation and a generated README section. | Also built **`validate-catalog.sh`** (the schema's rules in jq, because hermetic CI has no JSON-Schema validator) and **`catalog-to-readme.sh`** with a `--check` mode, and widened `tests.yml` to find `*.test.sh` anywhere. Without the last one neither new test would have run in CI. |
+| 8 | 1 | **dropped** | §4 offered a mitigation: "write one reference `ops-repo-meta` alongside the catalog" so something exercises the interface before Phase 3. | **Not taken.** The catalog is unexercised until Phase 3, exactly the risk §4 named. Recorded rather than quietly skipped; the cost is that an interface mistake surfaces two phases late. |
+| 9 | 1 | **dropped** | §9c: `repo-meta · feeds` and `repo-meta · protected-branches` were "worth mining". | Both **deliberately deferred**: neither has a caller. `ops-integrate` re-checks CI whether or not a branch is protected, and feed setup is internal to a repo's own `ops-workspace · prepare`. An action with no caller is a guess about the future, and action names are the normative part of the catalog. |
+| 10 | 2 | **changed** | §6.4: the overlay is a committed `.github/ops-routing.yml`. | **`.json`.** `route-event.sh` runs at the CI edge with bash and jq only; jq cannot read YAML, and requiring `yq` would either break the hermetic-test rule or make routing depend on what a runner happens to have installed. §6.6 chose JSON over the spec's YAML for the catalog on the same grounds. §6.4 is amended in place with this reasoning. |
+| 11 | 2 | **changed** | Phase 2: "remove the duplicated `case` fallback." | Removed, and its *behaviour inverted*. A missing table, absent jq, or a rule with an invented event now **exits 2** instead of resolving to `loop=none`. The plan said what to delete but not what should happen instead; a silent `none` means loops stop firing and nobody notices. |
+| 12 | 2 | **added** | Phase 2 listed the table shape, the merge, the renames and the tests. | Also **deleted the `state` field** from the rule shape (no rule used it, and review events aren't in the vocabulary, so it implied a matching mode the spec doesn't have), renamed the *output* key `route=` → `loop=` for one vocabulary, added a **caller-repo checkout** to `loop-dispatch.yml` (without it the overlay isn't on disk at the edge), and shipped `ops-routing.schema.json` + an example. |
+| 13 | 2 | **added** | Nothing in the plan says anything about label naming. | **Every engine-owned label is namespaced `ops/`** — `ops/ready-for-ai`, `ops/auto-merge`, `ops/auto-rework`, `ops/auto-release`, `ops/generated-by-ai`, `ops/ai-blocked`, `ops/proto-learning`, `ops/triaged`, `ops/loop-improvement`, `ops/release-blocked`. Requested in review (28-07-2026). The prefix says at a glance that a label drives automation and keeps engine labels out of a repo's existing triage vocabulary. Enforced by pattern in `route-map.schema.json` (engine-owned) and a test; a **SHOULD** only in `ops-routing.schema.json`, because an overlay legitimately routes on labels a repo had before the engine arrived. Every §8/Phase 6 prerequisite about creating labels now means the prefixed names. |

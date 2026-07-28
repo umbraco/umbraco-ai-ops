@@ -5,7 +5,7 @@ description: >-
   checks the PR against the release-review-checklist AND reasons about whether anything
   looks wrong or risky to ship, then returns VERDICT: PASS or VERDICT: BLOCK + findings.
   Read-only by design — it inspects and judges; it cannot merge, tag, publish, push, or
-  edit. Use as the gate before an irreversible auto-release publish.
+  edit. Use as the gate before an irreversible ops/auto-release publish.
 model: opus
 tools: Read, Grep, Glob
 ---

@@ -33,7 +33,7 @@ below before merging/tagging/publishing.
 | 4 | **PR scope is release-only** | BLOCK (unexpected code) / WARN (large but explained) | A release PR should be essentially version-file bumps + changelog (+ any security fixes it rolled in). Unexpected source/behaviour changes or files outside the expected set → BLOCK. A large-but-accounted-for diff → WARN. |
 | 5 | **Mergeable — no conflicts** | BLOCK | The PR reports mergeable with no conflicts against the resolved `release_base`. If it's behind the base, it must be updated and re-greened — never force-merged. |
 | 6 | **Correct base & source branch** | BLOCK | Targets the resolved `branching.release_base`, from a `release/<version>` branch cut off the resolved `branching.base`. Not a stray branch, not the wrong base. (Base names are config-resolved, never assumed.) |
-| 7 | **CI genuinely green** | BLOCK | Every required check passed — not pending, not a should-have-run check that was skipped. Re-confirm; never trust a bypassing auto-merge. |
+| 7 | **CI genuinely green** | BLOCK | Every required check passed — not pending, not a should-have-run check that was skipped. Re-confirm; never trust a bypassing ops/auto-merge. |
 | 8 | **Changelog updated & matches** | WARN | The changelog / release notes were updated and reference this version. |
 
 ## Adding checks

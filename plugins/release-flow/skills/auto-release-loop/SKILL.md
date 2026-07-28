@@ -4,7 +4,7 @@ description: >-
   Event-triggered release with NO mid-flow human approval, guarded by two automated
   gates: green CI, then an Opus pre-publish review against a (repo-overridable) checklist
   (version correctness, beta-vs-latest, PR scope, conflicts, wrong base, …). When an issue
-  titled `release <version>` is labelled `auto-release`, this cuts the release branch, bumps
+  titled `release <version>` is labelled `ops/auto-release`, this cuts the release branch, bumps
   version files + changelog, opens the PR to the release base, drives CI green, runs the
   review (a BLOCK finding stops it), then publishes (merge, tag, GitHub Release) and
   back-merges into the integration base, commenting + closing the triggering issue. When
@@ -12,14 +12,14 @@ description: >-
   to that applied-repo skill and only orchestrates + gates. Sends a Claude push notification
   at start and on completion. The deliberate act of labelling the issue is the human
   decision. Requires the github-ops skill. Trigger from a routine on Issue: Labeled =
-  auto-release, or run manually as "auto-release-loop <version>".
+  ops/auto-release, or run manually as "auto-release-loop <version>".
 ---
 
 # auto-release-loop
 
 The release loop: **issue-triggered and CI-gated, with no mid-flow human approval.** Two
 deliberate signals are the go-ahead: (1) a maintainer opened an issue naming the version
-and applied the **`auto-release`** label, and (2) **CI on the release PR is green**.
+and applied the **`ops/auto-release`** label, and (2) **CI on the release PR is green**.
 That's it — no approval pause — by design, for fast beta/pre-release cycles.
 
 ## Orchestrate at the engine; defer the mechanics
@@ -44,11 +44,11 @@ the literal `dev`/`main`** — use the resolved values. (In `main-only` there is
 > **Publishing is irreversible.** Once CI is green this ships with no further human
 > look, and a published package version can't be cleanly un-published (you'd ship a
 > follow-up). Use this only where **CI-green is a sufficient gate** — the deliberate
-> `auto-release` label is the one human decision.
+> `ops/auto-release` label is the one human decision.
 
 ## Trigger & input
 
-- Fired by a routine on **Issue: Labeled → `auto-release`** (instant), or run manually
+- Fired by a routine on **Issue: Labeled → `ops/auto-release`** (instant), or run manually
   as "auto-release-loop <version>".
 - **Version** = parsed from the triggering issue's **title** (e.g.
   `release 18.0.0-beta3` → `18.0.0-beta3`). If the title has no clear
@@ -63,7 +63,7 @@ the literal `dev`/`main`** — use the resolved values. (In `main-only` there is
 ## The `/goal`
 
 ```
-/goal auto-release <version> of <repo>: release/<version> cut from <base>; version files + changelog bumped; PR to <release_base> is green; pre-publish review passed with no BLOCK; merged to <release_base>; tagged v<version>; GitHub Release published (prerelease if <version> has a pre-release suffix); <release_base> back-merged into <base>; triggering issue commented and closed. (base/release_base resolved from config; mechanics via branching.release_skill when set.)
+/goal ops/auto-release <version> of <repo>: release/<version> cut from <base>; version files + changelog bumped; PR to <release_base> is green; pre-publish review passed with no BLOCK; merged to <release_base>; tagged v<version>; GitHub Release published (prerelease if <version> has a pre-release suffix); <release_base> back-merged into <base>; triggering issue commented and closed. (base/release_base resolved from config; mechanics via branching.release_skill when set.)
 ```
 
 ## Step 1 — prepare (autonomous)
@@ -88,7 +88,7 @@ settles, then require **every** check to pass. Fix failures on the release branc
 issue loop's **8-attempt** cap applies). **CI-green is required** — there is no human
 approval step, but the Step 2.5 review is a second, automated gate. If CI can't be made
 green, **stop**, comment the blocker on the issue, and leave the PR open. **Never publish
-on red**, never trust a bypassing auto-merge.
+on red**, never trust a bypassing ops/auto-merge.
 
 ## Step 2.5 — pre-publish review (second gate)
 
@@ -111,11 +111,11 @@ verdict** (the agent is read-only and can't publish itself).
   1. **Create a new issue** in the repo titled `Release <version> blocked by pre-publish
      review`, detailing the reviewer's BLOCK findings (each: which check / what's wrong /
      why) plus links to the release PR and the triggering issue. Label it
-     `release-blocked` if that label exists.
+     `ops/release-blocked` if that label exists.
   2. **Send a Claude push notification** (the `PushNotification` tool) summarising the
      block and linking the new issue.
   3. **Comment on the triggering issue** pointing to the blocked issue + PR, and **remove
-     its `auto-release` label** so the loop doesn't re-fire until a human fixes the cause
+     its `ops/auto-release` label** so the loop doesn't re-fire until a human fixes the cause
      and re-labels.
 - **WARN** findings → proceed, but include them in the completion comment.
 - Continue to publish **only** when the checklist passes with no BLOCK.
@@ -151,7 +151,7 @@ delegated to `branching.release_skill` when set**; otherwise the engine does it:
 
 - **Two gates before publish: CI-green AND the pre-publish review (Step 2.5).**
   Never publish on red, and never publish with an open **BLOCK** finding. No human
-  approval step by design — labelling the issue `auto-release` was the human decision.
+  approval step by design — labelling the issue `ops/auto-release` was the human decision.
   These gates are the engine's job **even when the mechanics are delegated** to
   `branching.release_skill` — delegation never bypasses a gate.
 - **A BLOCK is always surfaced, never silent** — file a `Release <version> blocked …`
@@ -166,7 +166,7 @@ delegated to `branching.release_skill` when set**; otherwise the engine does it:
 ## Running as a routine
 
 Set up a routine with trigger **Issue: Labeled**, filtered to **Labels is one of
-`auto-release`**, on an environment that has this skill (+ `github-ops`,
+`ops/auto-release`**, on an environment that has this skill (+ `github-ops`,
 `release-and-branching`, `sync-dev`) — then labelling a `release <version>` issue fires
 it. The version comes from the issue, so nothing else needs configuring per run.
-*(The `auto-release` label must exist on the target repo.)*
+*(The `ops/auto-release` label must exist on the target repo.)*

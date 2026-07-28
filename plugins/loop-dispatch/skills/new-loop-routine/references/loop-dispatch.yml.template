@@ -14,7 +14,7 @@
 # workflow from the PR's BASE branch, and our loop PRs target `dev` (a non-default
 # branch), where GitHub does not fire the `labeled` trigger. `pull_request_target` always
 # runs from the base repo's DEFAULT branch, WITH secrets, regardless of the PR's base — so
-# `auto-merge` / `auto-rework` fire on dev-based PRs. It's safe here because this caller
+# `ops/auto-merge` / `ops/auto-rework` fire on dev-based PRs. It's safe here because this caller
 # never checks out or executes PR head code — it only forwards event metadata to the
 # reusable workflow, which routes on the payload and checks out trusted umbraco-ai-ops.
 #

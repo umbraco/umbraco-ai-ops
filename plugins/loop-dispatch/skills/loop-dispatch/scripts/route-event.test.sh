@@ -46,15 +46,15 @@ expect_rc() {
 }
 
 # --- the base table, by flags ---------------------------------------------
-expect_loop "issue ready-for-ai -> ops-issue-loop"   ops-issue-loop   -- --event issues --action labeled --label ready-for-ai --number 5 --repo o/r
-expect_loop "issue auto-release -> ops-release-loop" ops-release-loop -- --event issues --action labeled --label auto-release --number 9 --repo o/r
-expect_loop "pr auto-merge -> ops-merge-loop"        ops-merge-loop   -- --event pull_request --action labeled --label auto-merge --number 42 --repo o/r
-expect_loop "pr auto-rework -> ops-rework-loop"      ops-rework-loop  -- --event pull_request --action labeled --label auto-rework --number 50 --repo o/r
+expect_loop "issue ops/ready-for-ai -> ops-issue-loop"   ops-issue-loop   -- --event issues --action labeled --label ops/ready-for-ai --number 5 --repo o/r
+expect_loop "issue ops/auto-release -> ops-release-loop" ops-release-loop -- --event issues --action labeled --label ops/auto-release --number 9 --repo o/r
+expect_loop "pr ops/auto-merge -> ops-merge-loop"        ops-merge-loop   -- --event pull_request --action labeled --label ops/auto-merge --number 42 --repo o/r
+expect_loop "pr ops/auto-rework -> ops-rework-loop"      ops-rework-loop  -- --event pull_request --action labeled --label ops/auto-rework --number 50 --repo o/r
 
 # pull_request_target is what the live caller fires (runs from the default branch with
 # secrets, so it reaches dev-based PRs); it normalises to pull_request.
-expect_loop "pr_target auto-merge normalises"        ops-merge-loop   -- --event pull_request_target --action labeled --label auto-merge --number 42 --repo o/r
-expect_loop "pr_target auto-rework normalises"       ops-rework-loop  -- --event pull_request_target --action labeled --label auto-rework --number 50 --repo o/r
+expect_loop "pr_target ops/auto-merge normalises"        ops-merge-loop   -- --event pull_request_target --action labeled --label ops/auto-merge --number 42 --repo o/r
+expect_loop "pr_target ops/auto-rework normalises"       ops-rework-loop  -- --event pull_request_target --action labeled --label ops/auto-rework --number 50 --repo o/r
 
 # --- no match is a normal, quiet outcome ----------------------------------
 expect_loop "pr dependencies -> none (the 4x bug)"   none -- --event pull_request --action labeled --label dependencies --number 269 --repo o/r
@@ -63,30 +63,30 @@ expect_loop "issue bug -> none"                      none -- --event issues --ac
 expect_loop "an in-vocab event with no rule -> none" none -- --event pull_request --action opened --number 42 --repo o/r
 expect_loop "an out-of-vocab event -> none"          none -- --event release --action published --number 1 --repo o/r
 expect_loop "review submitted -> none (not in the vocabulary at all)" none -- --event pull_request_review --action submitted --number 42 --repo o/r
-expect_loop "an event with no action -> none"         none -- --event issues --label ready-for-ai --repo o/r
+expect_loop "an event with no action -> none"         none -- --event issues --label ops/ready-for-ai --repo o/r
 expect_loop "no input at all -> none"                none --
 expect_rc   "no match still exits 0"                 0    -- --event issues --action labeled --label bug --repo o/r
 
 # --- the label must match exactly -----------------------------------------
 expect_loop "a label prefix does not match"          none -- --event issues --action labeled --label ready --number 1 --repo o/r
-expect_loop "a label suffix does not match"          none -- --event issues --action labeled --label very-ready-for-ai --number 1 --repo o/r
+expect_loop "a label suffix does not match"          none -- --event issues --action labeled --label ops/ready-for-ai-too --number 1 --repo o/r
 
 # --- raw-JSON payloads (event name passed separately, as GitHub does) -----
-expect_json "raw json auto-merge PR" \
+expect_json "raw json ops/auto-merge PR" \
   "loop=ops-merge-loop repo=a/b number=7" \
-  '{"action":"labeled","label":{"name":"auto-merge"},"pull_request":{"number":7},"repository":{"full_name":"a/b"}}' \
+  '{"action":"labeled","label":{"name":"ops/auto-merge"},"pull_request":{"number":7},"repository":{"full_name":"a/b"}}' \
   pull_request
 expect_json "raw json dependencies PR -> none" \
   "loop=none repo=a/b number=269" \
   '{"action":"labeled","label":{"name":"dependencies"},"pull_request":{"number":269},"repository":{"full_name":"a/b"}}' \
   pull_request
-expect_json "raw json ready-for-ai issue" \
+expect_json "raw json ops/ready-for-ai issue" \
   "loop=ops-issue-loop repo=a/b number=5" \
-  '{"action":"labeled","label":{"name":"ready-for-ai"},"issue":{"number":5},"repository":{"full_name":"a/b"}}' \
+  '{"action":"labeled","label":{"name":"ops/ready-for-ai"},"issue":{"number":5},"repository":{"full_name":"a/b"}}' \
   issues
-expect_json "raw json auto-rework via pull_request_target" \
+expect_json "raw json ops/auto-rework via pull_request_target" \
   "loop=ops-rework-loop repo=a/b number=8" \
-  '{"action":"labeled","label":{"name":"auto-rework"},"pull_request":{"number":8},"repository":{"full_name":"a/b"}}' \
+  '{"action":"labeled","label":{"name":"ops/auto-rework"},"pull_request":{"number":8},"repository":{"full_name":"a/b"}}' \
   pull_request_target
 expect_json "raw json review submitted -> none" \
   "loop=none repo=a/b number=8" \
@@ -94,22 +94,22 @@ expect_json "raw json review submitted -> none" \
   pull_request_review
 
 # --- cross-repo target ----------------------------------------------------
-out="$(bash "$SCRIPT" --event issues --action labeled --label ready-for-ai --number 5 --repo own/issues --target own/code </dev/null)"
+out="$(bash "$SCRIPT" --event issues --action labeled --label ops/ready-for-ai --number 5 --repo own/issues --target own/code </dev/null)"
 if [ "$out" = "loop=ops-issue-loop repo=own/issues number=5 target=own/code" ]; then pass=$((pass+1))
 else fail=$((fail+1)); echo "FAIL: cross-repo target emitted — got [$out]"; fi
-out="$(bash "$SCRIPT" --event issues --action labeled --label ready-for-ai --number 5 --repo own/code --target own/code </dev/null)"
+out="$(bash "$SCRIPT" --event issues --action labeled --label ops/ready-for-ai --number 5 --repo own/code --target own/code </dev/null)"
 if [ "$out" = "loop=ops-issue-loop repo=own/code number=5" ]; then pass=$((pass+1))
 else fail=$((fail+1)); echo "FAIL: same-repo target omitted — got [$out]"; fi
 
 # --- base + overlay merge -------------------------------------------------
 cat > "$TMP/add.json" <<'JSON'
-{ "version": 2, "routes": [ { "event": "issues.labeled", "label": "needs-ai", "loop": "ops-issue-loop" } ] }
+{ "version": 2, "routes": [ { "event": "issues.labeled", "label": "ops/needs-ai", "loop": "ops-issue-loop" } ] }
 JSON
 cat > "$TMP/disable.json" <<'JSON'
-{ "version": 2, "routes": [ { "event": "pull_request.labeled", "label": "auto-rework", "loop": null } ] }
+{ "version": 2, "routes": [ { "event": "pull_request.labeled", "label": "ops/auto-rework", "loop": null } ] }
 JSON
 cat > "$TMP/retarget.json" <<'JSON'
-{ "version": 2, "routes": [ { "event": "pull_request.labeled", "label": "auto-merge", "loop": "repo-own-merge" } ] }
+{ "version": 2, "routes": [ { "event": "pull_request.labeled", "label": "ops/auto-merge", "loop": "repo-own-merge" } ] }
 JSON
 cat > "$TMP/opened.json" <<'JSON'
 { "version": 2, "routes": [ { "event": "issues.opened", "label": "", "loop": "ops-triage-loop" } ] }
@@ -118,16 +118,16 @@ cat > "$TMP/none.json" <<'JSON'
 { "version": 2, "routes": [] }
 JSON
 
-expect_loop "overlay ADDS a label"                 ops-issue-loop -- --overlay "$TMP/add.json" --event issues --action labeled --label needs-ai --repo o/r --number 1
-expect_loop "overlay leaves the base intact"       ops-issue-loop -- --overlay "$TMP/add.json" --event issues --action labeled --label ready-for-ai --repo o/r --number 1
-expect_loop "overlay DISABLES with loop:null"      none           -- --overlay "$TMP/disable.json" --event pull_request --action labeled --label auto-rework --repo o/r --number 1
-expect_loop "a disable does not touch its sibling" ops-merge-loop -- --overlay "$TMP/disable.json" --event pull_request --action labeled --label auto-merge --repo o/r --number 1
-expect_loop "overlay WINS on a shared key"         repo-own-merge -- --overlay "$TMP/retarget.json" --event pull_request --action labeled --label auto-merge --repo o/r --number 1
+expect_loop "overlay ADDS a label"                 ops-issue-loop -- --overlay "$TMP/add.json" --event issues --action labeled --label ops/needs-ai --repo o/r --number 1
+expect_loop "overlay leaves the base intact"       ops-issue-loop -- --overlay "$TMP/add.json" --event issues --action labeled --label ops/ready-for-ai --repo o/r --number 1
+expect_loop "overlay DISABLES with loop:null"      none           -- --overlay "$TMP/disable.json" --event pull_request --action labeled --label ops/auto-rework --repo o/r --number 1
+expect_loop "a disable does not touch its sibling" ops-merge-loop -- --overlay "$TMP/disable.json" --event pull_request --action labeled --label ops/auto-merge --repo o/r --number 1
+expect_loop "overlay WINS on a shared key"         repo-own-merge -- --overlay "$TMP/retarget.json" --event pull_request --action labeled --label ops/auto-merge --repo o/r --number 1
 expect_loop "an empty label reaches an .opened rule" ops-triage-loop -- --overlay "$TMP/opened.json" --event issues --action opened --repo o/r --number 1
-expect_loop "an empty overlay changes nothing"     ops-issue-loop -- --overlay "$TMP/none.json" --event issues --action labeled --label ready-for-ai --repo o/r --number 1
+expect_loop "an empty overlay changes nothing"     ops-issue-loop -- --overlay "$TMP/none.json" --event issues --action labeled --label ops/ready-for-ai --repo o/r --number 1
 
 # $ROUTE_OVERLAY is the env equivalent of --overlay (what the caller workflow sets).
-out="$(ROUTE_OVERLAY="$TMP/add.json" bash "$SCRIPT" --event issues --action labeled --label needs-ai --repo o/r --number 1 </dev/null)"
+out="$(ROUTE_OVERLAY="$TMP/add.json" bash "$SCRIPT" --event issues --action labeled --label ops/needs-ai --repo o/r --number 1 </dev/null)"
 if [ "${out%% *}" = "loop=ops-issue-loop" ]; then pass=$((pass+1))
 else fail=$((fail+1)); echo "FAIL: \$ROUTE_OVERLAY honoured — got [$out]"; fi
 
@@ -136,9 +136,9 @@ printf '{ not json' > "$TMP/broken.json"
 cat > "$TMP/badevent.json" <<'JSON'
 { "version": 2, "routes": [ { "event": "issues.label", "label": "x", "loop": "ops-issue-loop" } ] }
 JSON
-expect_rc "an unreadable overlay exits 2"        2 -- --overlay "$TMP/broken.json" --event issues --action labeled --label ready-for-ai --repo o/r
-expect_rc "a missing overlay file exits 2"       2 -- --overlay "$TMP/nope.json"   --event issues --action labeled --label ready-for-ai --repo o/r
-expect_rc "an invented event in a rule exits 2"  2 -- --overlay "$TMP/badevent.json" --event issues --action labeled --label ready-for-ai --repo o/r
+expect_rc "an unreadable overlay exits 2"        2 -- --overlay "$TMP/broken.json" --event issues --action labeled --label ops/ready-for-ai --repo o/r
+expect_rc "a missing overlay file exits 2"       2 -- --overlay "$TMP/nope.json"   --event issues --action labeled --label ops/ready-for-ai --repo o/r
+expect_rc "an invented event in a rule exits 2"  2 -- --overlay "$TMP/badevent.json" --event issues --action labeled --label ops/ready-for-ai --repo o/r
 
 # --- the base table itself conforms ---------------------------------------
 check_base() { # check_base <name> <jq filter yielding true>
@@ -154,6 +154,7 @@ check_base "every rule has event, label and loop" \
 check_base "(event,label) is unique" \
   '([.routes[] | [.event, .label]] | length) == ([.routes[] | [.event, .label]] | unique | length)'
 check_base 'no rule targets the "none" sentinel' '.routes | all(.loop != "none")'
+check_base "every trigger label is namespaced ops/" '.routes | all(.label | startswith("ops/"))'
 check_base "it has exactly four rows, because triage is scheduled rather than routed" '(.routes | length) == 4'
 
 # Every loop in the base table must be a name the CATALOG reserves. That cross-check is

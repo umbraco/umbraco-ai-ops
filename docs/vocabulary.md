@@ -62,7 +62,7 @@ notifications are cross-cutting.**
 | **caller workflow** | The workflow in a consumer repo that calls the engine's reusable dispatch workflow. |
 | **routine** | A scheduled/triggered cloud run of a loop. The delivery vehicle, not the logic. |
 | **proto-learning** | A raw, un-triaged observation filed as a GitHub issue by the capture hooks — a note that *something is worth improving somewhere*, never a fix. Its body is a fenced JSON record plus freeform notes. |
-| **triage** | The weekly sweep (`ops-triage-loop`) that clusters proto-learnings, applies the threshold, and routes each cluster to its home. **`triaged` is a label triage writes**, never one that triggers it. |
+| **triage** | The weekly sweep (`ops-triage-loop`) that clusters proto-learnings, applies the threshold, and routes each cluster to its home. **`ops/triaged` is a label triage writes**, never one that triggers it. |
 | **cluster** | A set of proto-learnings expressing the same lesson, identified by `sourceRepo` + `category` + semantically equivalent `lesson`. One cluster becomes one routed item, carrying every source issue as provenance. |
 | **threshold** | The bar a cluster clears before it earns a shared-skills PR: ≥ 2 distinct source issues, or the same lesson on ≥ 2 repos. Loop-self items are exempt. |
 

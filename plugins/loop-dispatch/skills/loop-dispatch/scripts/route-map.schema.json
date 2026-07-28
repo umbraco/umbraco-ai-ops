@@ -23,7 +23,8 @@
     },
     "label": {
       "type": "string",
-      "description": "The label that fired. Matched exactly. Use \"\" for an event that carries no label, which is how an `.opened` rule is written."
+      "pattern": "^ops/[a-z][a-z0-9-]*$",
+      "description": "The label that fired. Matched exactly. Every label the engine owns is namespaced `ops/` — the prefix says at a glance that a label drives automation, and keeps our labels out of a repo's existing triage vocabulary. Enforced here because this table is engine-owned; a consumer's overlay is only asked to follow the convention, not held to the pattern (see ops-routing.schema.json)."
     },
     "rule": {
       "type": "object",

@@ -24,7 +24,7 @@
           },
           "label": {
             "type": "string",
-            "description": "The label that fired. Use \"\" for an event carrying no label."
+            "description": "The label that fired. Use \"\" for an event carrying no label. New labels SHOULD be namespaced `ops/` like the engine's own, but this is deliberately NOT enforced with a pattern: an overlay's whole purpose includes routing on a label the repo already had before the engine arrived, and that label's name is not ours to dictate."
           },
           "loop": {
             "type": ["string", "null"],

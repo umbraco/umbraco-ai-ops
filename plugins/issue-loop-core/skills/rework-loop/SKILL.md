@@ -2,20 +2,20 @@
 name: rework-loop
 description: >-
   Label-triggered loop that acts on PR review feedback. When a reviewer has left comments
-  and labels a loop-authored PR `auto-rework`, it reads the feedback, makes the changes
+  and labels a loop-authored PR `ops/auto-rework`, it reads the feedback, makes the changes
   following the repo's build skill conventions and the repo's CLAUDE.md, runs the
   fast local sanity checks, pushes, replies to the threads, re-requests review, and removes
-  the `auto-rework` label — then stops. It does NOT wait for CI (the merge loop won't merge
+  the `ops/auto-rework` label — then stops. It does NOT wait for CI (the merge loop won't merge
   until CI passes, so CI is enforced there) and it never merges. Runs in a cloud routine or
-  locally. Requires the github-ops skill. Trigger: a PR labelled `auto-rework`, or run
+  locally. Requires the github-ops skill. Trigger: a PR labelled `ops/auto-rework`, or run
   manually as "rework PR #N".
 ---
 
 # rework-loop
 
 The **review-response half of the issue loop, split out so it can be event-driven.**
-[`issue-loop-core`](../issue-loop-core/SKILL.md) (cloud mode) takes a `ready-for-ai` issue to
-a CI-green PR and stops; when a reviewer reviews that PR and labels it **`auto-rework`**,
+[`issue-loop-core`](../issue-loop-core/SKILL.md) (cloud mode) takes an `ops/ready-for-ai` issue to
+a CI-green PR and stops; when a reviewer reviews that PR and labels it **`ops/auto-rework`**,
 `rework-loop` picks it up and addresses the feedback — closing the write → review → rework →
 merge chain with no long-lived "monitor my review" session.
 
@@ -26,15 +26,15 @@ scoped changes → push → reply → clear the label.
 
 ## Trigger & scope
 
-- Fired when a PR is labelled **`auto-rework`** (via the loop-dispatch router), or run
+- Fired when a PR is labelled **`ops/auto-rework`** (via the loop-dispatch router), or run
   manually as "rework PR #N". A label rather than the review event because it's uniform with
   the other loops and — unlike a `pull_request_review` — it fires even when the reviewer's
   account is the PR author's (the loop's own identity). Reviewer flow: leave the review
-  comments, then add `auto-rework`.
-- **Read all the feedback first.** The `auto-rework` label is the reviewer's explicit
+  comments, then add `ops/auto-rework`.
+- **Read all the feedback first.** The `ops/auto-rework` label is the reviewer's explicit
   "address these" — so read the review(s) + inline comments on the PR and act on every
   concrete point. If a comment is genuinely unclear, reply on the thread asking rather than
-  guessing. If, after reading, there's truly nothing actionable, remove `auto-rework` with a
+  guessing. If, after reading, there's truly nothing actionable, remove `ops/auto-rework` with a
   note and stop rather than inventing changes.
 - Act on the **labelled PR only** — never touch other PRs.
 
@@ -75,17 +75,17 @@ just burns time and tokens for no benefit.
 
 Immediately after pushing (no waiting for CI): **reply briefly on each addressed thread**
 (what changed), **re-request review** from the original reviewer (github-ops → *Re-request
-review*), and **remove the `auto-rework` label** from the PR (github-ops → *Add / remove a
+review*), and **remove the `ops/auto-rework` label** from the PR (github-ops → *Add / remove a
 label*). The label means "rework pending" — clearing it marks the round done and re-arms the
-trigger, so a later review can re-add `auto-rework` to fire the next round. **Do not merge** —
-re-approval + the merge loop (via the `auto-merge` label) handle that. Send a push
+trigger, so a later review can re-add `ops/auto-rework` to fire the next round. **Do not merge** —
+re-approval + the merge loop (via the `ops/auto-merge` label) handle that. Send a push
 notification: `Reworked PR #N per review — pushed & re-requested review (CI will verify).`
 
 ## Guardrails
 
 - **Only actionable feedback triggers a rework;** a plain approval is a quiet no-op.
 - **Scoped to the review** — resolve what was raised, nothing more; never grow the PR.
-- **Always clear `auto-rework` on exit** — both on completion (Step 4) and on the quiet no-op
+- **Always clear `ops/auto-rework` on exit** — both on completion (Step 4) and on the quiet no-op
   (Step 1) — so the label reflects "rework pending" and the trigger stays re-armable.
 - **Never merge** — re-request review; the merge loop merges once re-approved.
 - **Never wait on CI** — push and hand off. The merge loop won't merge until CI is green, so
@@ -96,11 +96,11 @@ notification: `Reworked PR #N per review — pushed & re-requested review (CI wi
 
 ## Running as a routine
 
-Trigger: a PR labelled **`auto-rework`** (routed by loop-dispatch), on an environment carrying
+Trigger: a PR labelled **`ops/auto-rework`** (routed by loop-dispatch), on an environment carrying
 this skill + `github-ops` (and the repo's build skill conventions). One PR per fire.
 Use a capable coding model (Sonnet or better) — it edits code. If the environment is cloud vs
 local, state that explicitly in the routine prompt.
 
 > **Capture is automatic.** The `learning` plugin's `SubagentStop`/`SessionEnd` hooks analyse
-> the transcript off the critical path and file a `proto-learning` issue if the feedback
+> the transcript off the critical path and file an `ops/proto-learning` issue if the feedback
 > revealed a systemic lesson. You file nothing by hand.

@@ -85,7 +85,7 @@ which use the Azure reference.
 These are policy, not mechanism — they apply whichever reference you use:
 
 - **Never merge without green CI + approval** (poll status; don't rely on an
-  auto-merge that bypasses the gate). See `merge-flow`.
+  ops/auto-merge that bypasses the gate). See `merge-flow`.
 - **Never force-push; never edit a protected branch directly.**
 - **On the web, no local clone** — create the branch and push file contents through
   the MCP server; you don't have a working tree.

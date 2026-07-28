@@ -1,7 +1,7 @@
 ---
 name: issue-loop-core
 description: >-
-  Generic orchestration that turns a repo's open `ready-for-ai` GitHub backlog into
+  Generic orchestration that turns a repo's open `ops/ready-for-ai` GitHub backlog into
   CI-green, reviewed, merged PRs. It owns the durable loop only — the queue, the `/goal`
   terminal condition, rolling cap-3 dispatch, the human-review-response phase, model
   selection, and the stop conditions/backstops — and knows NOTHING about how to build any
@@ -12,17 +12,17 @@ description: >-
   (cap 3), then a review-response loop until merged; CLOUD — one session per issue
   (event-triggered), CI as the test gate, build to a CI-green PR and stop. All GitHub/CI
   work defers to the github-ops skill; the base branch to release-and-branching. github-ops
-  required. Trigger via loop-dispatch on Issue: Labeled `ready-for-ai` (cloud), or "work the
+  required. Trigger via loop-dispatch on Issue: Labeled `ops/ready-for-ai` (cloud), or "work the
   ready issues" / "run the issue loop" (local).
 ---
 
 # issue-loop-core
 
-A durable, product-**agnostic** loop that turns the `ready-for-ai` GitHub backlog into
+A durable, product-**agnostic** loop that turns the `ops/ready-for-ai` GitHub backlog into
 merged PRs. It owns *how to run the loop*; it does **not** own *how to build any one
 product* — that lives in the **repo's own build skill** (see [The build skill](#the-build-skill)).
 
-**How it's invoked.** `loop-dispatch` invokes it on a `ready-for-ai` event (cloud), or you
+**How it's invoked.** `loop-dispatch` invokes it on an `ops/ready-for-ai` event (cloud), or you
 run it over a backlog (local). It is **not** parameterised by an injected "playbook"; it
 reads the repo's **`.claude/ai-ops.yml`** ([`ai-ops.schema.json`](../../../../ai-ops.schema.json))
 for repo facts and finds the repo's build skill from the `playbook` pointer. If there is no
@@ -57,13 +57,13 @@ Review-response reuses the repo's build skill (its review-response section) or t
   one isolated worktree + subagent per issue (cap 3), a build phase then a
   human-review-response phase. That's everything from *Config* through *Rules* below.
 - **Cloud (one-shot per issue)** — set explicitly by the caller (a routine prompt says
-  *run in cloud mode*). A routine fires once per `ready-for-ai` issue (cross-issue
+  *run in cloud mode*). A routine fires once per `ops/ready-for-ai` issue (cross-issue
   parallelism comes from separate sessions); you build that **one** issue to a CI-green PR
   with **CI as the test gate**, then **stop**. See [Cloud mode](#cloud-mode).
 
 In **local mode** you are the **orchestrator**. You own a long-lived loop (it survives
 across turns and scheduled wake-ups) whose terminal condition is: *every open
-`ready-for-ai` issue is in a terminal state.* You reach it by dispatching **one subagent
+`ops/ready-for-ai` issue is in a terminal state.* You reach it by dispatching **one subagent
 per issue, each in its own isolated worktree**, capped at **3 running at once**.
 
 Each issue has a two-part lifecycle:
@@ -84,15 +84,15 @@ Read from the repo's **`.claude/ai-ops.yml`** ([`ai-ops.schema.json`](../../../.
 
 | Key | Meaning | How to resolve | Default |
 |-----|---------|----------------|---------|
-| `repos.inbox` | where `ready-for-ai` issues live | consumer declares it — **required when it differs from `repos.source`** | = `repos.source` |
+| `repos.inbox` | where `ops/ready-for-ai` issues live | consumer declares it — **required when it differs from `repos.source`** | = `repos.source` |
 | `repos.source` | where PRs open | auto-detect: the git remote (github-ops → *Detect base branch / repo*) | current repo |
 | `branching.base` | PR base | detect via the `release-and-branching` skill (gitflow → `dev`) | per release-and-branching |
 | `ci.provider` | which CI reports status | auto-detect (`github-checks` vs `azure-pipelines`); read via github-ops | `github-checks` |
 | `repos.issue_link` | how a PR references its issue | `same-repo-closes` or `cross-repo-full-url` | `same-repo-closes` |
-| `learning.inbox` | where `proto-learning` issues are filed | consumer declares it | — |
+| `learning.inbox` | where `ops/proto-learning` issues are filed | consumer declares it | — |
 | `learning.routing` | where captured learnings route | consumer declares it | — |
 | `playbook` | the repo's build skill this core defers to (the override point) | consumer declares it; scaffolded by ops-setup | `issue-loop` |
-| AI label | the queue gate | fixed | `ready-for-ai` |
+| AI label | the queue gate | fixed | `ops/ready-for-ai` |
 | Concurrency cap | parallel build subagents | fixed | **3** |
 
 **Cross-repo (issues ≠ source).** When `repos.inbox` differs from `repos.source` (issues live
@@ -118,10 +118,10 @@ be installed for this loop to run.**
 
 ## Step 1 — gather the backlog
 
-**List** the open issues labelled `ready-for-ai` on **`repos.inbox`** (github-ops → *List
+**List** the open issues labelled `ops/ready-for-ai` on **`repos.inbox`** (github-ops → *List
 issues by label / state*), reading each one's number/title/body.
 
-- No matching issues → report "nothing labelled `ready-for-ai` is open" and stop. (If the
+- No matching issues → report "nothing labelled `ops/ready-for-ai` is open" and stop. (If the
   label doesn't exist yet, say so — someone has to create and apply it before this loop has
   anything to do.)
 - Otherwise build a queue of `{number, title, body}`. Announce the queue to the user
@@ -134,7 +134,7 @@ Set the durable terminal condition so the loop persists across turns / wake-ups.
 issue or an un-reviewed PR must not keep the loop alive forever):
 
 ```
-/goal every open ready-for-ai issue in <repos.inbox> is in a terminal state — merged, or blocked-with-a-comment, or a CI-green PR awaiting the human's review with no unaddressed feedback — and no actionable work is left in the queue
+/goal every open ops/ready-for-ai issue in <repos.inbox> is in a terminal state — merged, or blocked-with-a-comment, or a CI-green PR awaiting the human's review with no unaddressed feedback — and no actionable work is left in the queue
 ```
 
 Clear it with `/goal clear` when the goal is met or you abort. See
@@ -164,7 +164,7 @@ Track each subagent's result:
 `{issue, worktreeName, worktreePath, branch, prNumber, model, tier}`. A build subagent's job
 is done when its PR is open and CI is green. If a build subagent reports it could not finish
 (ambiguous issue, CI can't be greened), record it as **blocked** — the playbook will have
-labelled the issue `ai-blocked` (removing `ready-for-ai`) and commented the reason; just
+labelled the issue `ops/ai-blocked` (removing `ops/ready-for-ai`) and commented the reason; just
 confirm that happened and move on — don't let one bad issue stall the queue.
 
 Keep dispatching until the queue is empty and all build subagents have returned.
@@ -238,7 +238,7 @@ The loop ends when **no actionable work remains** — not only when everything i
 Actionable work = a queued issue, a running build/response subagent, or a PR with unaddressed
 review feedback. When none of those exist, every remaining issue is already terminal:
 **merged**, **awaiting the human** (CI-green PR, no new feedback), or **blocked** (labelled
-`ai-blocked` with a comment explaining why).
+`ops/ai-blocked` with a comment explaining why).
 
 What happens at that point depends on run mode:
 
@@ -250,18 +250,18 @@ What happens at that point depends on run mode:
   interval and re-check next tick. End the routine only when everything is merged or a
   backstop below trips.
 
-**Safety backstops (all modes) — stop touching an issue, label it `ai-blocked` (remove
-`ready-for-ai`, comment why), and hand back if any trips:**
+**Safety backstops (all modes) — stop touching an issue, label it `ops/ai-blocked` (remove
+`ops/ready-for-ai`, comment why), and hand back if any trips:**
 
 - **CI-green cap** — at most **8** attempts to green one PR's CI. After that, the issue is
-  `ai-blocked` (comment the last failure).
+  `ops/ai-blocked` (comment the last failure).
 - **Review-round cap** — at most **5** requested-changes rounds on one PR without reaching
   approval. After that, hand back — the disagreement needs a human.
 - **No-progress guard** — never retry the same failing command/action verbatim. If a build or
   response pass produces no new state, treat the issue as blocked rather than looping.
 - **Global backstop (unattended)** — bound total wake-ups / dispatches (or a wall-clock/date
   limit). When it trips, `log` what was left undone — never silently drop issues.
-- **Label / issue changes** — if the `ready-for-ai` label is removed or the issue is closed
+- **Label / issue changes** — if the `ops/ready-for-ai` label is removed or the issue is closed
   mid-flight, drop it from the loop immediately.
 
 ## Capturing learnings (compounding)
@@ -269,7 +269,7 @@ What happens at that point depends on run mode:
 Learning capture is **not implemented here.** It is **fully automatic and hook-driven** via
 the separate **`learning`** plugin (installed alongside this one): read-only `SubagentStop`
 and `SessionEnd` hooks analyse each transcript off the critical path and file
-`proto-learning` issues (to `learning.inbox`) when something non-obvious happened — a
+`ops/proto-learning` issues (to `learning.inbox`) when something non-obvious happened — a
 diagnosed CI failure, a repeated mistake, a missing/unclear pattern, a backstop that tripped.
 A separate triage routine later turns those into PRs, routed per `learning.routing`.
 
@@ -279,10 +279,10 @@ learnings inline — do the work well and let the hooks capture.
 
 ## Rules
 
-- **Never touch an issue without the `ready-for-ai` label.** The label is the only gate. If a
+- **Never touch an issue without the `ops/ready-for-ai` label.** The label is the only gate. If a
   human removes it mid-flight, stop work on that issue. The one exception is the **outcome
-  swap** the playbook performs on finishing: it removes `ready-for-ai` and adds
-  `generated-by-ai` (green PR) or `ai-blocked` (backstop tripped) — that's the loop finishing
+  swap** the playbook performs on finishing: it removes `ops/ready-for-ai` and adds
+  `ops/generated-by-ai` (green PR) or `ops/ai-blocked` (backstop tripped) — that's the loop finishing
   the issue, not a human pulling the gate.
 - **One isolated worktree per issue.** How it's provisioned is the consumer playbook's job
   (some ship a project hook that seeds a DB/port/deps; others rely on the Agent tool's
@@ -306,14 +306,14 @@ learnings inline — do the work well and let the hooks capture.
 
 Everything above (Config → Rules) is **local mode**. **Cloud mode** is set explicitly by the
 caller — the routine prompt says *run in cloud mode*. It's **event-triggered, one session per
-`ready-for-ai` issue**, so there's **no cap-3 queue and no worktrees** — cross-issue
+`ops/ready-for-ai` issue**, so there's **no cap-3 queue and no worktrees** — cross-issue
 parallelism comes from separate sessions firing. The session is a **thin orchestrator on a
 cheap base model**: it triages the one issue and dispatches a **single** build subagent on the
 best-fit model — the same *Model selection* logic as local, just one subagent instead of up to
 three.
 
 For the one triggering issue (identify it from the event; if unclear, take the **oldest** open
-`ready-for-ai` issue on `repos.inbox`; none → quiet no-op):
+`ops/ready-for-ai` issue on `repos.inbox`; none → quiet no-op):
 
 1. **Triage + dispatch.** Read the issue, pick its tier from
    [Model selection](#model-selection) (`opus` / `sonnet` / `haiku`; never `fable`; floor
@@ -331,14 +331,14 @@ For the one triggering issue (identify it from the event; if unclear, take the *
    **drive CI green** from the logs (github-ops → *Read a failing check's log*, resolved per
    `ci.provider`; the **8-attempt** cap applies).
 4. **Mark the issue complete, then stop at the CI-green PR.** Once CI is green, run the
-   playbook's outcome step on the triggering issue (on `repos.inbox`) — remove `ready-for-ai`,
-   add `generated-by-ai`, comment the PR link. Removing `ready-for-ai` is what stops this
+   playbook's outcome step on the triggering issue (on `repos.inbox`) — remove `ops/ready-for-ai`,
+   add `ops/generated-by-ai`, comment the PR link. Removing `ops/ready-for-ai` is what stops this
    routine re-firing on the same issue. Then **stop**: do **not** enter a review phase and do
    **not** merge — review-response is [`rework-loop`](../rework-loop/SKILL.md)'s job (it fires
-   on the review event / `auto-rework` label), and merging is the merge-flow loop's.
+   on the review event / `ops/auto-rework` label), and merging is the merge-flow loop's.
 
 **Not used in cloud mode:** the cap-3 queue, worktrees, and the review-response phase. The
 **capture hooks** (`learning` plugin) still run in cloud, so self-learning capture happens
-there too. The same guardrails hold — `ready-for-ai` is the only gate, reviews are
+there too. The same guardrails hold — `ops/ready-for-ai` is the only gate, reviews are
 non-negotiable, follow the repo's `CLAUDE.md`, never leave CI red, and a blocked issue gets
-labelled `ai-blocked` + a comment, then stop.
+labelled `ops/ai-blocked` + a comment, then stop.

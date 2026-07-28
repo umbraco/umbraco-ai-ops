@@ -23,7 +23,7 @@ The routine has **no UI event triggers** — it's fired by the committed GitHub 
 ([`loop-dispatch.yml.template`](loop-dispatch.yml.template)), which subscribes to all the loop events
 and routes them at the edge via `route-event.sh`. The event → loop mapping it enforces (the
 framework base table, plus this repo's optional `.github/ops-routing.json` overlay):
-- Issue labelled `ready-for-ai` → **ops-issue-loop**
-- PR labelled `auto-merge` → **ops-merge-loop**
-- PR labelled `auto-rework` → **ops-rework-loop**
-- Issue labelled `auto-release` → **ops-release-loop**
+- Issue labelled `ops/ready-for-ai` → **ops-issue-loop**
+- PR labelled `ops/auto-merge` → **ops-merge-loop**
+- PR labelled `ops/auto-rework` → **ops-rework-loop**
+- Issue labelled `ops/auto-release` → **ops-release-loop**

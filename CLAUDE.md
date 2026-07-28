@@ -123,6 +123,22 @@ capability verb (`ops-change · implement`). Never interchange them. Phase 3 spl
 out as the `ops-ci` capability; the forge mechanism stays framework mechanics and is not
 overridable.
 
+## Labels are namespaced `ops/`
+
+Every GitHub label the engine owns is prefixed **`ops/`** — `ops/ready-for-ai`,
+`ops/auto-merge`, `ops/auto-rework`, `ops/auto-release`, `ops/generated-by-ai`,
+`ops/ai-blocked`, `ops/proto-learning`, `ops/triaged`, `ops/loop-improvement`,
+`ops/release-blocked`. The prefix says at a glance that a label drives automation, and keeps
+engine labels out of a repo's existing triage vocabulary.
+
+- **Enforced** for the base routing table: `route-map.schema.json` patterns `^ops/…` and
+  `route-event.test.sh` asserts it.
+- **A SHOULD** for a consumer's `.github/ops-routing.json` overlay — an overlay legitimately
+  routes on labels the repo had before the engine arrived, and those names aren't ours.
+- Third-party labels (`dependencies`, `javascript`) are never prefixed; they aren't ours.
+
+When you add a label, prefix it, and add it to the list above.
+
 ## Line endings
 
 Scripts run on Linux routine/CI runners. `.gitattributes` forces `*.sh`/`*.yml` to **LF** —

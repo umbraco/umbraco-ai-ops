@@ -42,8 +42,8 @@ Never use `fable`. Never put secrets in the prompt or config.
 ## Procedure
 
 **Preconditions (once per repo):**
-1. **Labels exist**: `ready-for-ai`, `generated-by-ai`, `ai-blocked`, `auto-merge`,
-   `auto-release`, `release-blocked` (see `self-learning-system.md` §2).
+1. **Labels exist**: `ops/ready-for-ai`, `ops/generated-by-ai`, `ops/ai-blocked`, `ops/auto-merge`,
+   `ops/auto-release`, `ops/release-blocked` (see `self-learning-system.md` §2).
 2. **Skills reach the env** — `loop-dispatch` (and the loops) are in the
    `cloud-skill-sync` `SKILLS` list and the env has been rebuilt (bump `VERSION`, re-paste).
 3. **Org Actions policy** allows calling a reusable workflow from `umbraco/umbraco-ai-ops`
@@ -58,7 +58,7 @@ Never use `fable`. Never put secrets in the prompt or config.
    Fire URL) and `LOOP_DISPATCH_TOKEN` (the token) — `gh secret set …`.
 4. **Commit the caller workflow** — copy [`references/loop-dispatch.yml.template`](references/loop-dispatch.yml.template)
    **verbatim** to the repo as `.github/workflows/loop-dispatch.yml` (open a PR).
-5. **Smoke-test** — label a throwaway issue `ready-for-ai` (Action fires → routine builds
+5. **Smoke-test** — label a throwaway issue `ops/ready-for-ai` (Action fires → routine builds
    a PR), and label a PR `dependencies` (Action computes `loop=none` → routine never fires).
 
 ### Cross-repo consumers (issues and PRs in different repos)
@@ -67,11 +67,11 @@ When a product's issues live in a **separate repo** from its source (e.g.
 `Umbraco.Forms.Issues` → the Forms code repo), the caller workflow is **split across the two
 repos** — the same template, wired to different events in each:
 
-- In the **issues repo**: subscribe to `issues` (labelled `ready-for-ai` / `auto-release`)
+- In the **issues repo**: subscribe to `issues` (labelled `ops/ready-for-ai` / `ops/auto-release`)
   and set `with.target_repo` to the **code repo**, so the route carries `target=<code repo>`
   and the routine works there while reading the issue here.
-- In the **code repo**: subscribe to `pull_request_target` (labelled `auto-merge` /
-  `auto-rework`) — those events fire where the PRs live, no `target_repo` needed.
+- In the **code repo**: subscribe to `pull_request_target` (labelled `ops/auto-merge` /
+  `ops/auto-rework`) — those events fire where the PRs live, no `target_repo` needed.
 
 A same-repo consumer (issues and PRs together) keeps a single workflow subscribing to both,
 with no `target_repo`.

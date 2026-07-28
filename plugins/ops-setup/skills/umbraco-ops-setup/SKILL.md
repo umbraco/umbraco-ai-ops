@@ -42,7 +42,7 @@ via the tool's free-text answer. Batch related decisions into one call (the tool
 4 questions) and use `multiSelect` where a choice isn't exclusive. Never invent a value —
 if it wasn't detected, it must come back through a question. Cover:
 
-- **Issues location** — *not detectable.* "Do `ready-for-ai` issues live in this repo, or a
+- **Issues location** — *not detectable.* "Do `ops/ready-for-ai` issues live in this repo, or a
   separate one?" A separate repo (e.g. `Umbraco.Forms.Issues`) sets `repos.inbox` and
   `issue_link: cross-repo-full-url`; same repo leaves both at their defaults.
 - **CI** — confirm `ci.provider`. If `azure-pipelines`, ask for `ado_org` and `ado_project`
@@ -84,8 +84,8 @@ Write these into the repo (ask before overwriting anything that already exists):
 
 Finish with a checklist of what's left (the skill deliberately doesn't touch these):
 
-- **Labels**: create `ready-for-ai`, `generated-by-ai`, `ai-blocked`, `auto-merge`,
-  `auto-rework`, `auto-release` on the relevant repo(s).
+- **Labels**: create `ops/ready-for-ai`, `ops/generated-by-ai`, `ops/ai-blocked`, `ops/auto-merge`,
+  `ops/auto-rework`, `ops/auto-release` on the relevant repo(s).
 - **CI auth (azure-pipelines only)**: add a read-only Build-scoped PAT as `AZURE_DEVOPS_PAT`
   in the cloud environment, and allow-list `dev.azure.com` (Custom network access).
 - **The routine**: stand it up with `new-loop-routine` (fire-URL + `LOOP_DISPATCH_*`

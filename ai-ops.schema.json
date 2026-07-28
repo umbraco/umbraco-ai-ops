@@ -15,7 +15,7 @@
       "additionalProperties": false,
       "properties": {
         "source": { "type": "string", "description": "owner/name the routine works in and opens PRs on. Auto-detected from `git remote origin`.", "pattern": "^[^/]+/[^/]+$" },
-        "inbox":  { "type": "string", "description": "owner/name where `ready-for-ai` issues live. Defaults to `source`. Set to a different repo for split issues (e.g. Umbraco.Forms.Issues).", "pattern": "^[^/]+/[^/]+$" },
+        "inbox":  { "type": "string", "description": "owner/name where `ops/ready-for-ai` issues live. Defaults to `source`. Set to a different repo for split issues (e.g. Umbraco.Forms.Issues).", "pattern": "^[^/]+/[^/]+$" },
         "issue_link": { "type": "string", "enum": ["same-repo-closes", "cross-repo-full-url"], "description": "How PRs reference the issue. Auto: `same-repo-closes` when inbox==source, else `cross-repo-full-url` (full URL; never `#N` across repos)." }
       }
     },

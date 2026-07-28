@@ -1,7 +1,7 @@
 # umbraco-ai-ops
 
 The **generic engine** for AI-driven issue automation across Umbraco products. It turns a
-`ready-for-ai` GitHub backlog into CI-green, reviewed, merged PRs. It also feeds what it learns
+`ops/ready-for-ai` GitHub backlog into CI-green, reviewed, merged PRs. It also feeds what it learns
 back into the repos it works on.
 
 This repo is product-**agnostic**. It knows *how to run the loop*. It does **not** know how to
@@ -41,8 +41,8 @@ Installed from this marketplace (`.claude-plugin/marketplace.json`):
 | **issue-loop-core** | The orchestrator: queue, dispatch up to three at once, review, stop. It owns sequencing only, and follows the repo's build skill for the work itself. Bundles `rework-loop`. |
 | **github-ops** | All GitHub work, in both environments: `gh`/`git` locally, `mcp__github__*` on web. Also wraps the CI provider, either `github-checks` or `azure-pipelines`. Every loop needs it. |
 | **loop-dispatch** | The event router, `route-event.sh`. One routine per repo. It can work in a different repo from the one that fired the event, which is what Forms needs. |
-| **merge-flow** | Merges a PR labelled `auto-merge`, once CI is green and there are no conflicts. |
-| **learning** | Self-learning. Capture hooks file `proto-learning` issues, and `triage-learnings` turns them into PRs. The mechanism is generic. Where they go is config. |
+| **merge-flow** | Merges a PR labelled `ops/auto-merge`, once CI is green and there are no conflicts. |
+| **learning** | Self-learning. Capture hooks file `ops/proto-learning` issues, and `triage-learnings` turns them into PRs. The mechanism is generic. Where they go is config. |
 | **release-flow** | Branching, release and dev-sync, for gitflow or main-only. **A default only.** Forms and Automate both supply their own release skills instead. |
 | **dotnet-web-runtime** | Cloud setup so a .NET product can run as a web routine. Fixes the NuGet feed 401. |
 
@@ -108,7 +108,7 @@ A generic loop reaches your repo by **invoking a skill by name**. That's the who
 
 ```mermaid
 flowchart LR
-  E["GitHub event<br/>issues.labeled + ready-for-ai"] --> R["route-event.sh<br/>runs at the CI edge"]
+  E["GitHub event<br/>issues.labeled + ops/ready-for-ai"] --> R["route-event.sh<br/>runs at the CI edge"]
   R --> L["ops-issue-loop<br/>engine, generic"]
   L -->|"invoke skill named ops-change<br/>with (action, context-json)"| C["ops-change<br/>your repo's skill"]
   C -.->|"facts the loop reads"| L

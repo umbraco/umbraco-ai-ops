@@ -7,7 +7,7 @@ version: 1
 
 repos:
   source: umbraco/Umbraco.Forms          # PRs open here (auto-detected from git remote)
-  inbox:  umbraco/Umbraco.Forms.Issues   # ready-for-ai issues live here (must be declared — differs from source)
+  inbox:  umbraco/Umbraco.Forms.Issues   # ops/ready-for-ai issues live here (must be declared — differs from source)
   issue_link: cross-repo-full-url        # (auto, because inbox != source)
 
 ci:

@@ -39,10 +39,10 @@ The base table, rendered:
 
 | event | label | Run |
 |---|---|---|
-| `issues.labeled` | `ready-for-ai` | **`ops-issue-loop`** (cloud mode) |
-| `issues.labeled` | `auto-release` (issue title `release <version>`) | **`ops-release-loop`** |
-| `pull_request.labeled` | `auto-merge` | **`ops-merge-loop`** |
-| `pull_request.labeled` | `auto-rework` | **`ops-rework-loop`** |
+| `issues.labeled` | `ops/ready-for-ai` | **`ops-issue-loop`** (cloud mode) |
+| `issues.labeled` | `ops/auto-release` (issue title `release <version>`) | **`ops-release-loop`** |
+| `pull_request.labeled` | `ops/auto-merge` | **`ops-merge-loop`** |
+| `pull_request.labeled` | `ops/auto-rework` | **`ops-rework-loop`** |
 
 **The event vocabulary is closed**: `issues.labeled`, `pull_request.labeled`,
 `issues.opened`, `pull_request.opened`. `pull_request_target.labeled` normalises to
@@ -55,7 +55,7 @@ inbox, not an event route, so it has no row here.
 Rework is a **label**, not the review event — uniform with the rest, and it works with one
 account (you can't fire a `pull_request_review` workflow by reviewing your *own* PR, and
 the loop's identity is often the reviewer's). Flow: a reviewer leaves comments, then adds
-`auto-rework` to say "address these". Review events are not in the vocabulary at all, so
+`ops/auto-rework` to say "address these". Review events are not in the vocabulary at all, so
 they route nowhere.
 
 Everything else — a PR labelled `dependencies`/`javascript`, an issue labelled anything
@@ -92,12 +92,12 @@ triggering label / is still open. If not, **quiet no-op**.
 Invoke the matched skill exactly as its own dedicated routine would, scoped to the
 specific issue/PR, and **follow that skill's instructions verbatim**:
 
-- `ready-for-ai` issue → **`ops-issue-loop`** (cloud mode) for that issue — the engine
+- `ops/ready-for-ai` issue → **`ops-issue-loop`** (cloud mode) for that issue — the engine
   orchestration commands `ops-change` for the work itself. Local run → its local mode.
-- `auto-merge` PR → **`ops-merge-loop`** (it sweeps all `auto-merge` PRs; the event is
+- `ops/auto-merge` PR → **`ops-merge-loop`** (it sweeps all `ops/auto-merge` PRs; the event is
   just the wake-up).
-- `auto-rework` PR → **`ops-rework-loop`** for that PR.
-- `auto-release` issue → **`ops-release-loop`**, version taken from the issue title.
+- `ops/auto-rework` PR → **`ops-rework-loop`** for that PR.
+- `ops/auto-release` issue → **`ops-release-loop`**, version taken from the issue title.
 
 > **Names in flight.** The loops above are the target names (§2 of the migration plan). Until
 > Phase 3/4 rename the skills themselves, dispatch to the skill that exists today:
@@ -121,8 +121,8 @@ loop skill directly.)
 - **Re-check preconditions.** Never act on a stale event; if the label's gone or the
   PR/issue is closed, quiet no-op.
 - **One event, one loop.** No chaining within a single fire.
-- **Respect each loop's gate** — `ready-for-ai` for building, `auto-merge` as the
-  merge approval, `auto-release` to ship. loop-dispatch does not relax any of them.
+- **Respect each loop's gate** — `ops/ready-for-ai` for building, `ops/auto-merge` as the
+  merge approval, `ops/auto-release` to ship. loop-dispatch does not relax any of them.
 - **Quiet by default.** Say nothing unless a delegated loop does — don't add a
   dispatch-level notification on top of the loop's own.
 - **github-ops for all GitHub work.** Name the operation; it owns the command/tool.
