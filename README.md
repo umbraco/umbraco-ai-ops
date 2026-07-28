@@ -65,8 +65,21 @@ Installed from this marketplace (`.claude-plugin/marketplace.json`):
 
 ## Getting started (onboarding a repo)
 
-1. **Install the engine** in the target repo's workspace:
-   `/plugin marketplace add umbraco/umbraco-ai-ops`, then install the plugins.
+1. **Install the engine** in the target repo's workspace. Two separate steps — adding the
+   marketplace only registers the catalogue, it installs nothing:
+   ```
+   /plugin marketplace add umbraco/umbraco-ai-ops
+   /plugin install ops-install@umbraco-ai-ops
+   /plugin install ops-capabilities@umbraco-ai-ops
+   /plugin install github-ops@umbraco-ai-ops
+   ```
+   Those three are what onboarding needs: the installer, the six defaults it reports as
+   `inherited`, and the skill that does the label writes. Add `loop-dispatch`, `ops-issue-loop`,
+   `ops-merge-loop`, `ops-release-loop` and `ops-learnings` before you run a loop. `/plugin` on
+   its own opens a menu if you would rather click.
+
+   > **The skill is namespaced.** Plugin skills carry their plugin's name, so it is
+   > **`/ops-install:ops-install`**, not `/ops-install`. Same for the loops.
 2. **Run `/ops-install`.** It reads the branching model out of git history, works out the CI host
    and release approach, then asks about anything it could not tell. It then:
    - writes the few facts nothing can detect to `.claude/ops-repo-meta.json`, and validates it,
