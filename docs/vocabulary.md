@@ -1,8 +1,8 @@
 # Vocabulary
 
-Status: **Reviewed, no outstanding notes** (PR #4, 27-07-2026) — formally ratified by Phase 0 of the
-[capabilities migration plan](capabilities-migration-plan.md), which is also when `CLAUDE.md` starts
-pointing here. Use this language now; Phase 0 is the paperwork, not the argument.
+Status: **Ratified** — Phase 0 of the
+[capabilities migration plan](capabilities-migration-plan.md) is complete, and `CLAUDE.md` now points
+here. Reviewed with no outstanding notes on PR #4 (27-07-2026). This is the language; use it.
 
 Shared words, so a review argument is about the design and not about which thing someone meant.
 The **collisions** table is the load-bearing part — those are words already used for two or three
@@ -61,6 +61,10 @@ notifications are cross-cutting.**
 | **event vocabulary** | The permitted event strings — `issues.labeled`, `issues.opened`, `pull_request.labeled`, `pull_request.opened`. |
 | **caller workflow** | The workflow in a consumer repo that calls the engine's reusable dispatch workflow. |
 | **routine** | A scheduled/triggered cloud run of a loop. The delivery vehicle, not the logic. |
+| **proto-learning** | A raw, un-triaged observation filed as a GitHub issue by the capture hooks — a note that *something is worth improving somewhere*, never a fix. Its body is a fenced JSON record plus freeform notes. |
+| **triage** | The weekly sweep (`ops-triage-loop`) that clusters proto-learnings, applies the threshold, and routes each cluster to its home. **`triaged` is a label triage writes**, never one that triggers it. |
+| **cluster** | A set of proto-learnings expressing the same lesson, identified by `sourceRepo` + `category` + semantically equivalent `lesson`. One cluster becomes one routed item, carrying every source issue as provenance. |
+| **threshold** | The bar a cluster clears before it earns a shared-skills PR: ≥ 2 distinct source issues, or the same lesson on ≥ 2 repos. Loop-self items are exempt. |
 
 ---
 
@@ -70,8 +74,9 @@ notifications are cross-cutting.**
 |---|---|
 | **consumer** | A repo that uses the engine and supplies its own capability skills. |
 | **applied repo** | A consumer once installed and covered. Interchangeable with consumer in practice; prefer **consumer**. |
-| **role** | What a repo *is to* a loop, from `ops-repo-meta · topology`. Canonical roles are **`code`** (required), **`issues`** and **`releases`**; an unspecified role resolves to `code` (conformance spec §7.2). Replaces the old `repos.source` / `repos.inbox` keys. **`learnings` is not a role** — see the migration plan §9. |
+| **role** | What a repo *is to* a loop, from `ops-repo-meta · topology`. Canonical roles are **`code`** (required), **`issues`**, **`releases`** and **`learnings`**; an unspecified role resolves to `code` (conformance spec §7.2). Replaces the old `repos.source` / `repos.inbox` keys. `learnings` is this repo's addition to the spec's three — see the migration plan §9b.8. |
 | **topology** | The set of roles and which repo fills each. Single-repo setups collapse every role onto `code`. |
+| **`learnings` (the role)** | Where proto-learning issues are filed. **Not** automatically the `issues` repo: if the issues repo is public and the code is private, learnings follow the code, because a proto-learning is an internal note about how a build went. |
 | **identity** | Ambient facts about the repo itself (name, labels, defaults), from `ops-repo-meta`. |
 
 ---
