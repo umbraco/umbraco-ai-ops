@@ -63,8 +63,8 @@ Write these into the repo (ask before overwriting anything that already exists):
    engine defaults (keep it lean). **Validate it against `ai-ops.schema.json`** (from the
    engine repo root) before writing — every value must fit.
 2. **`.claude/skills/<playbook>/SKILL.md`** — the repo's **build skill** (the override that
-   `issue-loop-core` defers to; the name is `playbook`), only if absent. It carries the
-   per-issue build steps **only** — orchestration stays in `issue-loop-core`, which locates
+   the loops used to defer to via `playbook`; Phase 5 replaces this with an `ops-change` stub), only if absent. It carries the
+   per-issue build steps **only** — orchestration stays in `ops-issue-loop`, which locates
    and follows this skill; it does **not** invoke the core. Tune the sanity/build step to
    `stack`: `dotnet` → `dotnet build` + "obey each project's `CLAUDE.md`, CI is the gate";
    `node` → `npm ci` + `npm run build`/`test`. Include `/security-review` + `/code-review`

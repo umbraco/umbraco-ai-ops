@@ -56,24 +56,22 @@
         },
         {
           "action": "close-issue",
-          "description": "Close the originating issue and label it, on whichever repo holds issues. Fires only once every target line has landed. MUST close explicitly: a `Closes #N` keyword does not cross repos. MUST tolerate an issue that is already closed.",
+          "description": "Told that a PR has landed, work out which issue it was for and close that issue only once EVERY target line has landed — one logical change lands N times at N moments. The caller passes the PR, not the issue, because how a PR references its issue and which lines are targets are both repo facts. MUST close explicitly: a `Closes #N` keyword does not cross repos. MUST tolerate an already-closed issue, and MUST report `closed: false` with the lines still outstanding rather than closing early.",
           "input": {
-            "issue": "object — the issue to close, including its repo",
-            "landed": "array — one entry per line that landed, with its PR"
+            "landed": "object — the PR that just landed: repo, pr_number, and its line",
+            "issue": "object — optional, when the caller already knows which issue it was"
           },
           "output": {
             "closed": "boolean",
-            "labels": "array — the labels left on the issue"
+            "issue": "object — the issue this resolved to, so the caller can report it",
+            "waiting_on": "array — target lines not yet landed; empty when closed is true"
           },
           "example": {
-            "issue": {
-              "repo": "owner/repo-issues",
-              "number": 4211
-            },
-            "landed": [
-              { "line": "v17", "pr_number": 8890 },
-              { "line": "v18", "pr_number": 8894 }
-            ]
+            "landed": {
+              "repo": "owner/repo",
+              "pr_number": 8890,
+              "line": "v17"
+            }
           }
         }
       ]

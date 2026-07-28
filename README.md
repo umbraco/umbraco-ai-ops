@@ -5,14 +5,15 @@ The **generic engine** for AI-driven issue automation across Umbraco products. I
 back into the repos it works on.
 
 This repo is product-**agnostic**. It knows *how to run the loop*. It does **not** know how to
-build any one product. Each consumer supplies two things:
+build any one product. Each consumer supplies **two skills it owns**:
 
-1. a **build skill**: the per-issue how-to for that product. The repo owns it.
-2. a small **config block**: where issues live, where PRs open, which CI.
+1. **`ops-change`** — build, test and verify one change, and close the issue behind it.
+2. **`ops-release`** — bump, tag, publish, put the branches back in step.
 
-The engine holds no build steps of its own. It finds the repo's build skill by name, using the
-`playbook` config key, and follows it. The repo owns and edits that skill. Nothing is injected
-into a slot, and nothing relies on one skill shadowing another by name.
+The engine holds no build steps of its own. A loop reaches your repo by **invoking a skill by
+name** — `ops-change` — with an action and a JSON context. Nothing is injected into a slot,
+nothing relies on one skill shadowing another, and there is no config pointer. Six more
+capabilities ship as defaults you inherit and can override the same way.
 
 Extracted from the [`umbraco-mcp-ops`](https://github.com/hifi-phil/umbraco-mcp-ops)
 prototype, which proved the model on Claude Code web routines.
@@ -38,18 +39,18 @@ Installed from this marketplace (`.claude-plugin/marketplace.json`):
 | Plugin | What it is |
 |--------|------------|
 | **ops-setup** | Onboarding. `/umbraco-ops-setup` detects the repo's branching, CI and release setup, confirms it with you, then writes `.claude/ai-ops.yml`, a build-skill scaffold and the caller workflows. Run it first. |
-| **issue-loop-core** | The orchestrator: queue, dispatch up to three at once, review, stop. It owns sequencing only, and follows the repo's build skill for the work itself. Bundles `rework-loop`. |
+| **ops-issue-loop** | The orchestrator: queue, dispatch up to three at once, stop at a green PR. It owns sequencing only and commands your `ops-change` for the work. Bundles `ops-rework-loop`. |
+| **ops-learnings** | Self-learning. Read-only hooks file `ops/proto-learning` issues off the critical path; `ops-triage-loop` sweeps them weekly and routes each lesson to whoever owns it. |
 | **github-ops** | All GitHub work, in both environments: `gh`/`git` locally, `mcp__github__*` on web. Also wraps the CI provider, either `github-checks` or `azure-pipelines`. Every loop needs it. |
 | **loop-dispatch** | The event router, `route-event.sh`. One routine per repo. It can work in a different repo from the one that fired the event, which is what Forms needs. |
-| **ops-capabilities** | The six capability skills you **inherit**: `ops-integrate`, `ops-branching`, `ops-ci`, `ops-repo-meta`, `ops-notify` (and `ops-workspace`, arriving with the issue loop). Override one by shipping your own skill of the same name. |
+| **ops-capabilities** | The six capability skills you **inherit**: `ops-integrate`, `ops-branching`, `ops-workspace`, `ops-repo-meta`, `ops-ci`, `ops-notify`. Override one by shipping your own skill of the same name. |
 | **ops-merge-loop** | Sweeps PRs labelled `ops/auto-merge` and hands each to `ops-integrate · land`. Scheduling only: every merge gate lives in the service. |
 | **ops-release-loop** | Issue-triggered, CI-gated release. Commands the repo's own `ops-release` through plan → cut → publish → sync, with an Opus pre-publish review as the second gate. |
 
-> **Not built yet, and no longer declared:** **learning** (the capture hooks and the scheduled
-> triage sweep — arriving with the issue loop) and **dotnet-web-runtime** (cloud setup so a
-> .NET product can run as a web routine). Both used to be listed in `marketplace.json` while
-> pointing at directories that did not exist, which would make `/plugin marketplace add` fail
-> on the whole marketplace. They are re-declared when they exist.
+> **Not built yet, and not declared:** **dotnet-web-runtime** (cloud setup so a .NET product can
+> run as a web routine, fixing the NuGet feed 401). It used to be listed in `marketplace.json`
+> while pointing at a directory that did not exist, which would make `/plugin marketplace add`
+> fail on the whole marketplace. It is re-declared when it exists.
 
 ## Getting started (onboarding a repo)
 
@@ -69,9 +70,9 @@ in `branching.release_skill`.
 
 ## How a consumer links to the engine
 
-Two things do the linking: a **config pointer** and a **skill name**. `issue-loop-core` finds the
-repo's build skill through the `playbook` key in `ai-ops.yml`. Everything reaches `github-ops` by
-its name. Nothing is copied, and nothing depends on one skill shadowing another.
+**One thing does the linking: the skill's name.** `ops-issue-loop` invokes `ops-change`;
+`ops-release-loop` invokes `ops-release`; everything reaches `github-ops` by its name. Nothing is
+copied, nothing depends on one skill shadowing another, and no pointer has to be kept in step.
 
 - **Local:** run `/plugin marketplace add umbraco/umbraco-ai-ops`, then install the engine
   plugins. A repo's own skills load automatically as project skills. The MCP family loads its
@@ -85,26 +86,25 @@ its name. Nothing is copied, and nothing depends on one skill shadowing another.
 > one build skill on the default branch and have it work out the base branch at runtime. Do not
 > fork a copy per branch.
 
-## The config contract
+## The config contract (being retired)
 
-Each consumer supplies a **build skill** it owns, plus a **config block**: the repo's
-`.claude/ai-ops.yml`. Its shape is set by **[`ai-ops.schema.json`](ai-ops.schema.json)**, and
-**[`ai-ops.example.yml`](ai-ops.example.yml)** is a worked example. `/umbraco-ops-setup` writes it
-and every loop reads it.
+> **No loop reads this any more.** `.claude/ai-ops.yml` is now read by **exactly one skill**,
+> `ops-repo-meta`, as a transitional bridge so existing consumers keep working while the
+> capability model lands. It is **deleted** in Phase 8, along with `ai-ops.schema.json` and
+> `ai-ops.example.yml`. **Do not add a key to it.**
 
-It covers `repos` (source, inbox, issue_link), `ci` (provider plus ADO org and project),
-`branching` (model, base, release_base, merge_strategy, release_skill), `learning`, and the
-`playbook` name. Leave out anything the engine can detect for itself. A plain same-repo gitflow
-repo needs almost nothing. Anything unusual is handed to the skill named in
-`branching.release_skill`.
+Its shape is **[`ai-ops.schema.json`](ai-ops.schema.json)**, with
+**[`ai-ops.example.yml`](ai-ops.example.yml)** as a worked example. It covers `repos`, `ci`,
+`branching`, `learning` and `playbook`. Everything in it is being absorbed: repo facts by
+`ops-repo-meta`, the rest by the capability that owns the behaviour.
 
-## Where this is going: capability skills
+## Capability skills
 
-> **This is the target, not what ships today.** The config contract above is what the engine does
-> now. **Convention** is replacing it: each extension point becomes a skill named
-> `ops-<capability>`, found by that name instead of by a config pointer.
-> The plan, the phases and the open decisions are in
-> **[`docs/capabilities-migration-plan.md`](docs/capabilities-migration-plan.md)**. Shared terms
+> **Where things stand.** Phases 0–4 have landed: the catalog exists, routing is on the spec's
+> shape, and every loop now commands capabilities by name. What is left is the installer
+> (Phase 5), the two consumers' own skills (Phase 6), evals (Phase 7) and deleting the config
+> above (Phase 8). The plan is in
+> **[`docs/capabilities-migration-plan.md`](docs/capabilities-migration-plan.md)**; shared terms
 > are in **[`docs/vocabulary.md`](docs/vocabulary.md)**.
 
 ### It's one interface
@@ -213,7 +213,7 @@ skill must implement exactly these and reject anything else.
 |---|---|---|
 | `ops-change` | `implement` | Make the change the issue asks for on a work branch, and push it. |
 | `ops-change` | `verify` | Run this repo's build, tests and sanity checks against the change, and report pass or fail with enough detail for the caller to act on a failure. |
-| `ops-change` | `close-issue` | Close the originating issue and label it, on whichever repo holds issues. |
+| `ops-change` | `close-issue` | Told that a PR has landed, work out which issue it was for and close that issue only once EVERY target line has landed — one logical change lands N times at N moments. |
 | `ops-release` | `plan` | Turn the trigger into release facts: which line, which version, and which units of work the release contains. |
 | `ops-release` | `cut` | Branch, bump the version files, write the changelog, and open the release PR. |
 | `ops-release` | `publish` | Realize the release once its PR has landed: tag the commit, push the artifacts to their feed, and publish the release notes. |

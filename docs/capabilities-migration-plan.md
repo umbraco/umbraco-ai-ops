@@ -1,6 +1,6 @@
 # Capabilities-model migration plan
 
-Status: **Phases 0–3 landed; Phase 4 next** (28-07-2026) · Author: audit of `umbraco-ai-ops@main`
+Status: **Phases 0–4 landed; Phase 5 next** (28-07-2026) · Author: audit of `umbraco-ai-ops@main`
 against the two design docs, both now committed here:
 
 - **[`ops-capability-skills.md`](ops-capability-skills.md)** — Layer 1, the informative explainer.
@@ -17,12 +17,13 @@ Layer 2 also names a **Layer 3** — "reference skills + scaffolder templates (`
 `ops-repo-meta`, catalog)" — which does not exist in either repo. That absence is why this plan's
 phase order departs from layer 1 §10 (§4).
 
-**Phases 0 through 3 are complete.** All nine §6 decisions are resolved, §6.8a with them, §9a's
-seven conformance gaps are closed, the catalog exists — **[`catalog.json`](../catalog.json)**, 8
-capabilities and 19 actions — routing is on the spec's shape with base ⊕ overlay merging at the
-edge, and the merge and release loops now command services by name while five framework-default
-capability skills ship in `ops-capabilities`. **The four-way base-branch drift is closed.**
-**Nothing is open.** Phase 4 is next: the placeholder loops.
+**Phases 0 through 4 are complete.** All nine §6 decisions are resolved, §6.8a with them, and
+§9a's seven conformance gaps are closed. The catalog exists — **[`catalog.json`](../catalog.json)**,
+8 capabilities and 19 actions. Routing is on the spec's shape with base ⊕ overlay merging at the
+edge. **All five framework loops exist under their reserved names and command capabilities by
+name**, and all six framework defaults ship in `ops-capabilities`. **The four-way base-branch drift
+is closed**, and `ai-ops.yml` is read by exactly one skill. **Nothing is open.** Phase 5 is next:
+the installer.
 
 > **Where execution changed the plan, read [§10](#10-deviations-log--what-execution-changed-about-this-plan).**
 > Three logs, three jobs: **§6** is what we decided before building, **§9b** is where we knowingly
@@ -549,16 +550,31 @@ resolve-and-compare (the loop no longer resolves anything), `release-and-branchi
 `branching.*` (still on disk until Phase 8, but now read by exactly one skill —
 `ops-repo-meta` — as a transitional bridge, not by any loop).
 
-**Phase 4 — Build the placeholder loops directly in capability form.** `ops-issue-loop` (commands
-`ops-change`, which itself wraps `ops-workspace`; reads `ops-ci` / `ops-repo-meta`), `ops-rework-loop`,
-and the learnings mechanism as a **uniform framework capture hook + `ops-triage-loop`** with destinations
-read from `ops-repo-meta` (§6.2). Avoids a build-then-migrate double. **Build `ops-triage-loop` to the
-inherited contract in §2a** — cluster/dedupe → threshold → route → mark processed, on a **weekly
-schedule**, with the prototype's dedupe key, threshold and caps adopted as framework defaults and
-its `hifi-phil/umbraco-mcp-ops` hard-codings replaced by `ops-repo-meta` roles (inbox = `learnings`,
-owning repo = `code`). Port the capture side too: the read-only analyzer, the fenced-JSON record and
-its 9-value `category` set, and the hook's exact-title de-dup. Only §2a's three residual questions
-are open.
+**Phase 4 — Build the placeholder loops directly in capability form. Complete.** Built once, in
+capability form, rather than built then migrated.
+
+- ~~`ops-issue-loop`, commanding `ops-change` and reading `ops-ci` / `ops-repo-meta`.~~ Done. It
+  **stops at a green PR**: the old long-lived review phase is gone, because it existed only to
+  serve a merge this loop no longer performs (§10.23).
+- ~~`ops-rework-loop`.~~ Done. It pushes and **hands the PR back** rather than landing its own
+  fix, so there is still one merge path behind one human gate.
+- ~~The learnings mechanism as a uniform framework capture hook + `ops-triage-loop`.~~ Done, as
+  the **`ops-learnings`** plugin. The capture side is ported whole — the two read-only analyzer
+  prompts, the fenced-JSON record with its closed 9-value `category` set, the exact-title de-dup,
+  the re-entry guard and the once-per-session marker — with every `hifi-phil/umbraco-mcp-ops`
+  hard-coding replaced.
+- ~~`ops-triage-loop` to the inherited contract.~~ Done: cluster/dedupe → threshold → route →
+  mark processed, on a **weekly schedule**, with the prototype's dedupe key, threshold (≥ 2) and
+  caps (10 per run, ≤ 5 PRs) adopted as **defaults marked as inherited rather than measured**.
+- Also built **`ops-workspace`** — the last framework default, and unavoidable here (§10.21).
+
+**§2a's three residual questions are answered where they belong** — inside `ops-triage-loop`
+rather than in this plan (§10.24). The one that matters: on a single-product consumer only two of
+the four destinations exist, so **the threshold gates nothing**, and the skill says so rather than
+pretending to apply it.
+
+**All five framework loops now exist under their reserved names**, so `loop-dispatch` no longer
+carries a translation table.
 
 **Phase 5 — Rebuild the installer as `ops-install`.** Coverage report
 (present/inherited/missing by `ops-<cap>` name); scaffold a stub per missing catalog capability
@@ -969,3 +985,10 @@ Kind: **added** = did more than the plan asked · **changed** = did it different
 | 18 | 3 | **changed** | Nothing in the plan says where framework-default capability skills live. | One new plugin, **`ops-capabilities`**, holding all five. The README already groups them as "you inherit these", so one install gets a consumer the whole inherited set; scattering them across the loop plugins would have made "what do I inherit?" unanswerable. |
 | 19 | 3 | **added** | The hazard register only said the two phantom marketplace entries should be "scaffolded or marked unreleased". | **Removed them**, and added **`scripts/validate-manifests.sh`** + 12 tests. An entry whose `source` resolves to nothing makes `/plugin marketplace add` fail for the *whole* marketplace, so this was live breakage, not untidiness. The validator also catches an undeclared plugin and any name/version/description drift between the two manifests — drift that already existed on `ops-setup`. |
 | 20 | 3 | **added** | Not mentioned: `operation-catalog.json`'s `detect-base-branch`. | **Deleted.** §7 named it as the fourth place base-branch knowledge lived, and its own title said "defer to release-and-branching" — a forge operation that existed only to point at a skill that no longer exists. Leaving it would have left the fourth leak open while claiming §7 was closed. |
+| 21 | 4 | **added** | Phase 4 named `ops-issue-loop`, `ops-rework-loop` and the learnings mechanism. | Also built **`ops-workspace`**, the last framework default. `ops-change` wraps it and `ops-change` is repo-provided, so without a default every consumer would have had to write worktree handling before its first build. |
+| 22 | 4 | **changed** | Nothing said who fires `ops-change · close-issue`. §6.8a only established that `ops-change` *ends* there. | **`ops-merge-loop` fires it, after a `merged` outcome**, and it passes the **landed PR, not an issue**. That is the only moment a landing becomes known, and nothing else was watching for it. Passing the PR keeps two repo facts inside the repo's own capability: how a PR references its issue, and which lines are targets. The catalog's `close-issue` input and example changed to match, and it now returns `waiting_on` so a partially-landed change reads as normal rather than as a failure. |
+| 23 | 4 | **dropped** | `issue-loop-core` had a long-lived **review phase**: it watched each PR, dispatched response subagents, and **merged on approval**. | **Gone.** `ops-issue-loop` stops at a green PR. The review phase existed only to serve its own merge, and that merge was a second merge path behind a second gate — exactly what §6.8/§6.9 collapsed. Review feedback is `ops-rework-loop` (event-driven), landing is `ops-merge-loop`. The loop got materially simpler as a result: no long waits, no wake-up re-arming, no `ScheduleWakeup`. |
+| 24 | 4 | **corrected** | §2a said the three residual Phase 4 questions were the threshold numbers, dedupe-as-eval-target, and whether `shared-skills` is reachable. | All three are recorded in `ops-triage-loop` itself rather than left in the plan: the numbers are marked **inherited defaults, not measurements**, dedupe is called out as the one judgement step, and the skill says plainly that **where `shared-skills` is unreachable the threshold gates nothing** — and to say so in the run summary rather than pretending to apply it. |
+| 25 | 4 | **added** | The plan does not say how the capture hook — bash, no session — resolves the `learnings` repo. | It **cannot invoke a skill**, so it resolves `$OPS_LEARNINGS_REPO`, else the current git remote. Unset therefore lands on the current repo, which is exactly what the framework default for the `learnings` role resolves to, so the two agree without the hook knowing about roles. The label, the loop signature and the log/state paths are env-overridable for the same reason. |
+| 26 | 4 | **added** | Nothing asked for tests on the capture hook. | **28 cases**, hermetic — the analyzer is injected and filing is forced to dry-run, so nothing reaches GitHub. The property under test is that capture **never fails the session**: every case asserts exit 0, including the broken ones. Capture runs off the critical path, so a bug there must cost a log line, never a build. |
+| 27 | 4 | **changed** | Phase 8 removes the README's config-contract section. | The README's **opening** was left describing the retired model as current — "each consumer supplies a build skill and a config block, found via the `playbook` key" — which stopped being true the moment the loops started commanding capabilities. Corrected now; the config-contract *section* still stands, but marked as read by exactly one skill and deleted in Phase 8. Leaving a factually wrong first paragraph for four more phases was not worth the tidiness of a clean phase boundary. |

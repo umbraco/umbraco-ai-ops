@@ -1,0 +1,19 @@
+{
+  "name": "ops-learnings",
+  "version": "0.1.0",
+  "description": "The self-learning machinery, and the reason the loops compound rather than repeating themselves. Read-only SubagentStop/SessionEnd hooks analyse each finished transcript OFF the critical path and file `ops/proto-learning` issues to the `learnings` repo when something non-obvious happened; the proto-learning schema is the contract they file against. `ops-triage-loop` then sweeps that inbox weekly — clustering by lesson, applying a promotion threshold, and routing each cluster to an issue on the repo that owns it, a drafted PR against shared skills, an `ops/loop-improvement` issue against the engine, or closed with a reason. It never hand-edits a product repo and nothing auto-merges; a routed item only re-enters the work loop when a human labels it. Capture is uniform framework machinery rather than a per-repo capability, so lessons compound across every repo. Requires github-ops.",
+  "author": {
+    "name": "Umbraco",
+    "url": "https://github.com/umbraco"
+  },
+  "homepage": "https://github.com/umbraco/umbraco-ai-ops/tree/main/plugins/ops-learnings",
+  "license": "MIT",
+  "keywords": [
+    "self-learning",
+    "proto-learning",
+    "triage",
+    "hooks",
+    "compounding",
+    "cloud-routine"
+  ]
+}

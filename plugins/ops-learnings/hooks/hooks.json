@@ -1,0 +1,27 @@
+{
+  "description": "Async proto-learning capture. SubagentStop analyses each finished build subagent's transcript; SessionEnd analyses the orchestration session once at the end for loop-level lessons. Both run OFF the critical path (async), act only on ops loop runs, and file a proto-learning issue when something worth improving happened. Capture is uniform framework machinery rather than a per-repo capability, so lessons compound across every repo the engine works.",
+  "hooks": {
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/capture-proto-learning.sh\" subagent",
+            "async": true
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/capture-proto-learning.sh\" orchestrator",
+            "async": true
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -33,7 +33,8 @@ the strategy live in that service.
 
 | Capability · action | Why | Visibility |
 |---|---|---|
-| **`ops-integrate · land`** | the one command this loop issues | service |
+| **`ops-integrate · land`** | the command this loop exists to issue | service |
+| **`ops-change · close-issue`** | after a merge only — the issue behind the PR closes when its last line lands | service |
 | `ops-ci · status` | poll before handing over, so a pending PR costs one cheap read instead of a full gate run | cross-cutting (read) |
 | `ops-repo-meta · identity` | the landing label, **by purpose** (`labels.land`) — never a hard-coded name | cross-cutting (read) |
 | `ops-repo-meta · topology` | which repo holds the code, so the sweep looks in the right place | cross-cutting (read) |
@@ -81,7 +82,7 @@ Read `outcome` and act:
 
 | `outcome` | Do |
 |---|---|
-| `merged` | Comment confirming the merge. Nothing else. |
+| `merged` | Comment confirming the merge, then **`ops-change · close-issue`** with the landed PR (see below). |
 | `skipped:release-base` | **Say nothing.** The release path owns it; a comment here is noise on someone else's PR. |
 | `blocked:ci` | Comment `detail` — the specific failing check. Leave the label on. |
 | `blocked:conflict` | Comment `detail`. **Remove the label** — a conflict needs a human, and re-poking it every run is noise. Say in the comment that you removed it, and why. |
@@ -91,6 +92,24 @@ Read `outcome` and act:
 
 **Leave the label on for anything that will clear by itself** (CI, a pending run) so the next
 run re-checks. **Remove it for anything needing a human**, and always say which you did.
+
+### Closing the issue behind a merge
+
+After a `merged` outcome, call **`ops-change · close-issue`** with
+`{ landed: { repo, pr_number, line } }`.
+
+**Pass the PR, not an issue.** This loop does not know which issue the PR was for, and must not
+guess: how a PR references its issue is a repo convention (a `Closes #N`, a full cross-repo URL),
+and which lines are targets for that change is a repo fact. `ops-change` created the PR, so it
+knows both.
+
+It returns `closed: false` with `waiting_on` when other lines are still outstanding — **that is
+the normal case on a multi-line repo, not a failure.** One logical change lands N times at N
+moments, and the issue closes when the last one does. Report what it says and move on; do not
+retry, and never close an issue yourself.
+
+This is the only service this loop commands besides `ops-integrate`, and it is here for one
+reason: this is the moment a landing becomes known, and nothing else is watching for it.
 
 **Notify only when a human is blocking something** — `blocked:conflict`,
 `blocked:changes-requested`, `blocked:wrong-base`. Use `ops-notify · send` with a stable

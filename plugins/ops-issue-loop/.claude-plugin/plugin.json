@@ -1,0 +1,20 @@
+{
+  "name": "ops-issue-loop",
+  "version": "0.2.0",
+  "description": "The orchestration loop: work a backlog of `ops/ready-for-ai` issues to CI-green PRs by commanding the repo's own `ops-change` (implement → verify) once per issue. It owns the loop only — the queue, the durable /goal, rolling cap-3 dispatch, model selection per issue, the 8-attempt CI-green cap and the backstops — and knows nothing about how to build any product. It stops at a green PR: it never merges and never applies the landing label, so there stays exactly one merge path behind one human gate. Bundles `ops-rework-loop`, the label-triggered review-response half, which pushes and hands the PR back rather than landing its own fix. Repo-agnostic; requires ops-capabilities, github-ops, and the repo's `ops-change`.",
+  "author": {
+    "name": "Umbraco",
+    "url": "https://github.com/umbraco"
+  },
+  "homepage": "https://github.com/umbraco/umbraco-ai-ops/tree/main/plugins/ops-issue-loop",
+  "license": "MIT",
+  "keywords": [
+    "github-issues",
+    "orchestration",
+    "ci",
+    "pull-request",
+    "rework",
+    "automation",
+    "cloud-routine"
+  ]
+}
