@@ -23,18 +23,27 @@ mkdir -p "$co/plugins/ops-install/skills/ops-install/scripts"
 check "checkout layout resolves to the repo root" "$co" \
   "$(ops_engine_root "$co/plugins/ops-install/skills/ops-install/scripts")"
 
-# --- the installed-plugin layout (one level shallower) --------------------
-mk="$TMP/marketplaces/umbraco-ai-ops"
-mkdir -p "$mk/ops-install/skills/ops-install/scripts"
-: > "$mk/catalog.json"
-check "installed layout resolves to the marketplace dir" "$mk" \
-  "$(ops_engine_root "$mk/ops-install/skills/ops-install/scripts")"
+# --- the installed-plugin layout ------------------------------------------
+# The real shape, verified against a live install: the plugin cache holds ONLY that plugin's
+# skills — no catalog.json anywhere above it — while the full checkout sits sideways in
+# marketplaces/. Walking up alone finds nothing here, which is why the first fix failed.
+home="$TMP/home/.claude/plugins"
+cache="$home/cache/umbraco-ai-ops/ops-install/0.2.0/skills/ops-install/scripts"
+mkt="$home/marketplaces/umbraco-ai-ops"
+mkdir -p "$cache" "$mkt/plugins/ops-install"
+: > "$mkt/catalog.json"
+check "installed layout finds the marketplace clone" "$mkt" "$(ops_engine_root "$cache")"
 
-# --- the same fixed depth would have been wrong for one of them -----------
-check "the two layouts really do differ in depth" "different" \
-  "$([ "$(cd "$co/plugins/ops-install/skills/ops-install/scripts/../../../../.." && pwd)" \
-      = "$(cd "$mk/ops-install/skills/ops-install/scripts/../../../../.." 2>/dev/null && pwd)" ] \
-    && echo same || echo different)"
+check "  walking up alone would have found nothing" "nothing" \
+  "$(d="$cache" p=""; r=nothing; while [ -n "$d" ] && [ "$d" != "$p" ]; do \
+       [ -f "$d/catalog.json" ] && { r=found; break; }; p="$d"; d="$(dirname "$d")"; done; echo "$r")"
+
+# A marketplace without plugins/ is some other marketplace, not this engine.
+other="$TMP/other/.claude/plugins"
+mkdir -p "$other/cache/x/p/1/skills/s/scripts" "$other/marketplaces/unrelated"
+: > "$other/marketplaces/unrelated/catalog.json"
+ops_find_engine "$other/cache/x/p/1/skills/s/scripts" >/dev/null 2>&1
+check "a marketplace with no plugins/ is not the engine" 1 $?
 
 # --- ENGINE_ROOT wins over the walk ---------------------------------------
 check "ENGINE_ROOT overrides detection" "/somewhere/else" \

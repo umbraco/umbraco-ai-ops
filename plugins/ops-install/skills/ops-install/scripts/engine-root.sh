@@ -1,30 +1,45 @@
 #!/usr/bin/env bash
 # engine-root.sh — resolve the engine root. SOURCED by the other scripts here, not executed.
 #
-# Why this exists at all: the engine ships in two layouts and they nest to different depths.
-# A git checkout puts a script at <engine>/plugins/ops-install/skills/ops-install/scripts/,
-# while an installed plugin drops the plugin directly under the marketplace directory with no
-# intervening plugins/. So a hard-coded `../../../../..` is right in one and off by one in the
-# other — which is what a real install hit, forcing the operator to set ENGINE_ROOT and
-# CATALOG_FILE by hand (28-07-2026).
+# Why this exists: the engine runs from two very different layouts, and no fixed depth works
+# for both.
 #
-# Walking UP for catalog.json is layout-independent: the catalog sits at the engine root in
-# both, and no consumer repo has one to be confused by.
+#   git checkout      <engine>/plugins/ops-install/skills/ops-install/scripts/
+#                     catalog.json is 5 levels up. Every plugin is a sibling under plugins/.
 #
-# Sourced by path from the caller's own directory, which is safe in every layout because all
-# these scripts move together — that is the same rule that lets a script resolve its data file
-# relative to itself.
+#   installed plugin  ~/.claude/plugins/cache/<marketplace>/ops-install/<version>/skills/...
+#                     catalog.json is NOWHERE above it. A plugin cache holds only that
+#                     plugin's own .claude-plugin/ and skills/ — repo-root files like
+#                     catalog.json are not packaged, and the sibling plugins live in
+#                     separate cache directories.
+#
+# So walking up alone is not enough; from a plugin cache it finds nothing. What DOES exist is
+# the marketplace clone at ~/.claude/plugins/marketplaces/<marketplace>/, a full checkout of
+# this repo — catalog.json, plugins/ and all. It is reachable by walking up to
+# ~/.claude/plugins and stepping sideways into marketplaces/.
+#
+# Hence: at each level going up, check `$d/catalog.json`, then `$d/marketplaces/*/catalog.json`.
+# The first is the checkout, the second is the install. Verified against a real install
+# (28-07-2026) — an earlier fix here checked only the first and still failed from a cache.
+#
+# Sourced by path from the caller's own directory, which is safe in both layouts because all
+# these scripts move together.
 #
 # Usage:
 #   . "$here/engine-root.sh"
 #   engine="$(ops_engine_root "$here")"
 
-# Walk up from $1 looking for catalog.json. Prints the directory, or fails.
+# Walk up from $1 looking for the engine root. Prints the directory, or fails.
 # The `prev` guard terminates on Windows too, where dirname bottoms out at `D:/`, not `/`.
 ops_find_engine() {
-  local d="$1" prev=""
+  local d="$1" prev="" m
   while [ -n "$d" ] && [ "$d" != "$prev" ]; do
     [ -f "$d/catalog.json" ] && { printf '%s' "$d"; return 0; }
+    # Sideways into a marketplace clone. Require plugins/ too, so a marketplace that merely
+    # happens to carry a catalog.json cannot be mistaken for this engine.
+    for m in "$d"/marketplaces/*/; do
+      [ -f "$m/catalog.json" ] && [ -d "$m/plugins" ] && { printf '%s' "${m%/}"; return 0; }
+    done
     prev="$d"; d="$(dirname "$d")"
   done
   return 1
