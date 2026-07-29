@@ -306,26 +306,33 @@ List these **in this order**, and say why the order matters; do not try to do th
    before the merge gate. Leave GitHub's **native auto-merge off** — landing is
    `ops-integrate`'s decision, and native auto-merge would race it. Independent of the rest,
    so it can be done now.
-2. **The cloud environment — and be explicit about which case they are in.** A routine runs in
-   an environment, and the engine only exists inside it because the engine's
-   **`scripts/cloud-skill-sync.sh`** put it there as the **Setup script**. That file is in the
-   engine repo, **not in this plugin** — from an installed plugin it is in the marketplace
-   clone, at `<marketplace>/scripts/cloud-skill-sync.sh`. Give the human the actual path you
-   found; do not send them looking. Ask which case applies and say so plainly:
+2. **The cloud environment.** A routine runs in one, and the engine only exists inside it
+   because a **Setup script** put it there. Only a human can edit that field, so your job is to
+   make the paste trivial — **never to send them looking for a file.**
 
-   - **No environment yet** → **a human must create one.** You cannot. Tell them: create the
-     environment, paste `cloud-skill-sync.sh` into its **Setup script** field, and set
-     `OPS_TOKEN` (or `GH_TOKEN` / `GITHUB_TOKEN`) — `umbraco/umbraco-ai-ops` is **private**, so
-     without a token the clone fails and the environment comes up with **no skills at all**,
-     which looks like the loops silently doing nothing.
-   - **An environment already exists** → it is almost certainly running an **older copy** of the
-     engine. Its snapshot is cached, and *changing the source repo does not bust that cache* —
-     only editing the Setup script does. So say: re-paste the current `cloud-skill-sync.sh`,
-     or bump its `VERSION` line, and re-save. Without that, a fix pushed to this repo never
-     reaches the routine and the symptom is behaviour that does not match the code.
+   **Print the stub inline, in a fenced block, ready to copy.** Read
+   `scripts/cloud-setup-stub.sh` from the engine root (resolve it the way the other scripts do)
+   and output its contents. It is ~15 lines and it clones the engine and runs
+   `cloud-skill-sync.sh` itself, so the paste never changes even as the real script does. If
+   you genuinely cannot read it, say so and give the resolved path — a wrong path is worse than
+   an honest "I could not find it".
 
-   Either way, name the case out loud. "Set up the cloud environment" read as done-if-it-exists
-   is how a stale environment survives an onboarding.
+   Then say which of the two cases applies:
+
+   - **No environment yet** → a human creates one, pastes the stub into **Setup script**, and
+     sets **`OPS_TOKEN`** in the environment's variables. Say this part plainly:
+     `umbraco/umbraco-ai-ops` is **private**, so with no token the clone fails and the
+     environment comes up with **no skills at all** — which presents as the loops silently
+     doing nothing, not as a setup error. `GH_TOKEN` or `GITHUB_TOKEN` work too.
+   - **An environment already exists** → it is almost certainly serving an **older snapshot**.
+     Tell them to **bump the `# rebuild:` number in the stub and re-save**. This is the entire
+     mechanism and it is not guessable: the snapshot is busted **only** by the text of that
+     field changing, so a stub that always clones `main` does *not* re-run just because this
+     repo moved on. One digit is the whole fix. Without it, a change pushed here never reaches
+     the routine, and the symptom is behaviour that does not match the code.
+
+   Name the case out loud. "Set up the cloud environment", read as done-if-it-exists, is how a
+   stale environment survives an onboarding.
 
 3. **CI credentials and egress**, if CI is not GitHub checks. An Azure Pipelines repo needs a
    read-only ADO PAT. Needed *by* the environment, so it goes in alongside step 2.

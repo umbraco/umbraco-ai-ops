@@ -105,10 +105,16 @@ copied, nothing depends on one skill shadowing another, and no pointer has to be
 
 - **Local:** run `/plugin marketplace add umbraco/umbraco-ai-ops`, then install the engine
   plugins. A repo's own skills load automatically as project skills.
-- **Web routines**, the main runtime: `scripts/cloud-skill-sync.sh` runs as the environment Setup
-  script and delivers the engine to `$HOME/.claude/skills`. Single-product repos need nothing
-  extra. A routine picks up the checked-out repo's `.claude/skills/` and its
-  `.claude/settings.json` hooks on its own.
+- **Web routines**, the main runtime: paste **`scripts/cloud-setup-stub.sh`** into the
+  environment's **Setup script** field and set **`OPS_TOKEN`** in its variables — this repo is
+  private, and with no token the environment builds with no skills at all. The stub clones the
+  engine and runs `scripts/cloud-skill-sync.sh`, which delivers every skill and agent to
+  `$HOME/.claude` and wires the capture hooks. A routine picks up the checked-out repo's own
+  `.claude/skills/` and `.claude/settings.json` hooks by itself.
+
+  > **To pick up a newer engine, bump the `# rebuild:` number in the stub and re-save.** The
+  > environment snapshot is busted only by that field's text changing, so a stub that clones
+  > `main` does not re-run just because this repo moved on.
 
 > **Watch out:** a routine clones the **default branch** unless its prompt says otherwise. So keep
 > one build skill on the default branch and have it work out the base branch at runtime. Do not
@@ -274,7 +280,8 @@ scripts/                   # engine-wide scripts, not tied to one skill; each ha
   build-evals.sh           # regenerate evals/; --check fails on drift
   run-evals.sh             # run a suite (needs claude + a real repo, so NOT named *.test.sh)
   validate-manifests.sh    # plugin.json <-> marketplace.json agreement; no phantom entries
-  cloud-skill-sync.sh      # cloud delivery: the environment Setup script for a web routine
+  cloud-setup-stub.sh      # THE thing you paste into a cloud env's Setup script field
+  cloud-skill-sync.sh      # what the stub runs: delivers every skill + agent into the env
 ```
 
 ## Status
