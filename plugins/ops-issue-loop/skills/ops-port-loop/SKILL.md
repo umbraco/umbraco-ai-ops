@@ -44,22 +44,46 @@ Read the PR: its merge state, its base branch, and the issue it closes.
 
 ## Step 2 — work out the target lines
 
-Ask `ops-repo-meta · lines` for `live`, `primary` and `port_order`. Identify the **source
-line** from the PR's base branch.
+Ask `ops-repo-meta · lines` for `live`, `primary` and `port_order`. **`live` is ordered oldest
+first**, and that order is the whole of how you know which lines lie in the port direction.
 
-**`port_order` is a direction, not a sequence.** It says which way changes travel:
+**Name the source line first.** In order:
+
+1. **The caller told you.** `ops-merge-loop` hands over the PR it just landed, its merge commit
+   and its **line** — the one `ops-integrate · land` returned, which came from the only thing
+   that holds the branch-to-line mapping. This is the normal path and the only reliable one.
+2. **Fired by the label alone** (a human labelled an already-merged PR), so there is no caller.
+   Match the PR's base ref against the live line names and accept **exactly one** match. Not
+   one match, or more than one → **stop and ask on the PR** which line it is. Do not pick the
+   closest, and do not carry on with a guess: every target below is derived from this answer, so
+   getting it wrong ports the change to the wrong lines.
+
+> **Why this is a lookup and not an inference.** The rule below says never read a line out of a
+> branch name, and matching a base ref against the *declared* live set is not that: the names
+> come from the repo's own data, the match must be exact and unique, and an ambiguous one stops
+> the loop. What the rule forbids is deciding anything about a *base* from a string, and
+> deriving "newer" by comparing the numbers in `v17` and `v18`. Neither happens here.
+>
+> There is no action that answers "which line is this PR on". `ops-branching` owns the
+> branch-to-line mapping and is command-only by ruling, so this is the residue of that ruling,
+> handled by asking a human rather than by guessing.
+
+**Then take the direction off the ordered list.** `port_order` says which way changes travel:
 
 | `port_order` | Targets |
 |---|---|
-| `upward` | every live line **newer** than the source line |
-| `downward` | every live line **older** than the source line |
+| `upward` | every live line **after** the source line in `live` |
+| `downward` | every live line **before** the source line in `live` |
+
+**Position in `live`, never a comparison of version numbers.** A loop that parses `17` out of
+`v17` has learned a product's naming scheme, and it breaks on the first line that is not `vN`.
 
 > **Direction is the whole rule, and "every other live line" is wrong.** A repo can have a line
 > that is live but is not a normal port target. Forms runs **v13, v17 and v18** with v17 primary
-> and `upward`: a change landing on v17 ports to **v18 only**, because v13 is older and takes
-> security merges alone. "Every other live line" would open an unwanted v13 PR on every single
-> change. The direction rule excludes it with no special case — and a security fix that lands on
-> v13 still ports up to v17 and v18, which is what you want.
+> and `upward`: a change landing on v17 ports to **v18 only**, because v13 comes earlier in
+> `live` and takes security merges alone. "Every other live line" would open an unwanted v13 PR
+> on every single change. The direction rule excludes it with no special case — and a security
+> fix that lands on v13 still ports up to v17 and v18, which is what you want.
 
 Then:
 
@@ -108,8 +132,10 @@ Report: which lines were targeted, which have a green PR, which failed and why.
 ## Rules
 
 - **Port from the merge commit, never from an open PR.** Review changes things.
-- **Direction comes from `port_order`, never from a branch name.** A loop that reads `v18` out
-  of a string has learned a product fact.
+- **Direction comes from `port_order` plus the order of `live`, never from a version number.**
+  A loop that compares the `17` in `v17` with the `18` in `v18` has learned a product fact.
+- **Never guess the source line.** Take it from the caller, or match it exactly once against the
+  declared live set, or stop and ask. Everything else here depends on it.
 - **Idempotent.** Same PR labelled twice must not open a second port. Check for an existing one
   before implementing, not after.
 - **Never land a port.** Not even a green one.
