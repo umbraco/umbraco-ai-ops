@@ -129,14 +129,21 @@ mkdir -p "$SKILLS_DEST" "$AGENTS_DEST"
       if command -v jq >/dev/null 2>&1; then
         [ -f "$SETTINGS" ] || printf '{}\n' > "$SETTINGS"
         tmp="$SETTINGS.tmp.$$"
+        # ADD our entry, keep whatever else was registered, and do not add it twice. Assigning
+        # `.SubagentStop = [ours]` would delete every other hook the environment had on that
+        # event — silently, on a file this script did not author. Matching on the command string
+        # makes a re-run idempotent, which matters because the Setup script re-runs on rebuild.
         if jq --arg root "$HOOKS_ROOT" '
+              def cmd($scope): "bash \"" + $root + "/hooks/capture-proto-learning.sh\" " + $scope;
               def entry($scope):
-                { hooks: [ { type: "command",
-                             command: ("bash \"" + $root + "/hooks/capture-proto-learning.sh\" " + $scope),
-                             async: true } ] };
-              .hooks = ((.hooks // {})
-                        | .SubagentStop = [entry("subagent")]
-                        | .SessionEnd   = [entry("orchestrator")])
+                { hooks: [ { type: "command", command: cmd($scope), async: true } ] };
+              def upsert($event; $scope):
+                .hooks[$event] = ( ((.hooks[$event] // [])
+                                    | map(select(any(.hooks[]?; .command == cmd($scope)) | not)))
+                                   + [entry($scope)] );
+              .hooks = (.hooks // {})
+              | upsert("SubagentStop"; "subagent")
+              | upsert("SessionEnd";   "orchestrator")
             ' "$SETTINGS" > "$tmp" 2>/dev/null && [ -s "$tmp" ]; then
           mv "$tmp" "$SETTINGS"; echo "registered capture hooks in $SETTINGS"
         else

@@ -67,6 +67,22 @@ check "keeps an unrelated setting"      "sonnet" "$(jq -r '.model' "$H2/.claude/
 check "keeps an unrelated hook"         "1"      "$(jq '.hooks.PreToolUse | length' "$H2/.claude/settings.json")"
 check "and still adds SubagentStop"     "1"      "$(jq '.hooks.SubagentStop | length' "$H2/.claude/settings.json")"
 
+# --- an existing hook on the SAME event must survive ----------------------
+# This is the case the earlier wiring got wrong: it assigned `.SessionEnd = [ours]`, which
+# deleted whatever else the environment had registered on that event, in a file this script does
+# not own. The unrelated-event case above passed throughout, so nothing caught it.
+H4="$TMP/home4"; mkdir -p "$H4/.claude"
+printf '{"hooks":{"SessionEnd":[{"hooks":[{"type":"command","command":"echo theirs"}]}]}}\n' \
+  > "$H4/.claude/settings.json"
+run "$ENGINE" "$H4"
+check "keeps a foreign hook on the same event" "1" \
+  "$(jq '[.hooks.SessionEnd[] | select(any(.hooks[]?; .command == "echo theirs"))] | length' "$H4/.claude/settings.json")"
+check "  and adds ours alongside it"           "2" \
+  "$(jq '.hooks.SessionEnd | length' "$H4/.claude/settings.json")"
+run "$ENGINE" "$H4"
+check "  and a re-run still does not duplicate" "2" \
+  "$(jq '.hooks.SessionEnd | length' "$H4/.claude/settings.json")"
+
 # --- idempotency: running twice must not duplicate the hooks --------------
 run "$ENGINE" "$H2"
 check "a second run does not duplicate SubagentStop" "1" "$(jq '.hooks.SubagentStop | length' "$H2/.claude/settings.json")"
