@@ -111,10 +111,27 @@ JSON
 cat > "$TMP/meta-single.json" <<'JSON'
 { "version": 1 }
 JSON
+# What the schema actually tells the ISSUES repo to write: declare the roles that are NOT this
+# repo, so `code` alone. The router used to require `issues` to be present and to match the
+# event repo before it would read `code`, so this exact file produced NO target and the routine
+# ran in the issues repo, silently. Kept as its own case because it is the conformant shape.
+cat > "$TMP/meta-codeonly.json" <<'JSON'
+{ "version": 1, "topology": { "code": "own/code" } }
+JSON
 
 out="$(bash "$SCRIPT" --repo-meta "$TMP/meta-split.json" --event issues --action labeled --label ops/ready-for-ai --number 5 --repo own/issues </dev/null)"
 if [ "$out" = "loop=ops-issue-loop repo=own/issues number=5 target=own/code" ]; then pass=$((pass+1))
 else fail=$((fail+1)); echo "FAIL: target derived from declared topology — got [$out]"; fi
+
+out="$(bash "$SCRIPT" --repo-meta "$TMP/meta-codeonly.json" --event issues --action labeled --label ops/ready-for-ai --number 5 --repo own/issues </dev/null)"
+if [ "$out" = "loop=ops-issue-loop repo=own/issues number=5 target=own/code" ]; then pass=$((pass+1))
+else fail=$((fail+1)); echo "FAIL: a code-only file (the conformant issues-repo shape) must still resolve a target — got [$out]"; fi
+
+# The same file sitting on the CODE repo names its own repo. That is redundant rather than
+# wrong, and it must not emit a self-target.
+out="$(bash "$SCRIPT" --repo-meta "$TMP/meta-codeonly.json" --event pull_request --action labeled --label ops/auto-merge --number 9 --repo own/code </dev/null)"
+if [ "$out" = "loop=ops-merge-loop repo=own/code number=9" ]; then pass=$((pass+1))
+else fail=$((fail+1)); echo "FAIL: a redundantly self-declared code repo must emit no target — got [$out]"; fi
 
 # Fired on the CODE repo, the same file must add no target: the work is already here.
 out="$(bash "$SCRIPT" --repo-meta "$TMP/meta-split.json" --event pull_request --action labeled --label ops/auto-merge --number 8 --repo own/code </dev/null)"
@@ -208,6 +225,28 @@ if [ -f "$CATALOG" ]; then
 else
   fail=$((fail+1)); echo "FAIL: catalog.json not found at $CATALOG (the reserved-name cross-check cannot run)"
 fi
+
+# --- the prose renderings of the base table must not drift from it ---------
+# Two documents render this table by hand for a human: loop-dispatch's SKILL.md (which is also
+# where the dispatcher reads what to do with each loop) and the locked routine prompt. Both had
+# gone stale by one row — the `ops/port` rule was missing from each, so a fire carrying
+# `loop=ops-port-loop` reached a dispatcher whose own list did not mention it. A generator for two
+# prose tables would be overkill; asserting every row is present is not.
+SKILL="$HERE/../SKILL.md"
+PROMPT="$HERE/../../new-loop-routine/references/routine-prompts.md.template"
+while IFS=$'\t' read -r lbl loop; do
+  [ -n "$lbl" ] || continue
+  for doc in "$SKILL" "$PROMPT"; do
+    if [ ! -f "$doc" ]; then
+      fail=$((fail+1)); echo "FAIL: $doc not found (the rendered-table check cannot run)"; continue
+    fi
+    if grep -qF "$lbl" "$doc" && grep -qF "$loop" "$doc"; then pass=$((pass+1))
+    else
+      fail=$((fail+1))
+      echo "FAIL: $(basename "$doc") does not render the base rule $lbl -> $loop"
+    fi
+  done
+done < <(jq -r '.routes[] | "\(.label)\t\(.loop)"' "$BASE" | tr -d '\r')
 
 echo "----"
 echo "route-event tests: $pass passed, $fail failed"

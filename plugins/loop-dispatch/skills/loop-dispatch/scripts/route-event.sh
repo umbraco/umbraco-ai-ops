@@ -134,16 +134,16 @@ loop="$(jq -nr --arg ev "$key" --arg lb "$label" --argjson ov "$ov_json" --slurp
 # with nothing to catch them disagreeing — the same drift pattern as the old `ci.provider`
 # spelling split. So the file is the single source and this reads it.
 #
-# `topology.code` is deliberately not declarable, so a file that names an `issues` repo tells us
-# this repo is the issues side, and the target is the code repo. It is not in the file, so we
-# take it from the event when they differ — the workflow that fires here is committed in the
-# issues repo, and `code` is whatever the routine should work in.
+# `topology.code` IS the key to read, and it is the ONLY one. The declared-facts rule is
+# "declare the roles that are NOT the repo this file lives in", so the file on the issues repo
+# of a split topology names `code` and nothing else — naming `issues` there would be declaring
+# what the file is already sitting in. An earlier version required `topology.issues` to be
+# present AND to equal the event repo before it would read `code`, which meant the conformant
+# file produced no target at all: the routine then ran in the issues repo, silently, and
+# nothing failed. Read `code` on its own; the emit below drops it when it is this repo anyway,
+# so a code repo that declares its own name redundantly still gets no target.
 if [ -z "$target" ] && [ -n "$repo_meta" ] && [ -f "$repo_meta" ] && jq empty "$repo_meta" 2>/dev/null; then
-  declared_issues="$(jq -r '.topology.issues // empty' "$repo_meta" 2>/dev/null | tr -d '\r')"
-  # Only meaningful when this event fired on the issues repo: then the work happens elsewhere.
-  if [ -n "$declared_issues" ] && [ "$declared_issues" = "$repo" ]; then
-    target="$(jq -r '.topology.code // empty' "$repo_meta" 2>/dev/null | tr -d '\r')"
-  fi
+  target="$(jq -r '.topology.code // empty' "$repo_meta" 2>/dev/null | tr -d '\r')"
 fi
 
 # Only emit target= when a distinct work-repo was supplied (cross-repo case). Same-repo
