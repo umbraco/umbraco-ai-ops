@@ -41,14 +41,15 @@
         },
         {
           "action": "verify",
-          "description": "Run this repo's build, tests and sanity checks against the change, and report pass or fail with enough detail for the caller to act on a failure.",
+          "description": "Run this repo's build, tests and sanity checks against the change, and report pass or fail with enough detail for the caller to act on a failure. Where the workspace reported `fidelity: reduced`, a pass MUST be reported as non-authoritative — a lighter test target produces false passes as well as false failures.",
           "input": {
             "branch": "string — the branch to verify",
             "scope": "string — optional narrowing, e.g. one test project"
           },
           "output": {
             "ok": "boolean",
-            "failures": "array — one entry per failing check, with its output"
+            "failures": "array — one entry per failing check, with its output",
+            "authoritative": "boolean — false when the workspace was `fidelity: reduced`, so a pass does not predict CI"
           },
           "example": {
             "branch": "ai/4211-culture-validation"
@@ -249,7 +250,7 @@
       "kind": "behavioral",
       "visibility": "supporting",
       "framework_default": true,
-      "override_when": "a build needs more than a bare worktree: a database to seed, a container, a free port, a demo site, or credentials for a private package feed.",
+      "override_when": "a build needs more than a bare worktree: a database to seed, a container, a free port, a demo site, or credentials for a private package feed — or the repo has two possible test targets, one matching CI and one faster, so `prepare` has to report which it produced.",
       "description": "An isolated place to build and test one change: worktree, database, dependencies, credentials. Prepared and torn down by `ops-change`, never by a loop.",
       "operations": [
         {
@@ -260,7 +261,9 @@
           },
           "output": {
             "path": "string — where the workspace lives",
-            "reused": "boolean"
+            "reused": "boolean",
+            "fidelity": "string — `ci-parity` when this workspace tests against what CI tests against, `reduced` when it is a faster stand-in (a lighter database, a stubbed service). A `reduced` pass is NOT evidence CI will pass, and `ops-change · verify` must say so.",
+            "notes": "string — optional, what the environment already provided versus what prepare had to create"
           },
           "example": {
             "branch": "ai/4211-culture-validation"

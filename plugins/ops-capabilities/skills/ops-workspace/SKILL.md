@@ -26,7 +26,7 @@ ops-workspace <action> '<context-json>'
 
 | Action | Context | Returns |
 |---|---|---|
-| `prepare` | `{ branch }` | `{ ok, path, reused }` |
+| `prepare` | `{ branch }` | `{ ok, path, reused, fidelity, notes }` |
 | `teardown` | `{ path }` | `{ ok }` |
 
 An absent context is `{}`. **Reject any other action.**
@@ -50,6 +50,41 @@ database — which is why those repos override.
 checkout and no sibling work to collide with. Return that checkout's path with
 `reused: true` rather than nesting a worktree inside it. A workspace capability that insists on
 creating something is worse than one that recognises it already has what it needs.
+
+### Find out what the environment already provides, before provisioning anything
+
+A cloud environment is **built once and reused**, and its build step may already have installed
+the SDK, cached a container image, or started a service. A `prepare` that probes blindly or
+reinstalls wastes minutes of every run and can end up with two versions of the same thing.
+
+So **read first, provision second**. If the environment records what it provides — a manifest
+file its setup script writes is the usual shape — read that and treat it as authoritative. If
+there is no manifest, say so and fall back to the repo's own documented setup rather than
+guessing. Report the difference in `notes`: what was already there, and what you had to create.
+
+"Available but not running" is not "unavailable". A cached container image with a stopped
+daemon means **startable** — start it. Reinstalling because a service was not already running
+is the most expensive way to get this wrong.
+
+### Say how faithful the workspace is: `fidelity`
+
+Where a repo has more than one possible test target — the one CI uses, and a lighter, faster
+stand-in — `prepare` **MUST** say which one it produced:
+
+| `fidelity` | Means |
+|---|---|
+| `ci-parity` | this workspace tests against what CI tests against. A pass here predicts a pass there |
+| `reduced` | a faster stand-in: a different database engine, a stubbed dependency, a smaller fixture set |
+
+**Default to `ci-parity`.** A `reduced` target is a last resort — for a quick smoke of one
+focused change, or when the parity target genuinely is not available here — because a different
+engine produces both false failures *and* false passes.
+
+**A `reduced` pass is not evidence CI will pass**, and `ops-change · verify` must carry that
+through to whatever it reports. Silently downgrading the test target and reporting a clean pass
+is worse than not testing: it spends the loop's trust on a result that did not earn it.
+
+A repo with exactly one test target reports `ci-parity` and never thinks about this again.
 
 ## Action: `teardown`
 
