@@ -46,7 +46,9 @@ if [ -z "$code" ]; then
   # (`https://github.com/owner/name/`), and `owner/name.git/` would otherwise keep its `.git`
   # because the anchor no longer matches. Without any of this, every --repo carries the slash
   # through to `gh` as `owner/name/`. Found dry-running against a real clone whose origin has one.
-  code="$(printf '%s' "$origin" | sed -E 's#^git@[^:]+:##; s#^https?://[^/]+/##; s#/+$##; s#\.git$##')"
+  # One expression, shared verbatim with detect.sh and the capture hook — see detect.sh for the
+  # order and why each step is there.
+  code="$(printf '%s' "$origin" | sed -E 's#^ssh://##; s#^https?://##; s#^[^@/]*@##; s#^[^/:]+:##; s#^[^/]*\.[^/]*/##; s#/+$##; s#\.git$##')"
 fi
 [ -n "$code" ] || { echo "ERROR: cannot resolve the code repo — pass --code owner/name" >&2; exit 2; }
 

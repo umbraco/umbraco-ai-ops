@@ -92,6 +92,44 @@ rm -rf "$d"
 # not a git repo
 check "non-repo error" "not a git repo" "$(bash "$DETECT" "$(mktemp -d)" | jq -r '.error')"
 
+# --- the no-jq fallback emits the SAME shape ------------------------------
+# The installer seeds every question it asks from `lines_seen`, `release.*` and
+# `override_signals`. The fallback used to omit all three, so on a machine without jq the seeds
+# were simply absent and each question got asked blind — which is the failure mode the seeding
+# rule exists to prevent.
+#
+# Hiding jq means hiding ONLY jq: blanking PATH takes git with it and detect stops at "not a git
+# repo", which would have passed this test while proving nothing. So build a PATH holding a shim
+# per tool detect actually uses, and leave jq out of it.
+shimdir="$(mktemp -d)/nojq-bin"; mkdir -p "$shimdir"
+# `bash` is in the list because `PATH=x bash ...` resolves bash through the NEW PATH, so leaving
+# it out makes the whole case exit 127 and every assertion below reads as an empty result.
+for t in bash git sed sort grep tail head paste tr cat; do
+  real="$(command -v "$t" 2>/dev/null)" || continue
+  printf '#!/bin/bash\nexec "%s" "$@"\n' "$real" > "$shimdir/$t"
+  chmod +x "$shimdir/$t"
+done
+check "the shim PATH really does hide jq" 1 \
+  "$(PATH="$shimdir" bash -c 'command -v jq >/dev/null 2>&1'; echo $?)"
+check "  and really does keep git" 0 \
+  "$(PATH="$shimdir" bash -c 'command -v git >/dev/null 2>&1'; echo $?)"
+
+d="$(mkrepo)"; git -C "$d" branch v17/dev; git -C "$d" branch v17/main; git -C "$d" branch v18/dev
+nojq="$(PATH="$shimdir" bash "$DETECT" "$d" 2>/dev/null)"
+check "the fallback is valid JSON" 0 "$(printf '%s' "$nojq" | jq empty >/dev/null 2>&1; echo $?)"
+check "  it keeps lines_seen"      2 "$(printf '%s' "$nojq" | jq '.branching.lines_seen | length')"
+check "  with the lines in it" '["v17","v18"]' "$(printf '%s' "$nojq" | jq -c '.branching.lines_seen | sort')"
+check "  it keeps release"      true "$(printf '%s' "$nojq" | jq '.release | has("nbgv")')"
+check "  and override_signals"  true "$(printf '%s' "$nojq" | jq '.override_signals | has("workspace")')"
+check "  with booleans, not strings" boolean \
+  "$(printf '%s' "$nojq" | jq -r '.override_signals.branching | type')"
+# `[paths]`, not `paths(scalars)`: the latter drops every key whose value is `false`, so two
+# objects with different keys can compare equal.
+keys() { jq -S -c '[paths | join(".")] | sort' | tr -d '\r'; }
+check "  and the same keys as the jq path" \
+  "$(bash "$DETECT" "$d" | keys)" "$(printf '%s' "$nojq" | keys)"
+rm -rf "$d"
+
 echo "----"
 echo "detect tests: $pass passed, $fail failed"
 [ "$fail" -eq 0 ]

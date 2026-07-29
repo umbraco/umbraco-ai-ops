@@ -17,9 +17,15 @@ cd "$repo_dir" 2>/dev/null || { printf '{"error":"not a directory: %s"}\n' "$rep
 git rev-parse --is-inside-work-tree >/dev/null 2>&1 || { printf '{"error":"not a git repo"}\n'; exit 0; }
 
 # --- source repo (owner/name) from origin ---------------------------------
+# Host-agnostic, and one expression shared with plan-labels.sh and the capture hook, because
+# three ways to parse one URL is three things to get wrong. In order: scheme, then userinfo,
+# then an scp-style `host:` (which catches an SSH host alias like `git@github-work:o/n`), then a
+# dotted host with its slash. The trailing slash comes off BEFORE `.git`: a clone URL legitimately
+# ends in one, and `owner/name.git/` would otherwise keep its `.git` because the anchor no longer
+# matches. An input that is already `owner/name` passes through untouched.
 origin="$(git remote get-url origin 2>/dev/null || true)"
 source_repo="$(printf '%s' "$origin" \
-  | sed -E 's#^(git@github\.com:|https://github\.com/|ssh://git@github\.com/)##; s#/+$##; s#\.git$##')"
+  | sed -E 's#^ssh://##; s#^https?://##; s#^[^@/]*@##; s#^[^/:]+:##; s#^[^/]*\.[^/]*/##; s#/+$##; s#\.git$##')"
 
 # --- branches -> branching model ------------------------------------------
 branches="$(git branch -a --format='%(refname:short)' 2>/dev/null | sed 's#^origin/##' | sort -u)"
@@ -118,6 +124,14 @@ if command -v jq >/dev/null 2>&1; then
       override_signals: { workspace: $sws, private_feed: $sfd,
                           notify: $snt, branching: $sbr } }'
 else
-  printf '{"source":"%s","branching":{"model":"%s","base":"%s","release_base":"%s","default_branch":"%s"},"ci":{"provider":"%s"},"stack":"%s"}\n' \
-    "$source_repo" "$model" "$base" "$release_base" "$default_branch" "$ci" "$stack"
+  # SAME SHAPE, minus only what needs jq to encode. `ops-install` Step 2 seeds its questions from
+  # `lines_seen`, `release.*` and `override_signals`, so a fallback that dropped those keys made
+  # every seeded question fail to seed — and a question asked blind is the thing the installer is
+  # written to avoid. `lines_seen` is emitted by hand here; the booleans are already `true`/`false`
+  # literals, so they need no quoting.
+  lines_json="$(printf '%s\n' "$lines_seen" | grep -v '^$' | sed 's/.*/"&"/' | paste -sd, - 2>/dev/null)"
+  printf '{"source":"%s","branching":{"model":"%s","base":"%s","release_base":"%s","default_branch":"%s","lines_seen":[%s]},"ci":{"provider":"%s"},"release":{"nbgv":%s,"has_release_tags":%s,"release_skill":"%s"},"stack":"%s","override_signals":{"workspace":%s,"private_feed":%s,"notify":%s,"branching":%s}}\n' \
+    "$source_repo" "$model" "$base" "$release_base" "$default_branch" "${lines_json:-}" \
+    "$ci" "$nbgv" "$has_release_tags" "$release_skill" "$stack" \
+    "$sig_workspace" "$sig_feed" "$sig_notify" "$sig_branching"
 fi

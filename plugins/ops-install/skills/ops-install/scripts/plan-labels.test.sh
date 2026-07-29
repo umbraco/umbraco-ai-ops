@@ -107,6 +107,17 @@ if command -v git >/dev/null 2>&1; then
     "$(repo1 "$(gitrepo g4 https://github.com/owner/name.git/)")"
   check "  an ssh origin resolves too" "owner/name" \
     "$(repo1 "$(gitrepo g5 git@github.com:owner/name.git)")"
+  # The three scripts that parse a remote now share one expression, so these cover it for all
+  # three. The host was named literally before, which left anything that is not github.com with
+  # its prefix still attached — and the resulting `github-work:owner/name` reaches `gh` as a repo.
+  check "  an ssh:// URL resolves" "owner/name" \
+    "$(repo1 "$(gitrepo g7 ssh://git@github.com/owner/name.git)")"
+  check "  an SSH host alias resolves" "owner/name" \
+    "$(repo1 "$(gitrepo g8 git@github-work:owner/name.git)")"
+  check "  a self-hosted host resolves" "owner/name" \
+    "$(repo1 "$(gitrepo g9 https://ghe.corp.local/owner/name.git)")"
+  check "  a URL carrying userinfo resolves" "owner/name" \
+    "$(repo1 "$(gitrepo g10 https://someone@ghe.corp.local/owner/name.git)")"
   check "a declared topology.code still beats the remote" "owner/declared" \
     "$(d="$(gitrepo g6 https://github.com/owner/remote/)"; mkdir -p "$d/.claude"; \
        printf '%s' '{"version":1,"topology":{"code":"owner/declared"}}' > "$d/.claude/ops-repo-meta.json"; \
@@ -131,6 +142,32 @@ check "  both land on the issues repo" "owner/code" "$(repo_of "$p" in_progress)
 check "  done too"                     "owner/code" "$(repo_of "$p" done)"
 check "  and each is overridable"      "mine" \
   "$(name_of "$(plan "$(mkrepo doneover '{"version":1,"labels":{"done":"mine"}}')")" done)"
+
+# --- the three copies of the purpose list must agree ----------------------
+# A label purpose is written down in three places and each has a different job: this script
+# CREATES the label, the schema lets a repo RENAME it, and `ops-repo-meta · identity` is where
+# every loop LOOKS IT UP by purpose. Nothing joined them, and they drifted: `port` was added to
+# this planner and to the schema, and left out of `identity` — so two loops resolved
+# `labels.port` off a table that did not list it. A purpose missing from `identity` is invisible,
+# because a loop asking for a key that is not there reads as a repo with no override.
+ENGINE="$(cd "$HERE/../../../../.." && pwd)"
+SCHEMA="$ENGINE/plugins/ops-capabilities/skills/ops-repo-meta/scripts/ops-repo-meta.schema.json"
+IDENTITY="$ENGINE/plugins/ops-capabilities/skills/ops-repo-meta/SKILL.md"
+if [ -f "$SCHEMA" ] && [ -f "$IDENTITY" ]; then
+  # `tr -d '\r'` on both: jq on Windows writes CRLF, so without it every purpose but the last
+  # carries a stray CR and matches nothing. Same reason the scripts themselves all strip it.
+  purposes="$(printf '%s' "$(plan "$(mkrepo purposes '{"version":1}')")" | jq -r '.labels[].purpose' | tr -d '\r' | sort)"
+  schema_keys="$(jq -r '.properties.labels.properties | keys[]' "$SCHEMA" | tr -d '\r' | sort)"
+  check "the schema accepts an override for every planned purpose" "" \
+    "$(comm -23 <(printf '%s\n' "$purposes") <(printf '%s\n' "$schema_keys") | tr '\n' ' ' | sed 's/ *$//')"
+  missing=""
+  for p in $purposes; do
+    grep -qE "^ *\"$p\": *\"" "$IDENTITY" || missing="$missing$p "
+  done
+  check "identity's label table lists every planned purpose" "" "$(printf '%s' "$missing" | sed 's/ *$//')"
+else
+  check "the ops-capabilities plugin is on disk for the cross-check" "found" "missing"
+fi
 
 printf '\n%s: %d passed, %d failed\n' "$(basename "$0")" "$pass" "$fail"
 [ "$fail" -eq 0 ]
