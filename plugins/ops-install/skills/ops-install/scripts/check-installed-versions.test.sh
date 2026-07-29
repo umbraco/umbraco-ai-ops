@@ -32,7 +32,7 @@ rc()  { MARKETPLACE_FILE="$TMP/marketplace.json" OPS_CACHE_DIR="$1" bash "$C" >/
 # --- everything current ---------------------------------------------------
 cur="$(mkcache cur ops-install:0.11.0 github-ops:0.1.0)"
 check "current install exits 0" 0 "$(rc "$cur")"
-check "  and says so" 1 "$(run "$cur" | grep -c 'all 2 plugin(s) match the marketplace')"
+check "  and says so" 1 "$(run "$cur" | grep -c 'all 2 installed plugin(s) match the marketplace')"
 check "  --quiet prints nothing when current" 0 "$(run "$cur" --quiet | grep -c .)"
 
 # --- a clean bill of health must not be a false all-clear ------------------
@@ -79,14 +79,28 @@ check "  reporting the highest installed, not the first" 1 \
 check "versions sort numerically, not lexically" 1 \
   "$(run "$messy" | grep -c '0.10.0  *0.11.0')"
 
-# --- not installed at all -------------------------------------------------
+# --- not installed at all is NOT a failure ---------------------------------
+# Onboarding installs three plugins and adds the loops later, so "not installed" is the normal
+# state at Step 0. Failing on it made the documented install path stop at its own first check.
+# Only BEHIND is the invisible failure this script exists to catch.
 none="$(mkcache none github-ops:0.1.0)"
-check "a missing plugin exits 1" 1 "$(rc "$none")"
-check "  and is listed as not installed" 1 "$(run "$none" | grep -c 'not installed: ops-install')"
+check "a not-installed plugin exits 0" 0 "$(rc "$none")"
+check "  and is listed anyway"          1 "$(run "$none" | grep -c 'Not installed (not a problem yet): ops-install')"
+check "  with the command to install it" 1 \
+  "$(run "$none" | grep -c '/plugin install ops-install@umbraco-ai-ops')"
+check "  and is not called out of date" 0 "$(run "$none" | grep -ci 'out of date')"
+check "  --quiet still reports it, because it is actionable" 1 \
+  "$(run "$none" --quiet | grep -c 'Not installed')"
+
+# Behind AND missing together: it fails on the behind, and says the missing is a separate matter.
+mixed="$(mkcache mixed ops-install:0.9.0)"
+check "behind plus missing exits 1"        1 "$(rc "$mixed")"
+check "  naming the stale one"             1 "$(run "$mixed" | grep -c 'ops-install  *0.9.0  *0.11.0')"
+check "  and separating the missing one"   1 "$(run "$mixed" | grep -c 'separate matter')"
 
 # --- an empty cache is 'nothing installed', not a crash --------------------
 empty="$(mkcache empty)"
-check "an empty cache exits 1" 1 "$(rc "$empty")"
+check "an empty cache exits 0" 0 "$(rc "$empty")"
 check "  without erroring" 0 "$(run "$empty" | grep -ci 'no such file')"
 
 # --- junk in the cache is ignored -----------------------------------------

@@ -73,6 +73,9 @@ Every one of them cost real time and none was a real bug by then.
 - **Behind?** Stop. Print the commands it gives, and say the session must be **restarted**
   afterwards — a running session keeps the skills it loaded at start, so updating without a
   restart looks exactly like updating changing nothing.
+- **Something not installed?** That is **not** a reason to stop, and the script exits 0 for it.
+  Onboarding needs three plugins; the loops are installed before a loop runs, not before this.
+  Print the install commands it lists and carry on.
 - **Current?** Read the second line before believing it. The check compares against the
   **marketplace clone**, and that clone does not refresh itself. "All current" against a
   week-old clone is true and worthless, so the script prints how old its source is. If it looks
@@ -388,7 +391,7 @@ List these **in this order**, and say why the order matters; do not try to do th
 4. **Stand up the routine** with `new-loop-routine`. **This is what produces the Fire URL and
    the token** — they do not exist until it does.
 5. **Add the two routine secrets** — `LOOP_DISPATCH_FIRE_URL` and `LOOP_DISPATCH_TOKEN`, per
-   repo or per org, using the two values step 3 just gave you. In a split topology they go on
+   repo or per org, using the two values **step 4** just gave you. In a split topology they go on
    **every** repo that has a caller workflow, not only the code repo.
 6. **Smoke-test before writing any capability.** Open a throwaway PR whose base is **not** one
    of the live lines and label it with the landing label. The whole chain should fire and

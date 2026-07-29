@@ -15,9 +15,21 @@
 # that does not match the code you are reading. That has already cost real debugging time —
 # twice in one day — which is the whole reason this exists.
 #
+# BEHIND AND NOT-INSTALLED ARE DIFFERENT ANSWERS, and only one of them is a problem.
+#
+#   behind         you have this plugin, at an older version than the marketplace offers. That is
+#                  the invisible failure above: stale behaviour, no error. Exit 1.
+#   not installed  you do not have it. Often deliberate: onboarding needs only ops-install,
+#                  ops-capabilities and github-ops, and the loops are installed later. Exit 0,
+#                  and list them so the operator can install what they are about to need.
+#
+# Conflating the two made this script exit 1 on every fresh onboarding, at a step whose
+# instruction is "stop if it says you are behind". The documented install path could not get
+# past its own first check.
+#
 # Usage:
-#   check-installed-versions.sh            # report, exit 1 if anything is behind
-#   check-installed-versions.sh --quiet    # print only when something is behind
+#   check-installed-versions.sh            # report, exit 1 only if something is BEHIND
+#   check-installed-versions.sh --quiet    # print only when something needs attention
 #
 # Env: MARKETPLACE_FILE, OPS_CACHE_DIR, MARKETPLACE_NAME override the resolved defaults.
 set -uo pipefail
@@ -73,29 +85,43 @@ if git -C "$src_root" rev-parse --git-dir >/dev/null 2>&1; then
   src_note="$(git -C "$src_root" log -1 --format='%h, last updated %cr' 2>/dev/null)"
 fi
 
-if [ "$n_behind" -eq 0 ] && [ "$n_missing" -eq 0 ]; then
-  if ! $quiet; then
-    printf 'OK: all %d plugin(s) match the marketplace (%s)\n' "$current" "$name"
-    if [ -n "$src_note" ]; then
-      printf '    compared against: %s (%s)\n' "$src_root" "$src_note"
-      printf '    That copy does not refresh itself. Run `/plugin marketplace update %s`\n' "$name"
-      printf '    first if it looks old — otherwise this is only current with a stale list.\n'
+staleness_note() {
+  [ -n "$src_note" ] || return 0
+  printf '    compared against: %s (%s)\n' "$src_root" "$src_note"
+  printf '    That copy does not refresh itself. Run `/plugin marketplace update %s`\n' "$name"
+  printf '    first if it looks old — otherwise this is only current with a stale list.\n'
+}
+
+if [ "$n_behind" -eq 0 ]; then
+  # Nothing is stale. Report what is absent, but do NOT fail: a plugin you have not installed
+  # yet cannot be serving you old behaviour, which is the only thing this check is for.
+  if ! $quiet || [ "$n_missing" -gt 0 ]; then
+    printf 'OK: all %d installed plugin(s) match the marketplace (%s)\n' "$current" "$name"
+    staleness_note
+    if [ "$n_missing" -gt 0 ]; then
+      printf '\n  Not installed (not a problem yet): %s\n' "$(printf '%s' "$missing" | tr '\n' ' ')"
+      printf '  Onboarding needs ops-install, ops-capabilities and github-ops. Install the loops\n'
+      printf '  before you run one:\n\n'
+      printf '%s' "$missing" | while read -r p; do
+        [ -n "$p" ] || continue
+        printf '    /plugin install %s@%s\n' "$p" "$name"
+      done
     fi
   fi
   exit 0
 fi
 
 printf 'Your installed engine is out of date.\n\n'
-if [ "$n_behind" -gt 0 ]; then
-  printf '  %-20s %-10s %s\n' "PLUGIN" "INSTALLED" "AVAILABLE"
-  printf '%s' "$behind" | while IFS=$'\t' read -r p h w; do
-    [ -n "$p" ] || continue
-    printf '  %-20s %-10s %s\n' "$p" "$h" "$w"
-  done
-  printf '\n'
-fi
+printf '  %-20s %-10s %s\n' "PLUGIN" "INSTALLED" "AVAILABLE"
+printf '%s' "$behind" | while IFS=$'\t' read -r p h w; do
+  [ -n "$p" ] || continue
+  printf '  %-20s %-10s %s\n' "$p" "$h" "$w"
+done
+printf '\n'
+staleness_note
 if [ "$n_missing" -gt 0 ]; then
-  printf '  not installed: %s\n\n' "$(printf '%s' "$missing" | tr '\n' ' ')"
+  printf '\n  Also not installed (separate matter, not why this failed): %s\n\n' \
+    "$(printf '%s' "$missing" | tr '\n' ' ')"
 fi
 
 printf 'Run:\n\n  /plugin marketplace update %s\n' "$name"
