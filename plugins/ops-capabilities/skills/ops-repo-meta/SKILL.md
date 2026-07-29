@@ -82,6 +82,7 @@ Who am I, and what labels do I run by.
     "blocked":     "ops/ai-blocked",
     "land":        "ops/auto-merge",
     "rework":      "ops/auto-rework",
+    "port":        "ops/port",
     "release":     "ops/auto-release",
     "release_blocked": "ops/release-blocked",
     "proto_learning":  "ops/proto-learning",
@@ -139,16 +140,32 @@ The version lines currently taking work.
 { "live": ["v17", "v18"], "primary": "v17", "port_order": "upward" }
 ```
 
-- **`live`** — every line taking work *now*. A repo can have several at once, which is why
-  a caller must treat "the integration branch" as **set membership**, never equality with
-  one branch.
+- **`live`** — every line taking work *now*, **ordered oldest first**. A repo can have several
+  at once, which is why a caller must treat "the integration branch" as **set membership**,
+  never equality with one branch.
 - **`primary`** — the line work starts on before being ported. **Not** necessarily the
   newest line, and **not** necessarily the default branch.
-- **`port_order`** — `upward` (primary is older; ports go to newer lines) or `downward`.
+- **`port_order`** — `upward` (ports travel toward the end of `live`) or `downward` (toward
+  the start).
 
-**None of this is derivable** from version numbers or from the default branch, so a repo
-that has more than one live line **must** override this skill and declare them. Guessing
-"newest = primary" picks wrong.
+**The order of `live` is part of the answer.** `port_order` gives a direction; only this array
+says which lines lie in that direction. Without the order a caller has to compare version
+numbers out of the names to work out what "newer" means, which is the caller learning a
+product's naming scheme and breaks on the first line that is not `vN`. Return them in age
+order, and a caller can find the lines on either side of any line by position alone.
+
+**Naming the line a PR is on is not an action here.** It is not derivable from this data: the
+mapping from a branch to a line is `ops-branching`'s private business, and `ops-branching` is
+command-only. So the caller that *created* the PR is the one that knows, and it passes the line
+along. A caller that has only a PR and must name its line may match the base ref against these
+line names, but only on an **exact single match**, and it MUST stop and ask a human otherwise
+rather than pick the closest.
+
+**None of this is derivable** from version numbers or from the default branch, so a repo with
+more than one live line **must declare it** — in `.claude/ops-repo-meta.json`, which is source 2
+above and which this framework default reads. **Declaring is not overriding.** You only ship your
+own `ops-repo-meta` when the *behaviour* has to differ, such as facts that change per run.
+Guessing "newest = primary" picks wrong, which is why the file exists.
 
 **Callers MUST read this every time and MUST NOT cache it.** A major-version cutover adds a
 line, and that must not require an engine change.

@@ -54,7 +54,7 @@
           "items": {
             "$ref": "#/$defs/line"
           },
-          "description": "Every line taking work now. Detection can list `vN/*` branches but cannot know which lines are still worked — a line may exist and be finished, or exist only as a `main` taking security fixes."
+          "description": "Every line taking work now, ORDERED OLDEST FIRST. The order is load-bearing, not cosmetic: `port_order` gives a direction and this array is the only thing that says which lines lie in it, so a caller never has to compare version numbers in the names. Detection can list `vN/*` branches but cannot know which lines are still worked — a line may exist and be finished, or exist only as a `main` taking security fixes."
         },
         "primary": {
           "$ref": "#/$defs/line",
