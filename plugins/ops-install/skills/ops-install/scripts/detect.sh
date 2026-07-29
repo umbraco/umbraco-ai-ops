@@ -32,12 +32,19 @@ branches="$(git branch -a --format='%(refname:short)' 2>/dev/null | sed 's#^orig
 has() { printf '%s\n' "$branches" | grep -qx "$1"; }
 top_major="$(printf '%s\n' "$branches" | grep -E '^v[0-9]+/dev$' | grep -oE '[0-9]+' | sort -n | tail -1)"
 
-# Every `vN` line that has a branch, newest first. A SEED for the installer's question about
+# Every `vN` line that has a branch, **OLDEST FIRST**. A SEED for the installer's question about
 # which lines are live — a line can exist and be finished, so this is the candidate list to
 # offer a human, never the answer. Empty for a repo with no version lines.
+#
+# The order is load-bearing and it is oldest-first because that is the order `lines.live`
+# requires, and `ops-install` Step 2 seeds `lines.live` straight from this list with every option
+# pre-selected. It used to emit newest-first, so onboarding wrote a backwards array and
+# `ops-port-loop` computed zero targets for a change on the primary line — a legitimate outcome
+# it reports and stops on, so nothing failed and the first symptom was two lines drifting apart
+# (found 29-07-2026 on umbraco/Umbraco.Automate). Do not add `-r` back.
 lines_seen="$(printf '%s\n' "$branches" \
   | sed -n 's#^\(v[0-9]\+\)/\(dev\|main\)$#\1#p' \
-  | sort -u -t v -k2 -n -r)"
+  | sort -u -t v -k2 -n)"
 
 model="custom"; base=""; release_base=""
 if [ -n "$top_major" ] && has "v${top_major}/main"; then

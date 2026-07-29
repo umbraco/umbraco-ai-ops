@@ -103,13 +103,22 @@ in **one call**: pick the four that apply and send them together. Step 1 gives y
 
 | Ask when | Key | Seed the options with |
 |---|---|---|
-| `lines_seen` is non-empty | `lines.live` | the detected lines, multi-select, all pre-selected — a line can exist and be **finished**, so the human is removing, not adding |
+| `lines_seen` is non-empty | `lines.live` | the detected lines **in the order detection gave them (oldest first)**, multi-select, all pre-selected — a line can exist and be **finished**, so the human is removing, not adding |
 | `lines.live` has more than one | `lines.primary` | each live line as an option. **Never** pre-pick the newest or the default branch: Forms' primary is v17 while its default is `v15/dev` |
 | `lines.live` has more than one | `lines.port_order` | `upward` / `downward`, with no recommendation — the engine cannot infer it and a wrong guess ports every change the wrong way |
 | always, unless the repo plainly holds its own issues | `topology.issues` | "this repo" first, then ask for `owner/name` |
 | you publish from another repo | `topology.releases` | "this repo" first |
 | proto-learnings go somewhere other than the code repo | `topology.learnings` | "this repo" first. Warn if `topology.issues` is set and **public** — a proto-learning is an internal note |
 | the repo already has a label meaning one of ours | `labels.<purpose>` | the existing label names, read from the repo |
+
+**`lines.live` is ORDERED OLDEST FIRST, and the order survives the question.** It is not
+cosmetic: `port_order` gives a direction and `live` is the only thing that says which lines lie
+in it, so `ops-port-loop` reads a target as a *position* in this array. Write the lines the human
+kept in the order `lines_seen` gave them — never reorder, never sort by anything else. A reversed
+array gives every change **zero** port targets, which is a legitimate outcome the port loop
+reports and stops on, so nothing errors and the lines just quietly drift apart. That is exactly
+what happened on 29-07-2026, when detection emitted newest-first. `validate-repo-meta.sh` now
+**warns** if an all-`vN` `live` is descending — read its output, do not just check the exit code.
 
 **Skip any question whose answer is forced.** A single-line repo is asked nothing about lines. A
 repo with one live line has no primary to choose and no port order. If that leaves fewer than

@@ -83,8 +83,13 @@ d="$(mkrepo)"; check "no version lines means an empty list" 0 "$(field "$d" '.br
 d="$(mkrepo)"
 for b in v17/dev v17/main v18/dev v18/main v13/main; do git -C "$d" branch "$b"; done
 check "every vN line is listed once" 3 "$(field "$d" '.branching.lines_seen | length')"
-check "  newest first"           v18 "$(field "$d" '.branching.lines_seen[0]')"
-check "  and the oldest last"    v13 "$(field "$d" '.branching.lines_seen[-1]')"
+# OLDEST FIRST, because Step 2 seeds `lines.live` from this list and the schema requires that
+# order — `ops-port-loop` reads direction as a position in the array, so a reversed list silently
+# produces zero port targets. Do not "fix" these two back to newest-first.
+check "  oldest first, as lines.live requires" v13 "$(field "$d" '.branching.lines_seen[0]')"
+check "  and the newest last"                  v18 "$(field "$d" '.branching.lines_seen[-1]')"
+check "  the whole list, in order" '["v13","v17","v18"]' \
+  "$(field "$d" '.branching.lines_seen | tostring')"
 check "  a main-only line is still a line" 1 \
   "$(field "$d" '[.branching.lines_seen[] | select(. == "v13")] | length')"
 rm -rf "$d"
@@ -118,7 +123,10 @@ d="$(mkrepo)"; git -C "$d" branch v17/dev; git -C "$d" branch v17/main; git -C "
 nojq="$(PATH="$shimdir" bash "$DETECT" "$d" 2>/dev/null)"
 check "the fallback is valid JSON" 0 "$(printf '%s' "$nojq" | jq empty >/dev/null 2>&1; echo $?)"
 check "  it keeps lines_seen"      2 "$(printf '%s' "$nojq" | jq '.branching.lines_seen | length')"
-check "  with the lines in it" '["v17","v18"]' "$(printf '%s' "$nojq" | jq -c '.branching.lines_seen | sort')"
+# Not `| sort` — the fallback builds `lines_seen` from the same variable, so it has to come out
+# oldest-first too, and sorting first would hide a reversal in this branch only.
+check "  with the lines in it, oldest first" '["v17","v18"]' \
+  "$(printf '%s' "$nojq" | jq -c '.branching.lines_seen')"
 check "  it keeps release"      true "$(printf '%s' "$nojq" | jq '.release | has("nbgv")')"
 check "  and override_signals"  true "$(printf '%s' "$nojq" | jq '.override_signals | has("workspace")')"
 check "  with booleans, not strings" boolean \

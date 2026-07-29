@@ -87,8 +87,15 @@ first**, and that order is the whole of how you know which lines lie in the port
 
 Then:
 
-- **No targets** (the change landed on the newest line under `upward`, or the oldest under
-  `downward`) → comment saying so and stop. That is a normal outcome, not a failure.
+- **No targets** → comment saying so and stop. That is a normal outcome, not a failure. **Say
+  which of the two reasons it was**, because they read identically otherwise and one of them is
+  also the symptom of a wrong `live` order:
+  - **`live` has one entry** — there is nowhere to port to at all.
+  - **The source line is at the end of the direction** — the change landed on the last line in
+    `live` under `upward`, or the first under `downward`. Name the source line and quote `live`
+    in the order you read it, so a human seeing `live` the wrong way round can spot it. A
+    reversed `live` sends every change on the primary line straight down this path and nothing
+    ever errors (a real onboarding did exactly that on 29-07-2026).
 - **Skip any line that already has a port** for this issue — open or merged. A re-fired label
   MUST NOT open a second PR. This is the idempotency requirement and it is the one most likely
   to bite, because labels get re-applied by hand.

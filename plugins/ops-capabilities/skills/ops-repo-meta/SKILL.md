@@ -154,6 +154,14 @@ numbers out of the names to work out what "newer" means, which is the caller lea
 product's naming scheme and breaks on the first line that is not `vN`. Return them in age
 order, and a caller can find the lines on either side of any line by position alone.
 
+**A reversed `live` is silent, so `validate-repo-meta.sh` warns about it.** Get the order wrong
+and `ops-port-loop` finds **zero** targets for every change on the primary line — a legitimate
+outcome it reports and stops on, so nothing errors and the lines simply drift apart. That is a
+real bug, not a hypothetical: onboarding seeded `live` from a newest-first detection and shipped
+a backwards array (29-07-2026). Ordering cannot be a hard error, because a line name is an
+arbitrary string with no general notion of older, so when every name is a bare `vN` the validator
+warns on a descending list and still passes.
+
 **Naming the line a PR is on is not an action here.** It is not derivable from this data: the
 mapping from a branch to a line is `ops-branching`'s private business, and `ops-branching` is
 command-only. So the caller that *created* the PR is the one that knows, and it passes the line

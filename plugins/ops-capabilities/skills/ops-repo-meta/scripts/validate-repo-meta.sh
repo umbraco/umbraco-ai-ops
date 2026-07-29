@@ -33,6 +33,7 @@ jq empty "$file" 2>/dev/null || { echo "FAIL: $file is not valid JSON" >&2; exit
 
 fails=0
 fail() { printf 'FAIL: %s\n' "$1" >&2; fails=$((fails + 1)); }
+warn() { printf 'WARN: %s\n' "$1" >&2; }
 check() { # check <description> <jq filter yielding true>
   local got; got="$(jq -r "$2" "$file" 2>/dev/null | tr -d '\r')"
   [ "$got" = "true" ] || fail "$1"
@@ -77,6 +78,17 @@ check "primary must be one of the live lines" \
   '(has("lines") | not) or (.lines | (.primary as $p | .live | index($p)) != null)'
 if [ "$(jq -r '(has("lines") | not) or (.lines | (.primary as $p | .live | index($p)) != null)' "$file" 2>/dev/null | tr -d '\r')" != "true" ]; then
   fail "  primary '$(jq -r '.lines.primary' "$file" | tr -d '\r')' is not in live [$(jq -r '.lines.live | join(", ")' "$file" | tr -d '\r')] — work would be rooted on a line nobody merges into"
+fi
+
+# `live` is ORDERED OLDEST FIRST, and nothing can enforce that: a line name is an arbitrary
+# string (`default` is a documented value), so there is no general notion of older. But when
+# every name is a bare `vN` the numbers say it, and a descending list is then almost certainly a
+# reversed one — the shape of the 29-07-2026 bug, where `ops-install` seeded `live` from a
+# newest-first detection and `ops-port-loop` then found zero targets for every change. A WARNING,
+# never a failure: a repo is allowed to declare a numbering that runs the other way.
+if [ "$(jq -r 'has("lines") and (.lines.live | all(test("^v[0-9]+$")))' "$file" 2>/dev/null | tr -d '\r')" = "true" ] \
+   && [ "$(jq -r '.lines.live | [.[] | ltrimstr("v") | tonumber] | . == sort' "$file" 2>/dev/null | tr -d '\r')" != "true" ]; then
+  warn "live [$(jq -r '.lines.live | join(", ")' "$file" | tr -d '\r')] is not in ascending version order — live must be ORDERED OLDEST FIRST, because port_order reads a direction as a position in this array. A reversed list gives no port targets and never errors. Not a failure: intended only if this repo's numbering really runs the other way."
 fi
 
 # --- labels ---------------------------------------------------------------

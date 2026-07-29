@@ -23,6 +23,11 @@ says() { # says <name> <file> <substring>
   if printf '%s' "$out" | grep -qF "$3"; then pass=$((pass+1))
   else fail=$((fail+1)); echo "FAIL: $1 — [$3] not in output"; fi
 }
+lacks() { # lacks <name> <file> <substring>
+  local out; out="$(bash "$V" "$2" 2>&1)"
+  if printf '%s' "$out" | grep -qF "$3"; then fail=$((fail+1)); echo "FAIL: $1 — [$3] IS in output"
+  else pass=$((pass+1)); fi
+}
 
 # --- the shipped example, and the two real consumers ----------------------
 status "the shipped example" 0 "$EXAMPLE"
@@ -54,6 +59,32 @@ bad="$(mk badprimary '{"version":1,"lines":{"live":["v17","v18"],"primary":"v19"
 status "primary outside live" 1 "$bad"
 says   "  and it names both" "$bad" "primary 'v19' is not in live [v17, v18]"
 says   "  and says what would break" "$bad" "rooted on a line nobody merges into"
+
+# --- live ordering: a warning, because it cannot be a rule ----------------
+# The 29-07-2026 bug: `ops-install` seeded `live` from a newest-first detection, so onboarding
+# wrote ["v18","v17"] and `ops-port-loop` found zero targets for every change on the primary
+# line. Zero targets is a legitimate outcome, so nothing failed. Ordering cannot be a hard error
+# (a line name is an arbitrary string), so it warns and still passes.
+rev="$(mk reversed '{"version":1,"lines":{"live":["v18","v17"],"primary":"v18","port_order":"downward"}}')"
+status "a reversed live array still passes" 0 "$rev"
+says   "  but it warns"            "$rev" "WARN"
+says   "  and names the array"     "$rev" "live [v18, v17] is not in ascending version order"
+says   "  and says what breaks"    "$rev" "no port targets and never errors"
+
+lacks "an ascending live array does not warn" \
+  "$(mk ascending '{"version":1,"lines":{"live":["v13","v17","v18"],"primary":"v17","port_order":"upward"}}')" "WARN"
+lacks "a single line cannot be misordered" \
+  "$(mk onelinewarn '{"version":1,"lines":{"live":["v18"],"primary":"v18","port_order":"upward"}}')" "WARN"
+# Non-`vN` names have no numeric order to read, so the heuristic must stay silent rather than
+# guess. `default` is a documented line name.
+lacks "non-numeric line names are never judged" \
+  "$(mk named '{"version":1,"lines":{"live":["default","legacy"],"primary":"default","port_order":"upward"}}')" "WARN"
+lacks "one non-numeric name disables the heuristic" \
+  "$(mk mixed '{"version":1,"lines":{"live":["v18","legacy"],"primary":"v18","port_order":"downward"}}')" "WARN"
+lacks "a file with no lines block is not judged" "$(mk nolines '{"version":1}')" "WARN"
+# Two digits vs one: a string sort would call ["v9","v10"] descending. This compares numbers.
+lacks "v9 before v10 is ascending, not descending" \
+  "$(mk twodigit '{"version":1,"lines":{"live":["v9","v10"],"primary":"v10","port_order":"downward"}}')" "WARN"
 
 # --- retired config keys must not come back ------------------------------
 for k in ci branching playbook repos learning version_pin release_skill; do
