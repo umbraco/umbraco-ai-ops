@@ -199,7 +199,11 @@ the hooks capture it.
 - **Ask for labels by purpose**, never by literal name — a repo may have renamed them.
 - **Reviews are non-negotiable**: `ops-change · verify` owns running this repo's security and
   code review over the changes, and fixing what they surface before pushing. This loop requires
-  that it happened; it does not define what it is.
+  that it happened; it does not define what it is. **Requiring it means reading `reviews` in
+  what `verify` returns** — the catalog makes that part of the action, so a `verify` that only
+  builds and tests comes back with an empty list. Treat empty as a **missing gate**: say so in
+  the issue comment rather than reporting a clean pass. A requirement nobody checks is a
+  requirement the first scaffolded `ops-change` will quietly drop.
 - **Recap as you go** — one line per dispatch, completion and block.
 - **Never use `fable`.**
 
