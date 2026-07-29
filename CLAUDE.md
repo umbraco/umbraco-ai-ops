@@ -128,6 +128,35 @@ capability verb (`ops-change · implement`). Never interchange them. Phase 3 spl
 out as the `ops-ci` capability; the forge mechanism stays framework mechanics and is not
 overridable.
 
+## A gate that cannot run reports blocked, never pass
+
+If a check cannot execute — the agent will not spawn, the tool is absent, the credential is
+missing, the skill came back as text instead of running — the answer is **blocked**, with the
+reason. Never a pass, and never a quiet downgrade to a weaker check reported in the same words
+as the real one.
+
+The prototype learned this the expensive way: its review skills set
+`disable-model-invocation: true`, a headless subagent received them as **inert text** rather
+than executing them, and PRs reported a passed review that had never happened
+(`hifi-phil/umbraco-mcp-ops` PR #39). Nothing failed, so nothing was investigated.
+
+Two rules follow:
+
+- **Anything that must run inside a subagent or a headless routine is an `agent`, not a
+  skill.** Spawning an agent definition is the mechanism that works there. Our one reviewer,
+  `release-reviewer`, is an agent for this reason; keep it that way and add new ones the same
+  way. `cloud-skill-sync.sh` delivers `plugins/*/agents/*` for exactly this.
+- **Never self-review.** A gate performed by the same model that produced the thing being
+  gated is not a gate. If the independent reviewer is unavailable, block.
+
+> **Open question, not yet answered here.** Six of our capability skills carry
+> `disable-model-invocation: true` (a conformance §2.4 SHOULD), and the whole engine binds by
+> a loop *invoking a capability skill by name*. Whether that flag also blocks an **explicit**
+> invocation in a headless routine — as opposed to auto-firing on a description match — is
+> **unverified**, and it is load-bearing: if it does, no loop can command a capability in
+> cloud. Settle it with a real routine run before changing any frontmatter. Do not "fix" this
+> speculatively; the flag is there to stop capabilities auto-firing, which is a real hazard too.
+
 ## Labels are namespaced `ops/`
 
 Every GitHub label the engine owns is prefixed **`ops/`** — `ops/ready-for-ai`,

@@ -114,9 +114,20 @@ checklist is an extension point, not a fixed list. It returns **VERDICT: PASS** 
 **VERDICT: BLOCK + findings**, and this loop gates on the verdict — the agent is read-only and
 cannot publish.
 
-> The routine's `allowed_tools` must include the Agent/Task tool. If the agent cannot be
-> spawned in the environment, do the review inline on the loop's model and **say in the
-> outcome comment that it was not the Opus reviewer.**
+> **The routine's `allowed_tools` must include the Agent/Task tool.** If the agent cannot be
+> spawned, the gate has **not run** — treat that as a **BLOCK** and follow the BLOCK path
+> below. Do **not** fall back to reviewing inline on the loop's own model.
+>
+> An earlier version of this step did exactly that, and it was wrong twice over. A gate the
+> release driver performs on itself is not a second gate; it is the same judgement that
+> decided to release, asked again. And "reviewed inline" reads in a comment as *reviewed*, so
+> the release ships with a gate everyone believes held.
+>
+> This is not hypothetical. The `umbraco-mcp-ops` prototype shipped PRs reporting a passed
+> review that had never run: its review skills carried `disable-model-invocation: true`, so a
+> headless subagent received them as inert text rather than executing them, and nothing
+> noticed (their PR #39). **A gate that cannot run must say so and stop. It must never
+> report a pass.**
 
 On any **BLOCK**: do not publish. Then, in order:
 
