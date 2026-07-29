@@ -46,8 +46,15 @@ into, and no frontmatter to key on:
     **sentence in the description**: every capability ends with *"NOT for direct use — never
     select it from a description match."* Weaker than a flag, and the only option that leaves
     the capability callable, which is the whole engine.
-  - **Loops and `ops-install` are the opposite case** and keep the flag: a human invokes those
-    deliberately, and auto-firing a loop is a real hazard. The validator ignores them.
+  - **No skill in this repo sets the flag, loops included**, and that is on purpose. It was
+    written here as "loops and `ops-install` keep it", on the reasoning that a human invokes
+    those deliberately. That reasoning does not survive the main runtime: a cloud routine is
+    fired with a *prompt* ("work the ready issues"), and a model picking the loop by its
+    description is exactly what the flag blocks. Setting it on a loop would break loops in cloud
+    the same way it broke capabilities in a routine. What keeps a loop from firing by accident is
+    that it needs a labelled entity and re-checks it still qualifies, not a frontmatter flag.
+    The validator ignores loops, so nothing enforces this either way — if you add the flag
+    anywhere, you are re-creating the 29-07-2026 bug in a new place.
 - **Framework loops are named `ops-<noun>-loop`** — `ops-issue-loop`, `ops-merge-loop`,
   `ops-port-loop`, `ops-release-loop`, `ops-rework-loop`, `ops-triage-loop`. The suffix is what keeps a loop
   out of the capability namespace, so `ops-release-loop` can never collide with the

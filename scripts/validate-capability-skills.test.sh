@@ -48,18 +48,40 @@ R="$(mkroot good)"
 accepts "$R" "a clean pair of capability skills"
 
 # --- the flag, the whole reason this exists -------------------------------
+# IN THE FRONTMATTER, which is the only place it does anything. Appending it after the closing
+# `---` would be prose, and the checks are deliberately scoped to frontmatter now.
 R="$(mkroot flagged)"
-printf 'disable-model-invocation: true\n' >> "$R/plugins/p/skills/ops-ci/SKILL.md"
+sed -i 's/^name: ops-ci$/name: ops-ci\ndisable-model-invocation: true/' "$R/plugins/p/skills/ops-ci/SKILL.md"
 rejects "$R" "a capability that sets disable-model-invocation"
 
 out="$(bash "$V" "$R" 2>&1)"
 if printf '%s' "$out" | grep -q "no loop can call it"; then pass=$((pass+1))
 else fail=$((fail+1)); echo "FAIL: the message should say why the flag is banned"; fi
 
+# Naming the flag in the BODY is not setting it. Several skills explain why it is banned, and a
+# validator that failed on the explanation would push people into not writing it down.
+R="$(mkroot discusses)"
+printf '\nWe deliberately do not use:\ndisable-model-invocation: true\n' \
+  >> "$R/plugins/p/skills/ops-ci/SKILL.md"
+accepts "$R" "a capability that only discusses the flag in its body"
+
 # --- the guard that replaces it -------------------------------------------
 R="$(mkroot noguard)"
 sed -i 's/NOT for direct use — never/absolutely fine to/' "$R/plugins/p/skills/ops-branching/SKILL.md"
 rejects "$R" "a capability missing the do-not-select guard"
+
+# The guard has to be in the DESCRIPTION. In the body it discourages nothing: a description
+# match is what it exists to prevent, and only the description is matched.
+R="$(mkroot guardinbody)"
+sed -i 's/NOT for direct use — never/absolutely fine to/' "$R/plugins/p/skills/ops-branching/SKILL.md"
+printf '\nNOT for direct use — never select it from a description match.\n' \
+  >> "$R/plugins/p/skills/ops-branching/SKILL.md"
+rejects "$R" "the guard in the body instead of the description"
+
+# --- no frontmatter at all -------------------------------------------------
+R="$(mkroot nofm)"
+printf '# ops-ci\nno frontmatter here\n' > "$R/plugins/p/skills/ops-ci/SKILL.md"
+rejects "$R" "a capability skill with no frontmatter"
 
 # --- the name IS the binding ----------------------------------------------
 R="$(mkroot misnamed)"
@@ -67,8 +89,10 @@ sed -i 's/^name: ops-ci$/name: ops-something-else/' "$R/plugins/p/skills/ops-ci/
 rejects "$R" "a frontmatter name that does not match the directory"
 
 # --- loops and the installer are OUT of scope ------------------------------
-# A human invokes those deliberately, so the flag is correct there. If this ever starts
-# failing, the script has begun policing skills it should not.
+# Not because the flag is right there — no skill in this repo sets it, and a flagged loop would
+# break in cloud, where a routine's model picks the loop by description. They are out of scope
+# because this validator polices the CAPABILITY contract only. If this starts failing, the script
+# has begun policing skills it does not own.
 R="$(mkroot withloop)"
 mkdir -p "$R/plugins/p/skills/ops-issue-loop" "$R/plugins/p/skills/ops-install"
 for s in ops-issue-loop ops-install; do
