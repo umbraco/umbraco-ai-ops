@@ -111,6 +111,12 @@ It enforces the rule a JSON Schema cannot: **`primary` must be a member of `live
 rejects any retired config key, so an attempt to put `ci.provider` or a base branch back fails
 here rather than being silently ignored later.
 
+> **It needs the `ops-capabilities` plugin.** The script here is a thin wrapper; the real
+> validator ships beside the schema it enforces, in `ops-capabilities`. If that plugin is not
+> installed the wrapper exits 2 and tells you so. **Do not hand-check the file instead** — the
+> cross-field rule above is the one a human reading JSON is most likely to miss, and a wrong
+> primary line silently sends every change to the wrong branch. Install the plugin and re-run.
+
 ## Step 3 — report coverage
 
 ```
@@ -301,8 +307,11 @@ List these **in this order**, and say why the order matters; do not try to do th
    `ops-integrate`'s decision, and native auto-merge would race it. Independent of the rest,
    so it can be done now.
 2. **The cloud environment — and be explicit about which case they are in.** A routine runs in
-   an environment, and the engine only exists inside it because `scripts/cloud-skill-sync.sh`
-   put it there as the **Setup script**. Ask which applies and say so plainly:
+   an environment, and the engine only exists inside it because the engine's
+   **`scripts/cloud-skill-sync.sh`** put it there as the **Setup script**. That file is in the
+   engine repo, **not in this plugin** — from an installed plugin it is in the marketplace
+   clone, at `<marketplace>/scripts/cloud-skill-sync.sh`. Give the human the actual path you
+   found; do not send them looking. Ask which case applies and say so plainly:
 
    - **No environment yet** → **a human must create one.** You cannot. Tell them: create the
      environment, paste `cloud-skill-sync.sh` into its **Setup script** field, and set
