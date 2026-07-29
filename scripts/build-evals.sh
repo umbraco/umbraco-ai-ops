@@ -45,7 +45,11 @@ suite() { # suite <capability> -> the generated suite on stdout
       visibility: .visibility,
       framework_default: .framework_default,
       generated_from: "catalog.json",
-      cases:
+      # The outer parens around this whole value are LOAD-BEARING, not style. jq 1.7 will not
+      # accept a bare `a + b + c` as an object value — it fails with "unexpected +, expecting }"
+      # and compiles nothing. jq 1.8 relaxed the grammar, so on a 1.8 machine this passes and
+      # on the CI runner (1.7) every suite generated ZERO bytes. Do not unwrap them.
+      cases: (
         ( [ .operations[] as $op
             | { id: ($op.action + "/example"),
                 action: $op.action,
@@ -87,6 +91,7 @@ suite() { # suite <capability> -> the generated suite on stdout
                     "This is a data capability, so the structure IS the deliverable (conformance spec §4.4)."
                   ] } ]
             else [] end )
+      )
     }
   ' "$catalog"
 }

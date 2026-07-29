@@ -16,6 +16,27 @@ pass=0 fail=0
 TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT
 check() { if [ "$2" = "$3" ]; then pass=$((pass+1)); else fail=$((fail+1)); echo "FAIL: $1 — want [$2] got [$3]"; fi; }
 
+# --- the generator produces anything at all -------------------------------
+# Assert this BEFORE the drift gate. On jq 1.7 the filter failed to compile and every suite
+# generated zero bytes; the drift gate caught it, but reported it as "out of date", which sent
+# the investigation looking for a content difference rather than a broken generator. An empty
+# generation is its own failure and deserves its own name.
+for cap in $(jq -r '.capabilities[].capability' "$CATALOG" | tr -d '\r'); do
+  out="$(CATALOG_FILE="$CATALOG" bash "$B" --check 2>/dev/null; true)"
+  break
+done
+gen_bytes="$(jq -r '.capabilities[0].capability' "$CATALOG" | tr -d '\r')"
+first="$(sed -n '/^suite()/,/^}/p' "$B" >/dev/null 2>&1; echo ok)"
+probe="$TMP/probe"; mkdir -p "$probe"
+CATALOG_FILE="$CATALOG" EVALS_DIR="$probe" bash "$B" >/dev/null 2>&1
+check "the generator writes a suite per capability" \
+  "$(jq '.capabilities | length' "$CATALOG")" \
+  "$(find "$probe" -name '*.eval.json' | wc -l | tr -d ' ')"
+check "no generated suite is empty" 0 \
+  "$(find "$probe" -name '*.eval.json' -size -1c | wc -l | tr -d ' ')"
+check "every generated suite is valid JSON" 0 \
+  "$(for f in "$probe"/*.eval.json; do jq empty "$f" 2>/dev/null || echo bad; done | grep -c bad)"
+
 # --- the drift gate -------------------------------------------------------
 # Capture the output rather than discarding it. This assertion failed three CI runs in a row
 # while passing locally, and because both streams went to /dev/null the log said only "want [0]
