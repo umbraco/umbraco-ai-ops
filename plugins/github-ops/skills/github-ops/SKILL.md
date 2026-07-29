@@ -6,7 +6,8 @@ description: >-
   the GitHub MCP server (`mcp__github__*`, no `gh` there). One operation catalog, two
   reference files for the GitHub mechanism, plus a CI-provider reference so the "read
   CI status / read a failing log" operations resolve to GitHub checks or Azure
-  Pipelines per the consumer's `ci_provider`. The loop skills point here instead of
+  Pipelines — which of the two is chosen inside the `ops-ci` capability, not here and
+  not in any config key. The loop skills point here instead of
   each re-explaining the dual path. Load this whenever a loop needs to touch GitHub
   (list/create issues, open/merge PRs, check CI, push files) and you need the concrete
   command/tool for the current environment.
@@ -51,9 +52,9 @@ every provider implements — each operation carries an `axis`:
 - **`forge`** — the git host. Implemented by [`gh-cli.md`](references/gh-cli.md) (local) and
   [`github-mcp.md`](references/github-mcp.md) (web). Both cover **every** `forge` operation —
   keep them in sync with the catalog.
-- **`ci`** — the CI system. Implemented per the consumer's `ci_provider` (see below):
-  GitHub checks live in the `gh-cli`/`github-mcp` CI rows; Azure Pipelines in
-  [`azure-pipelines.md`](references/azure-pipelines.md).
+- **`ci`** — the CI system. Which provider a repo uses is resolved inside **`ops-ci`** (see
+  below), never by a config key: GitHub checks live in the `gh-cli`/`github-mcp` CI rows;
+  Azure Pipelines in [`azure-pipelines.md`](references/azure-pipelines.md).
 
 Operations flagged `"gate": true` (`get-ci-status`, `read-failing-ci-log`, `merge-pr`) are
 merge/CI gates — loops must never bypass them.

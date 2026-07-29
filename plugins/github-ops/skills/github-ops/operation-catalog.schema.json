@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/umbraco/umbraco-ai-ops/github-ops/operation-catalog.schema.json",
   "title": "github-ops operation catalog (provider interface)",
-  "description": "The interface every github-ops provider implements. Each operation is one capability a loop can invoke by NAME; a provider is a reference file that maps every operation of its axis to a concrete command/tool. Axes: 'forge' = the git host (implemented by gh-cli.md and github-mcp.md), 'ci' = the CI system (implemented by the ci_provider references — github-checks in gh-cli/github-mcp, azure-pipelines.md). To add a provider outside gh / GitHub-checks / Azure Pipelines, implement every operation of the matching axis.",
+  "description": "The interface every github-ops provider implements. Each operation is one capability a loop can invoke by NAME; a provider is a reference file that maps every operation of its axis to a concrete command/tool. Axes: 'forge' = the git host (implemented by gh-cli.md and github-mcp.md), 'ci' = the CI system (github-checks in gh-cli/github-mcp, azure-pipelines in azure-pipelines.md; which one a repo uses is resolved inside the ops-ci capability, not by any config key). To add a provider outside gh / GitHub-checks / Azure Pipelines, implement every operation of the matching axis.",
   "type": "object",
   "required": ["version", "operations"],
   "additionalProperties": false,

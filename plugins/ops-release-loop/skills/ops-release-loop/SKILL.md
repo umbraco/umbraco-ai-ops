@@ -49,7 +49,7 @@ that is correct: the engine has no business guessing how a product ships.
 | **`ops-release · sync`** | put the line's branches back in step | service |
 | **`ops-change · implement` / `verify`** | only to fix a red release branch — see Step 2 | service |
 | `ops-ci · status` / `log` | the CI gate, and the failing log to act on | cross-cutting (read) |
-| `ops-repo-meta · identity` / `topology` | the release label by purpose; which repo holds issues | cross-cutting (read) |
+| `ops-repo-meta · identity` / `topology` | the release and release-blocked labels by purpose (`labels.release`, `labels.release_blocked`); which repo holds issues | cross-cutting (read) |
 | `ops-notify · send` | start, block, completion | cross-cutting (infra) |
 
 **It never calls `ops-branching`.** Release branches and bases are `ops-release`'s business,
@@ -133,7 +133,8 @@ On any **BLOCK**: do not publish. Then, in order:
 
 1. **Open an issue** titled `Release <version> blocked by pre-publish review`, detailing every
    BLOCK finding (which check, what is wrong, why) and linking the release PR and the trigger
-   issue. Label it `ops/release-blocked` if that label exists.
+   issue. Label it with **`labels.release_blocked`** from `ops-repo-meta · identity`, by purpose
+   and never the literal name, if that label exists on the repo.
 2. **Notify** (`ops-notify · send`, `urgency: high`, key `release-blocked-<repo>-<version>`) —
    a human is now blocking a release.
 3. **Comment on the trigger issue** pointing at the blocked issue and the PR, and **remove the
