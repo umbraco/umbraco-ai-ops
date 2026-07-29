@@ -66,6 +66,16 @@ run "unwraps fenced json" '```json
 ```' "$(event "$LOOPY")"
 grep_log "  still files" "DRY RUN would file" 1
 
+# --- EVERY framework loop must be recognised ------------------------------
+# The default signature listed three loops while the engine shipped six, so port-loop and
+# merge-loop runs were skipped and nothing reported it. A loop absent from this list captures
+# no lessons at all, which is invisible: the log line reads like a normal non-loop session.
+for l in ops-issue-loop ops-rework-loop ops-port-loop ops-merge-loop ops-release-loop ops-triage-loop; do
+  t="$TMP/tr-$l.jsonl"; printf '{"m":"running %s for #4211"}\n' "$l" > "$t"
+  run "recognises $l" "$FILEABLE" "$(event "$t" "sess-$l")"
+  grep_log "  and captures from it" "DRY RUN would file" 1
+done
+
 # --- transcripts it must ignore -------------------------------------------
 run "ignores a non-loop transcript" "$FILEABLE" "$(event "$PLAIN")"
 grep_log "  logs the signature miss" "no loop signature" 1

@@ -33,7 +33,10 @@ set -uo pipefail
 
 SCOPE="${1:-subagent}"
 LABEL="${OPS_LEARNINGS_LABEL:-ops/proto-learning}"
-SIGNATURE="${OPS_LEARNINGS_SIGNATURE:-ops-issue-loop|ops-rework-loop|ops-release-loop|ops/ready-for-ai}"
+# EVERY framework loop, or capture is silently blind to whichever ones are missing. The list
+# started at three and the port and merge loops were added to the engine without it, so their
+# runs produced no lessons at all and nothing said so. If a loop is added, add it here.
+SIGNATURE="${OPS_LEARNINGS_SIGNATURE:-ops-issue-loop|ops-rework-loop|ops-port-loop|ops-merge-loop|ops-release-loop|ops-triage-loop|ops/ready-for-ai}"
 PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 SCHEMA="$PLUGIN_ROOT/skills/ops-triage-loop/references/proto-learning-schema.md"
 LOG="${OPS_LEARNINGS_LOG:-${HOME}/.cache/ops-learnings/capture.log}"
@@ -81,7 +84,9 @@ PROMPT_FILE="$PLUGIN_ROOT/hooks/analyzer-$SCOPE.md"
 REPO="${OPS_LEARNINGS_REPO:-}"
 if [ -z "$REPO" ]; then
   origin="$(git config --get remote.origin.url 2>/dev/null || true)"
-  REPO="$(printf '%s' "$origin" | sed -E 's#^git@[^:]+:##; s#^https?://[^/]+/##; s#\.git$##')"
+  # One expression, shared verbatim with detect.sh and plan-labels.sh — see detect.sh for the
+  # order. A stray trailing slash here would send the issue to `owner/name/`, which 404s.
+  REPO="$(printf '%s' "$origin" | sed -E 's#^ssh://##; s#^https?://##; s#^[^@/]*@##; s#^[^/:]+:##; s#^[^/]*\.[^/]*/##; s#/+$##; s#\.git$##')"
 fi
 if [ -z "$REPO" ]; then log "no destination repo (set \$OPS_LEARNINGS_REPO) — skipping"; exit 0; fi
 
