@@ -29,7 +29,7 @@ second one here would defeat both.
 | **`ops-change · implement`** | do the work for one issue | service |
 | **`ops-change · verify`** | prove it, this repo's way | service |
 | `ops-ci · status` / `log` | drive CI green on the PR | cross-cutting (read) |
-| `ops-repo-meta · identity` | the labels, **by purpose** — `labels.ready`, `labels.in_progress`, `labels.blocked` | cross-cutting (read) |
+| `ops-repo-meta · identity` | the labels, **by purpose** — `labels.ready`, `labels.in_progress`, `labels.done`, `labels.blocked`. Never a hard-coded name | cross-cutting (read) |
 | `ops-repo-meta · topology` / `lines` | `issues` = where the backlog is, `code` = where the PR opens, and which line is primary | cross-cutting (read) |
 | `ops-notify · send` | only when the loop gives up on an issue | cross-cutting (infra) |
 
@@ -95,10 +95,23 @@ Each subagent, for its issue:
    picks a base.
 4. **Drive CI green** — `ops-ci · status`; on red, `ops-ci · log` then back to `implement` /
    `verify`. **Cap: 8 attempts.**
-5. **Comment the PR link** on the issue. The labels were already swapped in step 0; all that
-   is left is the link, and it should go on **as soon as the PR exists** (step 3), not after
-   CI. A run that ends while CI is still building must still leave the issue pointing at its
-   PR — otherwise the backlog shows untouched work that is actually half done.
+5. **Mark it done.** Remove `labels.in_progress`, add `labels.done`, and — if step 3 did not
+   already — comment the PR link.
+
+   Three labels, three different jobs, and they are not interchangeable:
+
+   | Purpose | Default | When |
+   |---|---|---|
+   | `labels.ready` | `ops/ready-for-ai` | the human's gate. Off the moment work starts |
+   | `labels.in_progress` | `ops/in-progress` | **state.** On only while work is in flight |
+   | `labels.done` | `ops/generated-by-ai` | **provenance.** On at the end, and stays on |
+
+   `done` is not the opposite of `in_progress` — it records that a loop built this, which stays
+   true forever. `in_progress` records that one is building it *now*, which stops being true.
+   Conflating them is what left a live run's issue looking untouched (29-07-2026).
+
+   **Comment the PR link as soon as the PR exists** (step 3), not here. A run that dies while
+   CI is still building must still leave the issue pointing at its PR.
 
 Track `{issue, branch, pr_number, model, attempts}`. A subagent is done at a green PR.
 
@@ -106,8 +119,10 @@ Track `{issue, branch, pr_number, model, attempts}`. A subagent is done at a gre
 own workspace via `ops-workspace`, and a second isolation layer around it bypasses the repo's
 own setup — the seeded database, the claimed port, the restored dependencies.
 
-A subagent that cannot finish records the issue as **blocked**: `labels.blocked` on, ready label
-off, a comment saying why. Confirm that happened and **move on** — one bad issue must not stall
+A subagent that cannot finish records the issue as **blocked**: `labels.blocked` on,
+`labels.in_progress` **off**, a comment saying why. (The ready label came off back in step 0.)
+Clearing `in_progress` matters — an issue left carrying it reads as work still running, and
+nothing will ever come back to it. Confirm that happened and **move on** — one bad issue must not stall
 the queue.
 
 ## Step 4 — hand off and stop
@@ -153,7 +168,7 @@ remaining issue is then terminal — a green PR awaiting the landing label, or b
   landing. That is a real simplification, and it exists because the loop no longer merges — the
   old long-lived review phase was there only to serve its own merge.
 
-**Backstops — stop touching the issue, label it `labels.blocked`, remove the ready label,
+**Backstops — stop touching the issue, label it `labels.blocked`, clear `labels.in_progress`,
 comment why:**
 
 - **CI-green cap: 8** attempts on one PR. Then blocked, with the last failure in the comment.

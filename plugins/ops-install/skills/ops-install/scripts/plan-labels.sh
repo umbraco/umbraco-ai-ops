@@ -62,7 +62,8 @@ fi
 plan="$(jq -n --arg code "$code" --argjson d "$declared" '
   def rows: [
     ["ready",            "ops/ready-for-ai",    "issues",    "0e8a16", "Hand this issue to the AI issue loop. The only gate it acts on."],
-    ["in_progress",      "ops/generated-by-ai", "issues",    "c5def5", "The loop has opened a PR for this issue."],
+    ["in_progress",      "ops/in-progress",     "issues",    "1d76db", "A loop is working this issue right now. On while work is in flight, off when it ends."],
+    ["done",             "ops/generated-by-ai", "issues",    "c5def5", "Finished by a loop, with a green PR. Provenance, so it stays on after the work is done."],
     ["blocked",          "ops/ai-blocked",      "issues",    "d93f0b", "The loop gave up; the comment says why. Re-add the ready label to retry."],
     ["land",             "ops/auto-merge",      "code",      "0e8a16", "Approved to land. The deliberate human go-signal the merge loop requires."],
     ["rework",           "ops/auto-rework",     "code",      "fbca04", "Address the review feedback on this PR, then hand it back."],

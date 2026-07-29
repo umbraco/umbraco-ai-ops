@@ -4,7 +4,9 @@
   "title": "Declared repo facts",
   "description": "A consumer's `.claude/ops-repo-meta.json`: the facts about a repo that CANNOT be detected and have no other owner. Read by the framework-default `ops-repo-meta`, and by `route-event.sh` at the edge to resolve a cross-repo target. Written by `ops-install`. This is NOT the retired `ai-ops.yml` in JSON — it is a strict subset. Everything that file also held has exactly one owner elsewhere now: branch model, base, release base and merge strategy are private to `ops-branching`; the CI provider is internal to `ops-ci`; skill pointers are gone because a capability is found by its name. `additionalProperties: false` at every level is deliberate, so an attempt to put any of that back fails loudly instead of drifting. Every key is optional except `version`: a single-repo project on one line needs no file at all.",
   "type": "object",
-  "required": ["version"],
+  "required": [
+    "version"
+  ],
   "additionalProperties": false,
   "properties": {
     "version": {
@@ -38,14 +40,20 @@
     "lines": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["live", "primary", "port_order"],
+      "required": [
+        "live",
+        "primary",
+        "port_order"
+      ],
       "description": "The version lines currently taking work. Omit the whole block for a repo with no version lines: the default is a single line and the default branch is the whole story. Declare it as a set, because a repo with several live lines has several legitimate bases and the wrong-base gate tests membership, not equality.",
       "properties": {
         "live": {
           "type": "array",
           "minItems": 1,
           "uniqueItems": true,
-          "items": { "$ref": "#/$defs/line" },
+          "items": {
+            "$ref": "#/$defs/line"
+          },
           "description": "Every line taking work now. Detection can list `vN/*` branches but cannot know which lines are still worked — a line may exist and be finished, or exist only as a `main` taking security fixes."
         },
         "primary": {
@@ -54,7 +62,10 @@
         },
         "port_order": {
           "type": "string",
-          "enum": ["upward", "downward"],
+          "enum": [
+            "upward",
+            "downward"
+          ],
           "description": "`upward` = primary is older, ports go to newer lines. `downward` = the reverse. A human decision; the engine never infers it."
         }
       }
@@ -64,16 +75,51 @@
       "additionalProperties": false,
       "description": "Label overrides, keyed by PURPOSE and not by name — which is what lets a repo rename a label without touching a loop. Partial: name only what you are changing, and the `ops/`-namespaced framework defaults fill in the rest. Point a key at a label the repo already has rather than creating a second one that means the same thing.",
       "properties": {
-        "ready": { "$ref": "#/$defs/label", "description": "Default `ops/ready-for-ai`. The only gate the issue loop acts on." },
-        "in_progress": { "$ref": "#/$defs/label", "description": "Default `ops/generated-by-ai`." },
-        "blocked": { "$ref": "#/$defs/label", "description": "Default `ops/ai-blocked`." },
-        "land": { "$ref": "#/$defs/label", "description": "Default `ops/auto-merge`. The human approval for landing." },
-        "rework": { "$ref": "#/$defs/label", "description": "Default `ops/auto-rework`." },
-        "release": { "$ref": "#/$defs/label", "description": "Default `ops/auto-release`." },
-        "release_blocked": { "$ref": "#/$defs/label", "description": "Default `ops/release-blocked`." },
-        "proto_learning": { "$ref": "#/$defs/label", "description": "Default `ops/proto-learning`." },
-        "triaged": { "$ref": "#/$defs/label", "description": "Default `ops/triaged`. Written by triage, never a trigger." },
-        "loop_improvement": { "$ref": "#/$defs/label", "description": "Default `ops/loop-improvement`." }
+        "blocked": {
+          "$ref": "#/$defs/label",
+          "description": "Default `ops/ai-blocked`."
+        },
+        "done": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Overrides the default `ops/generated-by-ai`. Applied when a loop FINISHES an issue with a green PR, and left on afterwards — it is provenance, not state. Distinct from `in_progress`, which is on only while work is in flight."
+        },
+        "in_progress": {
+          "$ref": "#/$defs/label",
+          "description": "Overrides the default `ops/in-progress`. On while a loop is actively working the issue, off the moment it stops — a live run leaves it on so an interrupted run is findable."
+        },
+        "land": {
+          "$ref": "#/$defs/label",
+          "description": "Default `ops/auto-merge`. The human approval for landing."
+        },
+        "loop_improvement": {
+          "$ref": "#/$defs/label",
+          "description": "Default `ops/loop-improvement`."
+        },
+        "proto_learning": {
+          "$ref": "#/$defs/label",
+          "description": "Default `ops/proto-learning`."
+        },
+        "ready": {
+          "$ref": "#/$defs/label",
+          "description": "Default `ops/ready-for-ai`. The only gate the issue loop acts on."
+        },
+        "release": {
+          "$ref": "#/$defs/label",
+          "description": "Default `ops/auto-release`."
+        },
+        "release_blocked": {
+          "$ref": "#/$defs/label",
+          "description": "Default `ops/release-blocked`."
+        },
+        "rework": {
+          "$ref": "#/$defs/label",
+          "description": "Default `ops/auto-rework`."
+        },
+        "triaged": {
+          "$ref": "#/$defs/label",
+          "description": "Default `ops/triaged`. Written by triage, never a trigger."
+        }
       }
     }
   },

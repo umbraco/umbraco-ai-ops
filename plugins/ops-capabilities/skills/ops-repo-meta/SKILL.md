@@ -77,7 +77,8 @@ Who am I, and what labels do I run by.
   "default_branch": "main",
   "labels": {
     "ready":       "ops/ready-for-ai",
-    "in_progress": "ops/generated-by-ai",
+    "in_progress": "ops/in-progress",
+    "done":        "ops/generated-by-ai",
     "blocked":     "ops/ai-blocked",
     "land":        "ops/auto-merge",
     "rework":      "ops/auto-rework",
@@ -95,6 +96,12 @@ Who am I, and what labels do I run by.
 label without touching a loop. The values above are the framework defaults; every engine
 label is namespaced `ops/` (see `CLAUDE.md`). A repo that has already got a label meaning
 "ready" points `labels.ready` at it instead of creating a second one.
+
+**`in_progress` and `done` are not two names for one thing.** `in_progress` is **state** — on
+while a loop is working the issue, off the moment it stops, so an interrupted run is findable.
+`done` is **provenance** — a loop built this, which stays true forever. They shared one slot
+until a live routine read `labels.in_progress`, found it pointed at the finished label, and
+invented a name of its own (29-07-2026).
 
 `repo` and `default_branch` come from detection. Note that **the default branch is not
 necessarily a branch work happens on** — see `lines`.

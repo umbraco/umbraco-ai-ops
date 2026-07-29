@@ -26,14 +26,14 @@ name_of() { printf '%s' "$1" | jq -r --arg p "$2" '.labels[] | select(.purpose==
 
 # --- single repo: everything collapses onto code --------------------------
 p="$(plan "$(mkrepo single '{"version":1}')")"
-check "ten labels are planned"            10 "$(printf '%s' "$p" | jq '.labels | length')"
+check "eleven labels are planned"         11 "$(printf '%s' "$p" | jq '.labels | length')"
 check "single repo means one target"      1  "$(printf '%s' "$p" | jq '.summary.repos | length')"
 check "  ready lands on code"       "owner/code" "$(repo_of "$p" ready)"
 check "  proto_learning too"        "owner/code" "$(repo_of "$p" proto_learning)"
 
 # --- with no file at all --------------------------------------------------
 mkdir -p "$TMP/nofile"
-check "a repo with no ops-repo-meta.json still plans ten" 10 \
+check "a repo with no ops-repo-meta.json still plans eleven" 11 \
   "$(bash "$P" "$TMP/nofile" --code owner/code --json 2>/dev/null | jq '.labels | length')"
 
 # --- split topology: the role decides the repo ---------------------------
@@ -61,14 +61,14 @@ check "an overridden name is used"    "needs-ai" "$(name_of "$p" ready)"
 check "  and another"                 "shipit"   "$(name_of "$p" land)"
 check "a non-overridden name defaults" "ops/auto-rework" "$(name_of "$p" rework)"
 check "overrides are flagged"         2 "$(printf '%s' "$p" | jq '[.labels[] | select(.overridden)] | length')"
-check "the rest are not"              8 "$(printf '%s' "$p" | jq '[.labels[] | select(.overridden | not)] | length')"
+check "the rest are not"              9 "$(printf '%s' "$p" | jq '[.labels[] | select(.overridden | not)] | length')"
 
 # --- every label has what create-label needs ----------------------------
 p="$(plan "$(mkrepo full '{"version":1}')")"
 check "every label has a name, repo, colour and description" 0 \
   "$(printf '%s' "$p" | jq '[.labels[] | select((.label|length)==0 or (.repo|length)==0 or (.colour|test("^[0-9a-f]{6}$")|not) or (.description|length)==0)] | length')"
-check "purposes are unique" 10 "$(printf '%s' "$p" | jq '[.labels[].purpose] | unique | length')"
-check "the default names are all ops/-namespaced" 10 \
+check "purposes are unique" 11 "$(printf '%s' "$p" | jq '[.labels[].purpose] | unique | length')"
+check "the default names are all ops/-namespaced" 11 \
   "$(printf '%s' "$p" | jq '[.labels[] | select(.label | startswith("ops/"))] | length')"
 
 # --- the code repo is never taken from the file -------------------------
@@ -77,7 +77,7 @@ check "--code wins for the code role" "given/code" "$(repo_of "$p" land)"
 
 # --- text mode + usage ---------------------------------------------------
 out="$(bash "$P" "$(mkrepo text '{"version":1}')" --code owner/code 2>/dev/null)"
-check "text mode lists ten labels" 10 "$(printf '%s' "$out" | grep -c '#[0-9a-f]\{6\}')"
+check "text mode lists eleven labels" 11 "$(printf '%s' "$out" | grep -c '#[0-9a-f]\{6\}')"
 check "text mode says how to create them" 1 "$(printf '%s' "$out" | grep -c 'create-label')"
 
 # --- the git-remote path --------------------------------------------------
@@ -113,6 +113,20 @@ bash "$P" >/dev/null 2>&1;                     check "no argument exits 2" 2 $?
 bash "$P" "$TMP/absent" >/dev/null 2>&1;       check "a missing directory exits 2" 2 $?
 d="$(mkrepo broken '{ not json')"
 bash "$P" "$d" --code owner/code >/dev/null 2>&1; check "an unreadable file exits 2" 2 $?
+
+# --- state and provenance are different labels ----------------------------
+# They used to be one slot: `in_progress` mapped to `ops/generated-by-ai`, which means
+# FINISHED. A live loop read the slot name, found the label did not match it, and invented
+# `ops/in-progress` for itself (29-07-2026). Now they are two.
+p="$(plan "$(mkrepo states '{"version":1}')")"
+check "in_progress is its own label"   "ops/in-progress"     "$(name_of "$p" in_progress)"
+check "done is the provenance label"   "ops/generated-by-ai" "$(name_of "$p" done)"
+check "  and they are not the same"    "different" \
+  "$([ "$(name_of "$p" in_progress)" = "$(name_of "$p" done)" ] && echo same || echo different)"
+check "  both land on the issues repo" "owner/code" "$(repo_of "$p" in_progress)"
+check "  done too"                     "owner/code" "$(repo_of "$p" done)"
+check "  and each is overridable"      "mine" \
+  "$(name_of "$(plan "$(mkrepo doneover '{"version":1,"labels":{"done":"mine"}}')")" done)"
 
 printf '\n%s: %d passed, %d failed\n' "$(basename "$0")" "$pass" "$fail"
 [ "$fail" -eq 0 ]

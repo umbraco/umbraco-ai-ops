@@ -161,21 +161,31 @@ Two rules follow:
 - **Never self-review.** A gate performed by the same model that produced the thing being
   gated is not a gate. If the independent reviewer is unavailable, block.
 
-> **Open question, not yet answered here.** Six of our capability skills carry
-> `disable-model-invocation: true` (a conformance §2.4 SHOULD), and the whole engine binds by
-> a loop *invoking a capability skill by name*. Whether that flag also blocks an **explicit**
-> invocation in a headless routine — as opposed to auto-firing on a description match — is
-> **unverified**, and it is load-bearing: if it does, no loop can command a capability in
-> cloud. Settle it with a real routine run before changing any frontmatter. Do not "fix" this
-> speculatively; the flag is there to stop capabilities auto-firing, which is a real hazard too.
+> **Answered, the hard way.** This used to sit here as an open question: does
+> `disable-model-invocation` block an *explicit* invocation, or only auto-firing on a
+> description match? A live routine settled it on 29-07-2026 — it blocks everything, so no
+> loop could command any capability. The flag is now banned on capability skills (see the
+> rule under *Convention, not configuration* above) and
+> `scripts/validate-capability-skills.sh` keeps it out.
+>
+> **Keep the shape of that mistake in mind.** It survived the entire build because the failing
+> path *looked* like the working one: the loop read the skill off disk and produced a good PR.
+> Nothing errored, nothing was missing, and the contract was doing nothing at all.
 
 ## Labels are namespaced `ops/`
 
 Every GitHub label the engine owns is prefixed **`ops/`** — `ops/ready-for-ai`,
-`ops/auto-merge`, `ops/auto-rework`, `ops/auto-release`, `ops/generated-by-ai`,
-`ops/ai-blocked`, `ops/proto-learning`, `ops/triaged`, `ops/loop-improvement`,
-`ops/release-blocked`. The prefix says at a glance that a label drives automation, and keeps
-engine labels out of a repo's existing triage vocabulary.
+`ops/in-progress`, `ops/generated-by-ai`, `ops/ai-blocked`, `ops/auto-merge`,
+`ops/auto-rework`, `ops/auto-release`, `ops/release-blocked`, `ops/proto-learning`,
+`ops/triaged`, `ops/loop-improvement`. The prefix says at a glance that a label drives
+automation, and keeps engine labels out of a repo's existing triage vocabulary.
+
+**State and provenance are separate labels, deliberately.** `ops/in-progress` says a loop is
+working an issue **now** and comes off when it stops; `ops/generated-by-ai` says a loop built
+it, and stays on forever. They were one slot until a live routine read the slot name
+`labels.in_progress`, found it pointed at the *finished* label, and invented `ops/in-progress`
+for itself (29-07-2026). Do not merge them again: without the state label, an interrupted run
+leaves an issue that looks untouched and cannot be found.
 
 - **Enforced** for the base routing table: `route-map.schema.json` patterns `^ops/…` and
   `route-event.test.sh` asserts it.
