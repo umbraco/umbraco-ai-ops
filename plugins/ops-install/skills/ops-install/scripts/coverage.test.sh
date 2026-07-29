@@ -69,5 +69,10 @@ check "a missing catalog exits 2" 2 $?
 bash "$COV" "$HERE/../../../../.." >/dev/null 2>&1
 check "the engine repo itself is missing the two repo-only capabilities" 1 $?
 
+# --- a mistyped option must not silently become the text report ------------
+optrepo="$TMP/optcheck"; mkdir -p "$optrepo"
+env ENGINE_ROOT="$ENG" CATALOG_FILE="$ENG/catalog.json" bash "$COV" "$optrepo" --jsonn >/dev/null 2>&1
+check "an unknown option exits 2" 2 $?
+
 printf '\n%s: %d passed, %d failed\n' "$(basename "$0")" "$pass" "$fail"
 [ "$fail" -eq 0 ]

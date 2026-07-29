@@ -26,6 +26,10 @@ catalog="${CATALOG_FILE:-$engine/catalog.json}"
 repo="${1:-}"
 fmt="${2:-text}"
 [ -n "$repo" ] || { echo "usage: $(basename "$0") <repo-root> [--json]" >&2; exit 2; }
+# Reject an unknown second argument rather than falling back to text. A caller that asked for
+# `--jsonn` and got a human table has to notice the difference to know it was ignored, and the
+# exit code is the same either way.
+case "$fmt" in text|--json) ;; *) echo "ERROR: unknown option '$fmt' (expected --json)" >&2; exit 2 ;; esac
 [ -d "$repo" ] || { echo "ERROR: no such directory: $repo" >&2; exit 2; }
 [ -f "$catalog" ] || { echo "ERROR: no catalog at $catalog" >&2; exit 2; }
 command -v jq >/dev/null 2>&1 || { echo "ERROR: jq required" >&2; exit 2; }
