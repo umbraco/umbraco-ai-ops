@@ -49,7 +49,7 @@ Installed from this marketplace (`.claude-plugin/marketplace.json`):
 
 | Plugin | What it is |
 |--------|------------|
-| **ops-install** | Onboarding, and the proof it worked. `/ops-install` first checks its own version is current, then detects the repo's setup, writes the few facts detection can't reach to `.claude/ops-repo-meta.json`, reports capability coverage, scaffolds a stub for anything missing, interviews you to fill that stub's TODOs, creates every `ops/` label on the repo its role implies, installs the caller workflows and validates the routing. Six of its nine steps are scripts. Run it first. |
+| **ops-install** | Onboarding, and the proof it worked. `/ops-install` first checks its own version is current, then detects the repo's setup, writes the few facts detection can't reach to `.claude/ops-repo-meta.json`, reports capability coverage, scaffolds a stub for anything missing, interviews you to fill that stub's TODOs, creates every `ops/` label on the repo its role implies, installs the caller workflows and validates the routing. Seven of its ten steps are scripts. Run it first. |
 | **ops-issue-loop** | The orchestrator: queue, dispatch up to three at once, stop at a green PR. It owns sequencing only and commands your `ops-change` for the work. Bundles `ops-rework-loop` (review feedback) and `ops-port-loop` (landing one change on your other live lines). |
 | **ops-learnings** | Self-learning. Read-only hooks file `ops/proto-learning` issues off the critical path; `ops-triage-loop` sweeps them weekly and routes each lesson to whoever owns it. |
 | **github-ops** | All GitHub work, in both environments: `gh`/`git` locally, `mcp__github__*` on web. Also wraps the CI provider, either `github-checks` or `azure-pipelines`. Every loop needs it. |
@@ -263,7 +263,7 @@ skill must implement exactly these and reject anything else.
 | `ops-workspace` | `teardown` | Remove the workspace and everything it created, including any database or container. |
 | `ops-repo-meta` | `identity` | Name the repo the loop is working in, and the labels and defaults it runs by. |
 | `ops-repo-meta` | `topology` | Say which repo fills each of the four roles — `code` (required), `issues`, `releases` and `learnings`. |
-| `ops-repo-meta` | `lines` | List the live lines, say which is primary, and give the port order. |
+| `ops-repo-meta` | `lines` | List the live lines in age order, say which is primary, and give the port order. |
 | `ops-ci` | `status` | Report the CI state of a PR: pending, green or red, and which checks produced that verdict. |
 | `ops-ci` | `log` | Return the failing part of a failing build's log, trimmed to what is needed to diagnose it rather than the whole run. |
 | `ops-notify` | `send` | Send one notification to a human through whichever channel this repo uses. |

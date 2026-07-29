@@ -42,7 +42,7 @@
         },
         {
           "action": "verify",
-          "description": "Run this repo's build, tests and sanity checks against the change, and report pass or fail with enough detail for the caller to act on a failure. Where the workspace reported `fidelity: reduced`, a pass MUST be reported as non-authoritative — a lighter test target produces false passes as well as false failures.",
+          "description": "Run this repo's build, tests and sanity checks against the change, and report pass or fail with enough detail for the caller to act on a failure. Where the workspace reported `fidelity: reduced`, a pass MUST be reported as non-authoritative — a lighter test target produces false passes as well as false failures. This action also owns whatever code and security review this repo requires before a change is pushed: the loops require that it happened and do not define what it is, so a `verify` that only builds and tests silently drops a gate its caller believes held. Report which reviews ran in `reviews`, and treat a review that could not run as a failure rather than as a pass.",
           "input": {
             "branch": "string — the branch to verify",
             "scope": "string — optional narrowing, e.g. one test project"
@@ -50,7 +50,8 @@
           "output": {
             "ok": "boolean",
             "failures": "array — one entry per failing check, with its output",
-            "authoritative": "boolean — false when the workspace was `fidelity: reduced`, so a pass does not predict CI"
+            "authoritative": "boolean — false when the workspace was `fidelity: reduced`, so a pass does not predict CI",
+            "reviews": "array — the reviews this repo requires that actually ran, by name. Empty means none ran, which a caller may treat as a missing gate rather than as nothing to do."
           },
           "example": {
             "branch": "ai/4211-culture-validation"
@@ -60,7 +61,7 @@
           "action": "close-issue",
           "description": "Told that a PR has landed, work out which issue it was for and close that issue only once EVERY target line has landed — one logical change lands N times at N moments. The caller passes the PR, not the issue, because how a PR references its issue and which lines are targets are both repo facts. MUST close explicitly: a `Closes #N` keyword does not cross repos. MUST tolerate an already-closed issue, and MUST report `closed: false` with the lines still outstanding rather than closing early.",
           "input": {
-            "landed": "object — the PR that just landed: repo, pr_number, and its line",
+            "landed": "object — the PR that just landed: repo, pr_number, and its line as reported by the merge. The caller does not derive the line; it passes on what `integrate`/`branching` returned.",
             "issue": "object — optional, when the caller already knows which issue it was"
           },
           "output": {
@@ -173,7 +174,8 @@
           "output": {
             "outcome": "string — one of the seven above",
             "detail": "string — the specific blocker, for the loop to comment",
-            "merge_commit": "string|null"
+            "merge_commit": "string|null",
+            "line": "string|null — the live line the PR landed on, passed straight through from the merge. Set on `merged` only. The caller needs it to close the issue and to start a port, and cannot work it out itself."
           },
           "example": {
             "pr": {
@@ -194,13 +196,15 @@
       "operations": [
         {
           "action": "merge",
-          "description": "Merge a PR using whichever strategy this repo's model calls for. The caller passes no strategy and learns none. Checking the base is membership of the live-line set, never equality with one branch.",
+          "description": "Merge a PR using whichever strategy this repo's model calls for. The caller passes no strategy and learns none. Checking the base is membership of the live-line set, never equality with one branch. A refusal MUST be classified in `refused` — `release-base` or `not-a-merge-target` — because the caller has to tell those two apart to report the right outcome and cannot be made to read it out of a prose `detail`. A classification is not a branch name, so this leaks nothing.",
           "input": {
             "pr": "object — the PR to merge"
           },
           "output": {
             "merged": "boolean",
-            "merge_commit": "string"
+            "merge_commit": "string",
+            "refused": "string|null — `release-base` when the base is this line's release base, `not-a-merge-target` when it is neither that nor an integration branch, null when the merge went ahead",
+            "line": "string — which live line the PR landed on. A LINE is declared public data, unlike the branch it maps to, and this is the only place that mapping can be answered: the caller cannot derive it, and everything downstream of a landing (which issue to close, which lines to port to) needs it."
           },
           "example": {
             "pr": {
@@ -315,12 +319,12 @@
         },
         {
           "action": "lines",
-          "description": "List the live lines, say which is primary, and give the port order. None of it is derivable from version numbers or from the default branch, so a repo declares it: the primary line need not be the newest line or the default branch. Callers MUST read this rather than cache it, because a major-version cutover adds a line.",
+          "description": "List the live lines in age order, say which is primary, and give the port order. None of it is derivable from version numbers or from the default branch, so a repo declares it: the primary line need not be the newest line or the default branch. Callers MUST read this rather than cache it, because a major-version cutover adds a line.",
           "input": {},
           "output": {
-            "live": "array — the lines currently taking work",
+            "live": "array — the lines currently taking work, ORDERED OLDEST FIRST. The order is part of the answer: `port_order` says which direction a change travels, and only this array says which lines lie in that direction. A caller MUST NOT work that out by comparing version numbers in the names — that is the caller learning a product's naming scheme, and it breaks on the first line that is not `vN`.",
             "primary": "string — the line work starts on before being ported",
-            "port_order": "string — `upward` or `downward`"
+            "port_order": "string — `upward` (toward the end of `live`) or `downward` (toward the start)"
           },
           "example": {}
         }
