@@ -40,7 +40,7 @@ ops-branching <action> '<context-json>'
 
 | Action | Context | Returns |
 |---|---|---|
-| `merge` | `{ pr }` | `{ ok, merged, merge_commit }` |
+| `merge` | `{ pr }` | `{ ok, merged, merge_commit, refused, line }` |
 | `open-pr` | `{ branch, line, title, body }` | `{ ok, pr_number, url }` |
 | `start-branch` | `{ line, slug }` | `{ ok, branch }` |
 
@@ -87,9 +87,31 @@ Merge the PR in front of you, using this repo's strategy.
 2. **Check the base is one of the integration branches** — membership, not equality. It is
    not this skill's job to decide *whether* the PR should land (that is `ops-integrate`'s
    gates); it is this skill's job to refuse to merge into a branch the model says is not a
-   merge target. Return `{ ok: false, detail: … }` rather than merging somewhere plausible.
+   merge target. Refuse rather than merging somewhere plausible.
 3. Merge with the resolved strategy and **delete the head branch** (`github-ops` → *Merge a
    PR (+ delete branch)*).
+
+**A refusal is classified, not narrated.** Return `{ ok: false, refused: … }` with one of:
+
+| `refused` | The base is |
+|---|---|
+| `release-base` | this line's release base. The release path owns it, and this is a normal outcome. |
+| `not-a-merge-target` | neither a release base nor an integration branch of any live line. |
+
+Set `refused: null` when the merge went ahead. **This is the one thing about the model that
+does leave the skill, and it is deliberate:** the caller has to tell a release PR apart from a
+mistargeted one to report the right outcome, and making it read that out of a prose `detail`
+puts a string-match where a decision belongs. A classification is not a branch name — the
+caller still learns nothing about *which* branch, or how many there are. Add a plain-language
+`detail` alongside it for the human-facing comment.
+
+**Also return `line`: which live line the PR landed on.** A **line** is declared public data —
+`ops-repo-meta · lines` hands the whole set to anyone who asks — so returning it breaks no
+privacy rule. The branch it maps to stays private, and that mapping lives only here, which
+makes this the only place the question can be answered. It matters because everything that
+happens after a landing needs it: which issue to close, and which lines to port to. Without it
+the caller has to read a line out of the base ref, which is the guess this whole capability
+exists to remove.
 
 **Idempotent:** a PR that is **already merged MUST** return `{ ok: true, merged: true }`
 with the existing `merge_commit`, not attempt a second merge. The landing label stays on a

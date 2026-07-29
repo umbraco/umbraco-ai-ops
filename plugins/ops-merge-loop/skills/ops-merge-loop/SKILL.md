@@ -97,12 +97,16 @@ run re-checks. **Remove it for anything needing a human**, and always say which 
 ### Closing the issue behind a merge
 
 After a `merged` outcome, call **`ops-change · close-issue`** with
-`{ landed: { repo, pr_number, line } }`.
+`{ landed: { repo, pr_number, line } }`, where `line` is **the one `land` just returned**.
 
 **Pass the PR, not an issue.** This loop does not know which issue the PR was for, and must not
 guess: how a PR references its issue is a repo convention (a `Closes #N`, a full cross-repo URL),
 and which lines are targets for that change is a repo fact. `ops-change` created the PR, so it
 knows both.
+
+**And do not work the line out yourself.** `land` returns it, having got it from the only thing
+that holds the branch-to-line mapping. Reading `v18` out of a base ref here would be this loop
+learning a product fact, and it would be wrong on the first repo whose lines are not named `vN`.
 
 It returns `closed: false` with `waiting_on` when other lines are still outstanding — **that is
 the normal case on a multi-line repo, not a failure.** One logical change lands N times at N
@@ -116,7 +120,11 @@ watching for it.
 
 Still after a `merged` outcome, check whether the PR carries **`labels.port`** (from
 `ops-repo-meta · identity` — never the literal name). If it does, hand off to
-**`ops-port-loop`** with the merged PR.
+**`ops-port-loop`** with the merged PR, its merge commit, **and the `line` `land` returned**.
+
+Passing the line is not a convenience: the port loop derives every target from it, and it has no
+way to name the line itself. Hand it over and the port loop needs no guess; leave it out and it
+has to ask a human.
 
 - **This is the normal way a port starts.** The merge is the moment: a port is cut from the
   merge commit, so it cannot begin before one exists. The route row on the port label exists

@@ -1,8 +1,8 @@
 ---
 name: ops-integrate
 description: >-
-  Land an approved PR. Owns every piece of merge policy — the four gates (landing label,
-  CI green, mergeable, base is a live integration branch), the release-base skip, and the
+  Land an approved PR. Owns every piece of merge policy — the gates (landing label, CI green,
+  mergeable, and a base the branch model accepts), the release-base skip, and the
   merge itself — and returns a structured outcome the caller reports on. A caller hands it a
   PR and reads back what happened; it never holds a branch name or a merge strategy. Called
   by name with (action, context-json) by a framework loop. NOT for direct use — never select it from a description match.
@@ -33,7 +33,7 @@ ops-integrate land '<context-json>'
 
 | Action | Context | Returns |
 |---|---|---|
-| `land` | `{ pr: { repo, number } }` | `{ ok, outcome, detail, merge_commit }` |
+| `land` | `{ pr: { repo, number } }` | `{ ok, outcome, detail, merge_commit, line }` |
 
 An absent context is `{}`. **Reject any other action** — do not guess.
 
@@ -69,9 +69,15 @@ failing", "conflicts with its base" — so the caller can comment it verbatim.
 - Nothing else. In particular **do not** resolve a base branch, a release base or a merge
   strategy. You cannot, and that is deliberate: `ops-branching` holds them privately.
 
-### Step 2 — the four gates
+### Step 2 — the gates
 
-All must hold. On the first failure, stop and return that outcome — **do not merge**.
+**Three gates you can check, then a fourth that is the merge attempt itself.** Gates 1 to 3
+are reads: check them in order and on the first failure stop and return that outcome, having
+changed nothing. The base check cannot work that way, and pretending otherwise is how this
+section used to read: `ops-branching` is command-only, so there is no read that answers "is
+this base a merge target" — the only way to ask is to tell it to merge and see whether it
+refuses. That is safe, because a refusal changes nothing, and it is why the base is checked
+**last**, after everything cheap has already passed.
 
 1. **The landing label is present.** Read the PR (`github-ops` → *Get a PR*) and confirm it
    still carries `labels.land`. A caller that swept for the label a minute ago is not
@@ -95,18 +101,37 @@ All must hold. On the first failure, stop and return that outcome — **do not m
    update the branch and **go back to gate 2** — updating restarts CI, and the green you saw
    was for different code. If it genuinely conflicts → `blocked:conflict`.
 
-4. **The base is a live integration branch.** You cannot compare branch names, so **ask**:
-   hand the PR to `ops-branching · merge` and let the owner of the model decide. It refuses a
-   base that is not a merge target, and a release base is such a refusal. Map its answer:
-   a release base → `skipped:release-base`; any other refusal → `blocked:wrong-base`.
+### Step 3 — the base gate and the merge, in one call
 
-   A release-base PR is **not an error**. It is the release path doing its job, and
-   `ops-release` owns it. Return `ok: true` and let the caller stay quiet.
+Once gates 1 to 3 hold, hand the PR to **`ops-branching · merge`**. That single call is both
+the last gate and the landing: the owner of the branch model decides whether the base is a
+merge target, and merges if it is.
 
-### Step 3 — land it
+**Call it once.** An earlier version of this skill listed the base as a fourth gate *and* then
+listed the merge as a separate step, which reads as two calls to the same command. Idempotency
+made that survive, which is worse than it failing: nothing showed the second call was doing
+nothing.
 
-`ops-branching · merge`, which picks the strategy and deletes the head branch. Return
-`merged` with the `merge_commit` it gives back.
+Map what comes back:
+
+| `ops-branching · merge` returned | `outcome` |
+|---|---|
+| `merged: true` | `merged`, with its `merge_commit` **and its `line`** |
+| `refused: "release-base"` | `skipped:release-base` |
+| `refused: "not-a-merge-target"` | `blocked:wrong-base` |
+| `ok: false` with no `refused` | `blocked:conflict`, or `ok: false` with the reason if it is neither |
+
+**Read `refused`, never `detail`.** `detail` is a sentence for a human comment; the
+classification is the field. A skill that string-matches prose to tell a release PR from a
+mistargeted one will get it wrong the first time the wording changes.
+
+A release-base PR is **not an error**. It is the release path doing its job, and `ops-release`
+owns it. Return `ok: true` and let the caller stay quiet.
+
+**Pass `line` straight through on a `merged` outcome.** You do not derive it and you do not
+interpret it: the merge reported which live line the PR landed on, and the caller needs it to
+close the right issue and to start a port. Dropping it here forces the loop to read a line out
+of a branch name, which is the leak everything above is arranged to prevent.
 
 ### Idempotency
 
@@ -124,7 +149,9 @@ change nothing else — a failed landing must be safe to retry on the next sweep
 ## Rules
 
 - **Never merge with an unmet gate.** No exceptions, no "it's probably fine", no override
-  context. The four gates are the whole reason this service exists.
+  context. The gates are the whole reason this service exists.
+- **Never call `ops-branching · merge` twice in one `land`.** It is the base gate *and* the
+  merge. Calling it to "check" and again to "do" is one call too many, hidden by idempotency.
 - **Never use GitHub's native auto-merge**, and never treat a mergeable state as evidence of
   green — with no branch protection, GitHub will land a red PR.
 - **Never force-merge, never force-push.**
