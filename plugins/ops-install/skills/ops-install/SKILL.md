@@ -259,6 +259,33 @@ both before starting, and say which repo each label went to.
 
 ## Step 7 — install the caller workflow
 
+> **First, the prerequisite that makes it run at all.** The caller does
+> `uses: umbraco/umbraco-ai-ops/.github/workflows/loop-dispatch.yml@main`, and that repo is
+> **private**. GitHub Actions will not read a reusable workflow out of a private repo unless
+> that repo has granted access, so without it **every** run fails instantly with:
+>
+> ```
+> error parsing called workflow ... workflow was not found.
+> ```
+>
+> It fails **before any job starts**, so there are no logs and no annotations on the run — just
+> a red tick. Nothing about it points at the engine repo, which is why it is worth naming here
+> rather than leaving someone to find it.
+>
+> Two ways out, both one-time and both on the **engine** repo, not the consumer:
+>
+> 1. **Make `umbraco/umbraco-ai-ops` public.** This also removes the need for `OPS_TOKEN` in
+>    the cloud environment, so it fixes both private-repo problems at once.
+> 2. **Keep it private and grant access:** its *Settings → Actions → General → Access* →
+>    **"Accessible from repositories in the `umbraco` organization"**.
+>
+> Say which one is in place. If neither is, stop and say so — installing the workflow is
+> pointless until one is, and a red run with no logs is a bad thing to hand someone.
+>
+> **This is not the same as the cloud `OPS_TOKEN`.** Different runtime, different failure: the
+> token is read by the environment's Setup script, which this failure never reaches. Do not
+> let one be offered as the fix for the other.
+
 Copy the caller workflow template (see
 [`new-loop-routine`](../../../loop-dispatch/skills/new-loop-routine/SKILL.md), which owns the
 routine wiring and the locked templates) to `.github/workflows/` — and get the topology right,

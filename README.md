@@ -65,6 +65,20 @@ Installed from this marketplace (`.claude-plugin/marketplace.json`):
 
 ## Getting started (onboarding a repo)
 
+> **Prerequisite, once, on this repo — not on the consumer.** This repo is **private**, and two
+> things break because of it:
+>
+> - **The caller workflow cannot run.** It reuses
+>   `umbraco/umbraco-ai-ops/.github/workflows/loop-dispatch.yml@main`, and Actions refuses to read
+>   a reusable workflow from a private repo unless access is granted. Every run then fails with
+>   *"workflow was not found"* — **before any job starts**, so there are no logs, only a red tick.
+> - **A cloud environment builds with no skills**, because the Setup script's clone is anonymous
+>   unless `OPS_TOKEN` is set.
+>
+> **Making this repo public fixes both.** If it must stay private, do both of these instead:
+> set *Settings → Actions → General → Access* to **"Accessible from repositories in the `umbraco`
+> organization"**, and set `OPS_TOKEN` in every cloud environment.
+
 1. **Install the engine** in the target repo's workspace. Two separate steps — adding the
    marketplace only registers the catalogue, it installs nothing:
    ```
