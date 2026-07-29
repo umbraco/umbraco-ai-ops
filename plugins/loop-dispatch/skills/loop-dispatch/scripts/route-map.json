@@ -4,6 +4,7 @@
     { "event": "issues.labeled",       "label": "ops/ready-for-ai", "loop": "ops-issue-loop" },
     { "event": "issues.labeled",       "label": "ops/auto-release", "loop": "ops-release-loop" },
     { "event": "pull_request.labeled", "label": "ops/auto-merge",   "loop": "ops-merge-loop" },
-    { "event": "pull_request.labeled", "label": "ops/auto-rework",  "loop": "ops-rework-loop" }
+    { "event": "pull_request.labeled", "label": "ops/auto-rework",  "loop": "ops-rework-loop" },
+    { "event": "pull_request.labeled", "label": "ops/port",         "loop": "ops-port-loop" }
   ]
 }

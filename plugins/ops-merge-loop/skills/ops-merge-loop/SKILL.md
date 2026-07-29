@@ -35,6 +35,7 @@ the strategy live in that service.
 |---|---|---|
 | **`ops-integrate · land`** | the command this loop exists to issue | service |
 | **`ops-change · close-issue`** | after a merge only — the issue behind the PR closes when its last line lands | service |
+| **`ops-port-loop`** | after a merge, when the PR carries `labels.port` — the normal way a port starts | framework loop |
 | `ops-ci · status` | poll before handing over, so a pending PR costs one cheap read instead of a full gate run | cross-cutting (read) |
 | `ops-repo-meta · identity` | the landing label, **by purpose** (`labels.land`) — never a hard-coded name | cross-cutting (read) |
 | `ops-repo-meta · topology` | which repo holds the code, so the sweep looks in the right place | cross-cutting (read) |
@@ -82,7 +83,7 @@ Read `outcome` and act:
 
 | `outcome` | Do |
 |---|---|
-| `merged` | Comment confirming the merge, then **`ops-change · close-issue`** with the landed PR (see below). |
+| `merged` | Comment confirming the merge, then **`ops-change · close-issue`** with the landed PR, then hand off to **`ops-port-loop`** if the PR carries `labels.port` (both below). |
 | `skipped:release-base` | **Say nothing.** The release path owns it; a comment here is noise on someone else's PR. |
 | `blocked:ci` | Comment `detail` — the specific failing check. Leave the label on. |
 | `blocked:conflict` | Comment `detail`. **Remove the label** — a conflict needs a human, and re-poking it every run is noise. Say in the comment that you removed it, and why. |
@@ -108,8 +109,26 @@ the normal case on a multi-line repo, not a failure.** One logical change lands 
 moments, and the issue closes when the last one does. Report what it says and move on; do not
 retry, and never close an issue yourself.
 
-This is the only service this loop commands besides `ops-integrate`, and it is here for one
-reason: this is the moment a landing becomes known, and nothing else is watching for it.
+This is here for one reason: this is the moment a landing becomes known, and nothing else is
+watching for it.
+
+### Handing a landed change to the port loop
+
+Still after a `merged` outcome, check whether the PR carries **`labels.port`** (from
+`ops-repo-meta · identity` — never the literal name). If it does, hand off to
+**`ops-port-loop`** with the merged PR.
+
+- **This is the normal way a port starts.** The merge is the moment: a port is cut from the
+  merge commit, so it cannot begin before one exists. The route row on the port label exists
+  only to catch the other case — a human labelling a PR that has *already* merged.
+- **Hand off, do not port here.** This loop schedules landings. It does not resolve lines, and
+  it must never call `ops-change · implement`. Everything about which lines and in which
+  direction lives in `ops-port-loop` and `ops-repo-meta · lines`.
+- **No label, no ports.** A port is never opened without a maintainer confirming it, and the
+  absence of the label is that confirmation withheld. Do not infer one from the issue text.
+
+If the hand-off cannot happen, say so in the outcome comment. A change that should have been
+ported and silently was not is invisible until the line drifts.
 
 **Notify only when a human is blocking something** — `blocked:conflict`,
 `blocked:changes-requested`, `blocked:wrong-base`. Use `ops-notify · send` with a stable

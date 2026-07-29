@@ -50,7 +50,7 @@ Installed from this marketplace (`.claude-plugin/marketplace.json`):
 | Plugin | What it is |
 |--------|------------|
 | **ops-install** | Onboarding, and the proof it worked. `/ops-install` detects the repo's setup, writes the few facts detection can't reach to `.claude/ops-repo-meta.json`, reports capability coverage, scaffolds a stub for anything missing, interviews you to fill that stub's TODOs, creates every `ops/` label on the repo its role implies, installs the caller workflows and validates the routing. Six of its nine steps are scripts. Run it first. |
-| **ops-issue-loop** | The orchestrator: queue, dispatch up to three at once, stop at a green PR. It owns sequencing only and commands your `ops-change` for the work. Bundles `ops-rework-loop`. |
+| **ops-issue-loop** | The orchestrator: queue, dispatch up to three at once, stop at a green PR. It owns sequencing only and commands your `ops-change` for the work. Bundles `ops-rework-loop` (review feedback) and `ops-port-loop` (landing one change on your other live lines). |
 | **ops-learnings** | Self-learning. Read-only hooks file `ops/proto-learning` issues off the critical path; `ops-triage-loop` sweeps them weekly and routes each lesson to whoever owns it. |
 | **github-ops** | All GitHub work, in both environments: `gh`/`git` locally, `mcp__github__*` on web. Also wraps the CI provider, either `github-checks` or `azure-pipelines`. Every loop needs it. |
 | **loop-dispatch** | The event router, `route-event.sh`. One routine per repo. It can work in a different repo from the one that fired the event, which is what Forms needs. |
@@ -294,6 +294,7 @@ scripts/                   # engine-wide scripts, not tied to one skill; each ha
   build-evals.sh           # regenerate evals/; --check fails on drift
   run-evals.sh             # run a suite (needs claude + a real repo, so NOT named *.test.sh)
   validate-manifests.sh    # plugin.json <-> marketplace.json agreement; no phantom entries
+  validate-capability-skills.sh  # capability frontmatter: nothing that blocks the Skill tool
   cloud-setup-stub.sh      # THE thing you paste into a cloud env's Setup script field
   cloud-skill-sync.sh      # what the stub runs: delivers every skill + agent into the env
 ```

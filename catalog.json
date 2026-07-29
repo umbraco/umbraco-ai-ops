@@ -5,6 +5,7 @@
     "ops-install",
     "ops-issue-loop",
     "ops-merge-loop",
+    "ops-port-loop",
     "ops-release-loop",
     "ops-rework-loop",
     "ops-triage-loop"

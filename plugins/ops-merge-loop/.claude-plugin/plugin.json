@@ -1,6 +1,6 @@
 {
   "name": "ops-merge-loop",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "The landing loop. Sweeps the PRs a maintainer has labelled `ops/auto-merge` — the deliberate go-signal that stands in for a review approval, since you cannot approve your own PR — and hands each to `ops-integrate · land`, then comments the outcome. It owns scheduling only: the sweep, the CI poll cadence and its 15-minute cap, the cap of 10 PRs per run, and the report. Every merge gate, the release-base skip and the merge itself belong to `ops-integrate`, so this loop never resolves a base branch or a merge strategy and never calls `ops-branching`. Uses /goal so a landing job is provably finished. Repo-agnostic; runs locally or as a scheduled cloud routine. Requires ops-capabilities and github-ops.",
   "author": {
     "name": "Umbraco",

@@ -49,7 +49,7 @@ into, and no frontmatter to key on:
   - **Loops and `ops-install` are the opposite case** and keep the flag: a human invokes those
     deliberately, and auto-firing a loop is a real hazard. The validator ignores them.
 - **Framework loops are named `ops-<noun>-loop`** — `ops-issue-loop`, `ops-merge-loop`,
-  `ops-release-loop`, `ops-rework-loop`, `ops-triage-loop`. The suffix is what keeps a loop
+  `ops-port-loop`, `ops-release-loop`, `ops-rework-loop`, `ops-triage-loop`. The suffix is what keeps a loop
   out of the capability namespace, so `ops-release-loop` can never collide with the
   `ops-release` capability. **`loop-dispatch`** (the edge router, bash at the CI edge) and
   **`ops-install`** (the installer, invoked by a human) are exempt: neither is a loop.
@@ -177,7 +177,7 @@ Two rules follow:
 Every GitHub label the engine owns is prefixed **`ops/`** — `ops/ready-for-ai`,
 `ops/in-progress`, `ops/generated-by-ai`, `ops/ai-blocked`, `ops/auto-merge`,
 `ops/auto-rework`, `ops/auto-release`, `ops/release-blocked`, `ops/proto-learning`,
-`ops/triaged`, `ops/loop-improvement`. The prefix says at a glance that a label drives
+`ops/port`, `ops/triaged`, `ops/loop-improvement`. The prefix says at a glance that a label drives
 automation, and keeps engine labels out of a repo's existing triage vocabulary.
 
 **State and provenance are separate labels, deliberately.** `ops/in-progress` says a loop is

@@ -196,7 +196,7 @@ check_base "(event,label) is unique" \
   '([.routes[] | [.event, .label]] | length) == ([.routes[] | [.event, .label]] | unique | length)'
 check_base 'no rule targets the "none" sentinel' '.routes | all(.loop != "none")'
 check_base "every trigger label is namespaced ops/" '.routes | all(.label | startswith("ops/"))'
-check_base "it has exactly four rows, because triage is scheduled rather than routed" '(.routes | length) == 4'
+check_base "it has exactly five rows, because triage is scheduled rather than routed" '(.routes | length) == 5'
 
 # Every loop in the base table must be a name the CATALOG reserves. That cross-check is
 # the point of catalog.json carrying reserved_skill_names as data instead of prose.

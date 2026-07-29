@@ -67,6 +67,7 @@ plan="$(jq -n --arg code "$code" --argjson d "$declared" '
     ["blocked",          "ops/ai-blocked",      "issues",    "d93f0b", "The loop gave up; the comment says why. Re-add the ready label to retry."],
     ["land",             "ops/auto-merge",      "code",      "0e8a16", "Approved to land. The deliberate human go-signal the merge loop requires."],
     ["rework",           "ops/auto-rework",     "code",      "fbca04", "Address the review feedback on this PR, then hand it back."],
+    ["port",             "ops/port",            "code",      "006b75", "Once this PR lands, port the change to the other live lines. The maintainer confirmation a port always needs."],
     ["release",          "ops/auto-release",    "issues",    "0e8a16", "Ship the version named in this issue title."],
     ["release_blocked",  "ops/release-blocked", "issues",    "d93f0b", "A release was stopped by the pre-publish review."],
     ["proto_learning",   "ops/proto-learning",  "learnings", "c5def5", "A raw captured lesson, awaiting triage. Filed by a hook, never by hand."],

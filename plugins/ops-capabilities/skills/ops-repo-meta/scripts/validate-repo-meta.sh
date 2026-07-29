@@ -39,7 +39,7 @@ check() { # check <description> <jq filter yielding true>
 }
 
 ROLES='["code","issues","releases","learnings"]'
-PURPOSES='["ready","in_progress","done","blocked","land","rework","release","release_blocked","proto_learning","triaged","loop_improvement"]'
+PURPOSES='["ready","in_progress","done","blocked","land","rework","port","release","release_blocked","proto_learning","triaged","loop_improvement"]'
 REPO_RE='^[^/[:space:]]+/[^/[:space:]]+$'
 LINE_RE='^[a-z0-9][a-z0-9.-]*$'
 

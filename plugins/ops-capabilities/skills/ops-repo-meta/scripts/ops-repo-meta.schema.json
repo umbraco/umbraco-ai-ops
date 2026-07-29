@@ -96,6 +96,11 @@
           "$ref": "#/$defs/label",
           "description": "Default `ops/loop-improvement`."
         },
+        "port": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Overrides the default `ops/port`. Applied by a human to a PR to confirm the change should also land on this repo's other live lines. A port is never opened without it."
+        },
         "proto_learning": {
           "$ref": "#/$defs/label",
           "description": "Default `ops/proto-learning`."
