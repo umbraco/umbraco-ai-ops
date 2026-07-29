@@ -5,8 +5,7 @@ description: >-
   CI green, mergeable, base is a live integration branch), the release-base skip, and the
   merge itself — and returns a structured outcome the caller reports on. A caller hands it a
   PR and reads back what happened; it never holds a branch name or a merge strategy. Called
-  by name with (action, context-json) by a framework loop. Not model-invoked.
-disable-model-invocation: true
+  by name with (action, context-json) by a framework loop. NOT for direct use — never select it from a description match.
 ---
 
 # ops-integrate

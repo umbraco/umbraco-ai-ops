@@ -5,9 +5,7 @@ description: >-
   which checks say so; `log` returns the failing part of a failing build's log, trimmed to
   what is needed to diagnose it. The CI provider — GitHub checks, Azure Pipelines, anything
   else — is internal: no caller learns which one this repo uses. Nothing here starts,
-  retries or cancels a build. Called by name with (action, context-json) — not
-  model-invoked.
-disable-model-invocation: true
+  retries or cancels a build. Called by name with (action, context-json) . NOT for direct use — never select it from a description match.
 ---
 
 # ops-ci

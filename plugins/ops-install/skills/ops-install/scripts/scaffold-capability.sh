@@ -7,7 +7,10 @@
 # contract, and a stub listing the wrong ones teaches the author the wrong interface.
 #
 # Every stub carries, without the author having to know to add them:
-#   * disable-model-invocation: true      so only a loop can call it
+#   * the do-not-select-me guard          in the description, NOT the disable-model-invocation
+#                                         flag: that flag blocks the Skill tool outright, so a
+#                                         loop could not call the capability either (proven in
+#                                         a live routine, 29-07-2026). See CLAUDE.md.
 #   * the reject-unknown-action rule      an unimplemented action must never silently succeed
 #   * absent context means {}             not an error
 #   * the idempotency requirement         per action, since that is the easiest MUST to miss
@@ -80,8 +83,7 @@ render() {
     "name: ops-\(.capability)",
     "description: >-",
     "  TODO: describe what this does IN THIS REPO. The generic purpose is: \(.description | esc)",
-    "  Called by name with (action, context-json). Not model-invoked.",
-    "disable-model-invocation: true",
+    "  Called by name with (action, context-json). NOT for direct use — never select it from a description match.",
     "---",
     "",
     "# ops-\(.capability)",

@@ -34,8 +34,20 @@ into, and no frontmatter to key on:
   for a capability the catalog doesn't declare is illegal.
 - **Only `ops-change` and `ops-release` are always the repo's.** The rest ship as **framework
   defaults** the repo *inherits*, and overrides by shipping its own skill of that name.
-- **Capability skills set `disable-model-invocation: true`.** A loop is the only caller; they
-  must not auto-fire on a `description` match.
+- **Capability skills MUST NOT set `disable-model-invocation`.** That flag reads like "only a
+  loop may call this". It is not: it blocks the **Skill tool outright**, for the model and for
+  subagents, so a loop cannot call the capability either. A live routine proved it
+  (29-07-2026) — `Skill ops-change cannot be used with Skill tool due to
+  disable-model-invocation` — and the loop silently fell back to reading the SKILL.md off disk
+  and following it as prose. That looks like it worked and is not invocation at all: no
+  arguments in, no result out, and no unknown-action rejection, because none of those exist
+  without a call boundary. Enforced by `scripts/validate-capability-skills.sh`.
+  - What the flag was there for — a capability auto-firing on a `description` match — is now a
+    **sentence in the description**: every capability ends with *"NOT for direct use — never
+    select it from a description match."* Weaker than a flag, and the only option that leaves
+    the capability callable, which is the whole engine.
+  - **Loops and `ops-install` are the opposite case** and keep the flag: a human invokes those
+    deliberately, and auto-firing a loop is a real hazard. The validator ignores them.
 - **Framework loops are named `ops-<noun>-loop`** — `ops-issue-loop`, `ops-merge-loop`,
   `ops-release-loop`, `ops-rework-loop`, `ops-triage-loop`. The suffix is what keeps a loop
   out of the capability namespace, so `ops-release-loop` can never collide with the
@@ -199,6 +211,10 @@ keep it that way; never commit CRLF scripts.
 - **If you added, renamed or removed a plugin:** run `scripts/validate-manifests.sh`. A
   marketplace entry pointing at a directory that doesn't exist makes `/plugin marketplace add`
   fail for the **whole** marketplace, not just that entry.
+- **If you touched a capability skill's frontmatter:** run
+  `scripts/validate-capability-skills.sh`. It is the only thing standing between us and
+  re-shipping the `disable-model-invocation` bug, whose symptom is a loop that *appears* to
+  work.
 - **Grep your change for product-specifics** (`npm`, `mcp`, a product name) — if present, it
   belongs in a **capability**, not in engine code.
 

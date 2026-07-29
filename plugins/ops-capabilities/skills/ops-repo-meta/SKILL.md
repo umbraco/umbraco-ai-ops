@@ -6,9 +6,7 @@ description: >-
   `issues` / `releases` / `learnings` role), and `lines` (the live version lines, which
   is primary, and the port direction). The framework default detects what it can and
   reads a repo's declared facts; a repo that has facts detection cannot reach ships its
-  own `ops-repo-meta` instead. Called by name with (action, context-json) — not
-  model-invoked.
-disable-model-invocation: true
+  own `ops-repo-meta` instead. Called by name with (action, context-json) . NOT for direct use — never select it from a description match.
 ---
 
 # ops-repo-meta

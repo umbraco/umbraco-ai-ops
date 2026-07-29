@@ -25,7 +25,12 @@ while IFS= read -r cap; do
 
   # the frontmatter every stub must carry
   check "  $cap: name is ops-$cap" "name: ops-$cap" "$(sed -n '2p' "$f")"
-  has   "  $cap: disables model invocation" "$f" "disable-model-invocation: true"
+  # The stub must carry the do-not-select guard and must NOT carry the flag. The flag blocks
+  # the Skill tool outright, so a stub that set it would ship every consumer a capability its
+  # own loops cannot call — the exact bug a live routine hit on 29-07-2026.
+  has   "  $cap: carries the do-not-select guard" "$f" "NOT for direct use"
+  check "  $cap: does NOT disable model invocation" 0 \
+    "$(grep -c '^disable-model-invocation' "$f")"
 
   # exactly the catalog's actions, no more and no fewer
   want="$(jq -r --arg c "$cap" '.capabilities[]|select(.capability==$c)|.operations[].action' "$CATALOG" | sort | tr -d '\r')"

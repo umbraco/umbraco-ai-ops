@@ -5,8 +5,7 @@ description: >-
   notification by default, or whatever a repo overrides this with. Infrastructure, not a
   gate: a notification that fails must never fail the work it was reporting on. Idempotent
   per caller-supplied key, so a sweeping loop cannot send the same message twice. Called by
-  name with (action, context-json) — not model-invoked.
-disable-model-invocation: true
+  name with (action, context-json) . NOT for direct use — never select it from a description match.
 ---
 
 # ops-notify

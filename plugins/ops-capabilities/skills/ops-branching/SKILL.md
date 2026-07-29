@@ -6,8 +6,7 @@ description: >-
   branch rooted correctly. The integration branches, the release base and the merge
   strategy are PRIVATE — a caller asks for an outcome and never learns a branch name or a
   strategy. Command-only: it answers no reads. Called by name with (action, context-json)
-  by a service, never by a loop. Not model-invoked.
-disable-model-invocation: true
+  by a service, never by a loop. NOT for direct use — never select it from a description match.
 ---
 
 # ops-branching

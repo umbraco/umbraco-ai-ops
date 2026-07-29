@@ -1,0 +1,92 @@
+#!/usr/bin/env bash
+# Tests for validate-capability-skills.sh. Hermetic: bash + jq only, no network.
+#
+# The rule under test is the one a live routine taught us: a capability skill must NOT set
+# disable-model-invocation, because that blocks the Skill tool for the model and for subagents
+# alike — so the loop cannot call the capability either. The failure is silent: the loop reads
+# the file off disk instead and appears to work. Hence a validator rather than a convention.
+set -uo pipefail
+
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+V="$HERE/validate-capability-skills.sh"
+[ -f "$V" ] || { echo "FATAL: validate-capability-skills.sh not found"; exit 2; }
+command -v jq >/dev/null 2>&1 || { echo "FATAL: jq required"; exit 2; }
+
+pass=0 fail=0
+TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT
+accepts() { if bash "$V" "$1" >/dev/null 2>&1; then pass=$((pass+1)); else fail=$((fail+1)); echo "FAIL: $2 — expected accept"; fi; }
+rejects() { if bash "$V" "$1" >/dev/null 2>&1; then fail=$((fail+1)); echo "FAIL: $2 — expected reject"; else pass=$((pass+1)); fi; }
+
+# A minimal engine: a catalog naming two capabilities, and skills for them.
+mkroot() { # mkroot <name> -> prints root
+  local r="$TMP/$1"; mkdir -p "$r/plugins/p/skills/ops-branching" "$r/plugins/p/skills/ops-ci"
+  cat > "$r/catalog.json" <<'JSON'
+{ "version": 1, "reserved_skill_names": [],
+  "capabilities": [
+    { "capability": "branching", "kind": "behavioral", "visibility": "supporting",
+      "framework_default": true, "override_when": "x", "description": "d",
+      "operations": [ { "action": "merge", "description": "d", "example": {} } ] },
+    { "capability": "ci", "kind": "behavioral", "visibility": "cross-cutting",
+      "framework_default": true, "override_when": "x", "description": "d",
+      "operations": [ { "action": "status", "description": "d", "example": {} } ] } ] }
+JSON
+  for c in branching ci; do
+    cat > "$r/plugins/p/skills/ops-$c/SKILL.md" <<EOF
+---
+name: ops-$c
+description: >-
+  Does the thing. Called by name with (action, context-json). NOT for direct use — never
+  select it from a description match.
+---
+# ops-$c
+EOF
+  done
+  printf '%s' "$r"
+}
+
+R="$(mkroot good)"
+accepts "$R" "a clean pair of capability skills"
+
+# --- the flag, the whole reason this exists -------------------------------
+R="$(mkroot flagged)"
+printf 'disable-model-invocation: true\n' >> "$R/plugins/p/skills/ops-ci/SKILL.md"
+rejects "$R" "a capability that sets disable-model-invocation"
+
+out="$(bash "$V" "$R" 2>&1)"
+if printf '%s' "$out" | grep -q "no loop can call it"; then pass=$((pass+1))
+else fail=$((fail+1)); echo "FAIL: the message should say why the flag is banned"; fi
+
+# --- the guard that replaces it -------------------------------------------
+R="$(mkroot noguard)"
+sed -i 's/NOT for direct use — never/absolutely fine to/' "$R/plugins/p/skills/ops-branching/SKILL.md"
+rejects "$R" "a capability missing the do-not-select guard"
+
+# --- the name IS the binding ----------------------------------------------
+R="$(mkroot misnamed)"
+sed -i 's/^name: ops-ci$/name: ops-something-else/' "$R/plugins/p/skills/ops-ci/SKILL.md"
+rejects "$R" "a frontmatter name that does not match the directory"
+
+# --- loops and the installer are OUT of scope ------------------------------
+# A human invokes those deliberately, so the flag is correct there. If this ever starts
+# failing, the script has begun policing skills it should not.
+R="$(mkroot withloop)"
+mkdir -p "$R/plugins/p/skills/ops-issue-loop" "$R/plugins/p/skills/ops-install"
+for s in ops-issue-loop ops-install; do
+  printf -- '---\nname: %s\ndescription: A loop.\ndisable-model-invocation: true\n---\n' "$s" \
+    > "$R/plugins/p/skills/$s/SKILL.md"
+done
+accepts "$R" "a loop and the installer may still set the flag"
+
+# --- an empty tree is an error, not a silent pass --------------------------
+# A validator that passes when it checked nothing is the failure mode this repo keeps hitting.
+R="$TMP/empty"; mkdir -p "$R/plugins"; cp "$TMP/good/catalog.json" "$R/catalog.json"
+bash "$V" "$R" >/dev/null 2>&1
+check_rc=$?
+if [ "$check_rc" -eq 2 ]; then pass=$((pass+1))
+else fail=$((fail+1)); echo "FAIL: no capability skills at all should exit 2, got $check_rc"; fi
+
+# --- the real repo must satisfy its own rule -------------------------------
+accepts "$HERE/.." "this repo's own capability skills"
+
+printf '\n%s: %d passed, %d failed\n' "$(basename "$0")" "$pass" "$fail"
+[ "$fail" -eq 0 ]

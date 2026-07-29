@@ -183,7 +183,7 @@ scripts/scaffold-capability.sh <capability> <repo>/.claude/skills
 
 The stub is **generated from the catalog entry**, so it can never disagree with the catalog
 about which actions exist — and the action names *are* the invocation contract. It arrives
-carrying `disable-model-invocation: true`, the reject-unknown-action rule, absent-context-is-`{}`,
+carrying the do-not-select guard, the reject-unknown-action rule, absent-context-is-`{}`,
 the per-action idempotency requirement, and the catalog's worked example. Every `TODO` is the
 author's.
 

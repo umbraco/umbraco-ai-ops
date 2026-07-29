@@ -5,8 +5,7 @@ description: >-
   and the teardown that removes everything it created. Prepared and torn down by
   `ops-change`, never by a loop, so how isolation is provisioned stays a product fact. The
   framework default uses a plain git worktree; a repo needing a seeded database or a free
-  port ships its own. Called by name with (action, context-json). Not model-invoked.
-disable-model-invocation: true
+  port ships its own. Called by name with (action, context-json). NOT for direct use — never select it from a description match.
 ---
 
 # ops-workspace
