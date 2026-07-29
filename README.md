@@ -65,19 +65,14 @@ Installed from this marketplace (`.claude-plugin/marketplace.json`):
 
 ## Getting started (onboarding a repo)
 
-> **Prerequisite, once, on this repo — not on the consumer.** This repo is **private**, and two
-> things break because of it:
+> **No prerequisite on this repo.** It is **public**, so a consumer needs nothing from it: the
+> reusable workflow resolves, and a cloud environment clones it anonymously.
 >
-> - **The caller workflow cannot run.** It reuses
->   `umbraco/umbraco-ai-ops/.github/workflows/loop-dispatch.yml@main`, and Actions refuses to read
->   a reusable workflow from a private repo unless access is granted. Every run then fails with
->   *"workflow was not found"* — **before any job starts**, so there are no logs, only a red tick.
-> - **A cloud environment builds with no skills**, because the Setup script's clone is anonymous
->   unless `OPS_TOKEN` is set.
->
-> **Making this repo public fixes both.** If it must stay private, do both of these instead:
-> set *Settings → Actions → General → Access* to **"Accessible from repositories in the `umbraco`
-> organization"**, and set `OPS_TOKEN` in every cloud environment.
+> This block used to describe two failures caused by the repo being private — Actions refusing to
+> read a reusable workflow out of it (*"workflow was not found"*, before any job starts, so no
+> logs) and a cloud environment building with no skills unless `OPS_TOKEN` was set. **Both are
+> gone, and so is the token.** If the engine is ever made private again, both come back, and the
+> fixes are an org-access setting plus a token in every environment.
 
 1. **Install the engine** in the target repo's workspace. Two separate steps — adding the
    marketplace only registers the catalogue, it installs nothing:
@@ -120,11 +115,10 @@ copied, nothing depends on one skill shadowing another, and no pointer has to be
 - **Local:** run `/plugin marketplace add umbraco/umbraco-ai-ops`, then install the engine
   plugins. A repo's own skills load automatically as project skills.
 - **Web routines**, the main runtime: paste **`scripts/cloud-setup-stub.sh`** into the
-  environment's **Setup script** field and set **`OPS_TOKEN`** in its variables — this repo is
-  private, and with no token the environment builds with no skills at all. The stub clones the
-  engine and runs `scripts/cloud-skill-sync.sh`, which delivers every skill and agent to
-  `$HOME/.claude` and wires the capture hooks. A routine picks up the checked-out repo's own
-  `.claude/skills/` and `.claude/settings.json` hooks by itself.
+  environment's **Setup script** field. **That is the whole setup — no variables, no token.** The
+  stub clones the engine anonymously and runs `scripts/cloud-skill-sync.sh`, which delivers every
+  skill and agent to `$HOME/.claude` and wires the capture hooks. A routine picks up the
+  checked-out repo's own `.claude/skills/` and `.claude/settings.json` hooks by itself.
 
   > **To pick up a newer engine, bump the `# rebuild:` number in the stub and re-save.** The
   > environment snapshot is busted only by that field's text changing, so a stub that clones

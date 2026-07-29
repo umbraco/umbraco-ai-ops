@@ -50,13 +50,13 @@ Never use `fable`. Never put secrets in the prompt or config.
    were all missing — and cited a `self-learning-system.md` that does not exist in this repo. A
    copy of a list is a list that rots; the planner is the source.)
 2. **Skills reach the env** — paste `scripts/cloud-setup-stub.sh` into the environment's **Setup
-   script** field, set `OPS_TOKEN`, and **bump the `# rebuild:` number** to force a rebuild.
-   There is no list to add a skill to: `cloud-skill-sync.sh` delivers **every** skill and agent in
-   the repo, precisely so that adding one needs no second edit.
+   script** field. No variables and no token: the engine is public, so the clone is anonymous.
+   On an environment that already exists, **bump the `# rebuild:` number** as well, or it keeps
+   serving its cached snapshot. There is no list to add a skill to: `cloud-skill-sync.sh` delivers
+   **every** skill and agent in the repo, precisely so that adding one needs no second edit.
 3. **Org Actions policy** allows calling a reusable workflow from `umbraco/umbraco-ai-ops`
-   (if the org restricts actions to "selected", allowlist it). This repo is private, so its
-   *Settings → Actions → General → Access* must also allow org repos to reuse its workflows, or
-   every run fails with "workflow was not found" before any job starts.
+   (if the org restricts actions to "selected", allowlist it). Nothing else is needed: the engine
+   is public, so Actions resolves the reusable workflow without an access grant.
 
 **Stand it up:**
 1. **Create the routine** (via `RemoteTrigger` `create`) with the [Standard config](#standard-routine-config-identical-for-every-repo),

@@ -284,32 +284,16 @@ both before starting, and say which repo each label went to.
 
 ## Step 7 — install the caller workflow
 
-> **First, the prerequisite that makes it run at all.** The caller does
+> **Nothing to arrange first.** The caller does
 > `uses: umbraco/umbraco-ai-ops/.github/workflows/loop-dispatch.yml@main`, and that repo is
-> **private**. GitHub Actions will not read a reusable workflow out of a private repo unless
-> that repo has granted access, so without it **every** run fails instantly with:
+> **public**, so Actions resolves it with no access grant and no token.
 >
-> ```
-> error parsing called workflow ... workflow was not found.
-> ```
->
-> It fails **before any job starts**, so there are no logs and no annotations on the run — just
-> a red tick. Nothing about it points at the engine repo, which is why it is worth naming here
-> rather than leaving someone to find it.
->
-> Two ways out, both one-time and both on the **engine** repo, not the consumer:
->
-> 1. **Make `umbraco/umbraco-ai-ops` public.** This also removes the need for `OPS_TOKEN` in
->    the cloud environment, so it fixes both private-repo problems at once.
-> 2. **Keep it private and grant access:** its *Settings → Actions → General → Access* →
->    **"Accessible from repositories in the `umbraco` organization"**.
->
-> Say which one is in place. If neither is, stop and say so — installing the workflow is
-> pointless until one is, and a red run with no logs is a bad thing to hand someone.
->
-> **This is not the same as the cloud `OPS_TOKEN`.** Different runtime, different failure: the
-> token is read by the environment's Setup script, which this failure never reaches. Do not
-> let one be offered as the fix for the other.
+> Worth recognising if you ever see it: while the engine was private, every run failed instantly
+> with `error parsing called workflow ... workflow was not found` — **before any job started**, so
+> no logs and no annotations, just a red tick, and nothing pointing at the engine repo. If that
+> ever reappears, the engine has been made private again, and the fix is on the **engine** repo,
+> not the consumer: *Settings → Actions → General → Access* → **"Accessible from repositories in
+> the `umbraco` organization"**.
 
 Copy the caller workflow template (see
 [`new-loop-routine`](../../../loop-dispatch/skills/new-loop-routine/SKILL.md), which owns the
@@ -371,11 +355,10 @@ List these **in this order**, and say why the order matters; do not try to do th
 
    Then say which of the two cases applies:
 
-   - **No environment yet** → a human creates one, pastes the stub into **Setup script**, and
-     sets **`OPS_TOKEN`** in the environment's variables. Say this part plainly:
-     `umbraco/umbraco-ai-ops` is **private**, so with no token the clone fails and the
-     environment comes up with **no skills at all** — which presents as the loops silently
-     doing nothing, not as a setup error. `GH_TOKEN` or `GITHUB_TOKEN` work too.
+   - **No environment yet** → a human creates one and pastes the stub into **Setup script**.
+     **That is all of it: no variables, no token.** The engine is public, so the clone is
+     anonymous. Do not ask for `OPS_TOKEN`; nothing reads it any more, and sending someone to
+     set one costs them a detour and teaches them a rule that is no longer true.
    - **An environment already exists** → it is almost certainly serving an **older snapshot**.
      Tell them to **bump the `# rebuild:` number in the stub and re-save**. This is the entire
      mechanism and it is not guessable: the snapshot is busted **only** by the text of that
