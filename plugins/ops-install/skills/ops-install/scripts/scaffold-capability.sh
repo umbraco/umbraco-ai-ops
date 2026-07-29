@@ -28,16 +28,19 @@ here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "$here/engine-root.sh"
 catalog="${CATALOG_FILE:-$(ops_engine_root "$here")/catalog.json}"
 
+# Pull the flag out and keep the rest as an ARRAY. Joining into a string and re-splitting on
+# whitespace looked equivalent and was not: a destination under a path with a space in it
+# (`C:/Users/Some One/repo`) split into two arguments and the scaffold landed somewhere else, or
+# nowhere. Common enough on Windows to be worth the array.
 from_default=false
-args=""
+args=()
 for a in "$@"; do
   case "$a" in
     --from-default) from_default=true ;;
-    *) args="$args${args:+ }$a" ;;
+    *) args+=("$a") ;;
   esac
 done
-# shellcheck disable=SC2086
-set -- $args
+set -- ${args[@]+"${args[@]}"}
 
 cap="${1:-}"
 dest="${2:-}"

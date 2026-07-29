@@ -107,5 +107,17 @@ bash "$SC" ops-workspace "$FD3" >/dev/null 2>&1
 check "without the flag it is still a stub" 0 \
   "$(grep -c 'STARTED AS A COPY' "$FD3/ops-workspace/SKILL.md" 2>/dev/null)"
 
+# --- a destination path with a space in it --------------------------------
+# The arguments used to be joined into one string and re-split on whitespace, so `Some One`
+# became two arguments and the file landed somewhere other than where it was asked for. Windows
+# home directories have spaces in them often enough for this to be a real path, not a curiosity.
+SP="$TMP/Some One/skills"; mkdir -p "$SP"
+bash "$SC" ops-workspace "$SP" >/dev/null 2>&1
+check "a dest path with a space is written where asked" 1 \
+  "$([ -f "$SP/ops-workspace/SKILL.md" ] && echo 1 || echo 0)"
+bash "$SC" ops-ci "$SP" --from-default >/dev/null 2>&1
+check "  and --from-default too" 1 \
+  "$([ -f "$SP/ops-ci/SKILL.md" ] && echo 1 || echo 0)"
+
 printf '\n%s: %d passed, %d failed\n' "$(basename "$0")" "$pass" "$fail"
 [ "$fail" -eq 0 ]
