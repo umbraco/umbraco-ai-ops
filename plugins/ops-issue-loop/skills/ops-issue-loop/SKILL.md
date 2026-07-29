@@ -74,6 +74,18 @@ message, then one per freed slot.
 
 Each subagent, for its issue:
 
+0. **Claim the issue, before doing any work.** Remove `labels.ready`, add
+   `labels.in_progress`. Resolve both names from `ops-repo-meta · identity` — never invent
+   them. **This is the first action, not a closing formality.** Removing the ready label is
+   the only thing stopping a second event re-dispatching the same issue, and a build can run
+   for many minutes: leave the label on during it and a re-fire produces a duplicate branch
+   and a duplicate PR.
+
+   > This step used to sit at the end, after CI went green, while still claiming to be what
+   > prevents a re-fire. It could not be both. A live run ended with CI still building, so the
+   > issue kept `ops/ready-for-ai` and never got its comment — the loop had followed the skill
+   > exactly (29-07-2026).
+
 1. **`ops-change · implement`** with `{ issue, line, port }`. `line` is the **primary line**
    from `ops-repo-meta · lines`; `port` is `null` here. This loop works the primary line only —
    porting to another line is its own change, with its own PR, verify and CI.
@@ -83,8 +95,10 @@ Each subagent, for its issue:
    picks a base.
 4. **Drive CI green** — `ops-ci · status`; on red, `ops-ci · log` then back to `implement` /
    `verify`. **Cap: 8 attempts.**
-5. **Swap the labels** on the issue: remove `labels.ready`, add `labels.in_progress`, comment
-   the PR link. Removing the ready label is what stops a routine re-firing on the same issue.
+5. **Comment the PR link** on the issue. The labels were already swapped in step 0; all that
+   is left is the link, and it should go on **as soon as the PR exists** (step 3), not after
+   CI. A run that ends while CI is still building must still leave the issue pointing at its
+   PR — otherwise the backlog shows untouched work that is actually half done.
 
 Track `{issue, branch, pr_number, model, attempts}`. A subagent is done at a green PR.
 
