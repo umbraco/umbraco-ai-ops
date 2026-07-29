@@ -13,15 +13,14 @@
 # fire the capture hooks. No per-repo marketplace marker, no committed skill files, no manual
 # upload.
 #
-# AUTHENTICATION. `umbraco/umbraco-ai-ops` is **private**, so an anonymous clone fails and the
-# environment ends up with no skills at all. Set **`OPS_TOKEN`** (or `GH_TOKEN` /
-# `GITHUB_TOKEN`, which a runner often already has) to a token that can read this repo. An
-# anonymous clone is still attempted when no token is set, so a public fork keeps working with
-# no configuration.
+# NO AUTHENTICATION. `umbraco/umbraco-ai-ops` is public, so the clone is anonymous and there is
+# nothing to configure. This used to read OPS_TOKEN / GH_TOKEN / GITHUB_TOKEN and splice a
+# credential into the clone URL, because the repo was private. All of that is removed rather
+# than kept as an unused knob: token handling that nothing needs is a thing to keep correct, and
+# a hint telling a human to set a variable that does nothing costs more than it saves.
 #
-# The token is used for the clone and then dropped: `.git` is deleted from the checkout, so no
-# credential is persisted anywhere on the runner, and nothing this script logs ever contains it.
-# If you would rather not manage a token, making this repo public removes the need for one.
+# `.git` is still deleted after the clone. The reason is no longer credential hygiene, just
+# size and the absence of a stale remote in the environment.
 #
 # WHY IT COPIES EVERYTHING. The prototype kept a hand-maintained list of skills to deliver,
 # which is one more thing to forget when a skill is added — a routine then fails at run time
@@ -33,8 +32,11 @@
 # SessionEnd entries into settings.json itself. Without that, proto-learning capture works
 # locally and silently does nothing in cloud — which is where most runs happen.
 #
-# REFRESHING. The environment snapshot is cached (~7 days), and changing the source repo does
-# NOT bust it — only editing this script does. Bump VERSION and re-save to force a re-clone.
+# REFRESHING. The environment snapshot is cached, and changing the source repo does NOT bust it.
+# Only the text of the "Setup script" FIELD does, and that field holds cloud-setup-stub.sh, not
+# this file: bump the stub's `# rebuild:` number and re-save. This paragraph used to say "bump
+# VERSION and re-save", which was true when this script WAS the pasted text. It is not any more,
+# so bumping VERSION here refreshes nothing.
 #
 # DEBUGGING. The run log is $HOME/skill-sync.log, readable from inside the session. The
 # environment *build* log is not visible to the session, which is why this logs to a file.
@@ -43,10 +45,12 @@
 #   OPS_SRC    use an existing checkout instead of cloning (a branch-pointed env, or a test)
 #   OPS_REPO   clone a different repo/fork
 #   OPS_HOME   install under this root instead of $HOME
-#   OPS_TOKEN  read token for a private OPS_REPO; falls back to GH_TOKEN, then GITHUB_TOKEN
 set -u
 
-VERSION="2"
+# Appears in the run log so you can tell which sync actually ran. It is NOT a cache key: the
+# environment snapshot is busted only by the text of the Setup script field, which holds
+# cloud-setup-stub.sh. Bumping this forces nothing; bump the stub's `# rebuild:` for that.
+VERSION="3"
 REPO="${OPS_REPO:-https://github.com/umbraco/umbraco-ai-ops}"
 HOME_DIR="${OPS_HOME:-$HOME}"
 SKILLS_DEST="$HOME_DIR/.claude/skills"
@@ -65,31 +69,17 @@ mkdir -p "$SKILLS_DEST" "$AGENTS_DEST"
     OPS_DIR="$OPS_SRC"; echo "using provided source (no clone): $OPS_DIR"
   else
     rm -rf /tmp/ops
-    # The repo is private, so build an authenticated URL when a token is available. It lives
-    # only in this local variable: it is never echoed, and `.git` is deleted straight after the
-    # clone so the credential is not left in /tmp/ops/.git/config for the rest of the session.
-    # Anonymous is still tried when there is no token, so a public fork needs no configuration.
-    TOKEN="${OPS_TOKEN:-${GH_TOKEN:-${GITHUB_TOKEN:-}}}"
-    clone_url="$REPO"
-    case "$REPO" in
-      https://github.com/*)
-        [ -n "$TOKEN" ] && clone_url="https://x-access-token:${TOKEN}@github.com/${REPO#https://github.com/}"
-        ;;
-    esac
-    [ -n "$TOKEN" ] && echo "using a token for the clone" || echo "no token set — trying an anonymous clone"
-
-    if git clone --depth 1 "$clone_url" /tmp/ops >/dev/null 2>&1; then
+    # Anonymous. The engine is public, so there is no credential to splice in, nothing to keep
+    # out of the log, and no token hint to give when this fails. `.git` still goes, for size and
+    # to leave no stale remote behind.
+    if git clone --depth 1 "$REPO" /tmp/ops >/dev/null 2>&1; then
       rm -rf /tmp/ops/.git
-      OPS_DIR=/tmp/ops; echo "cloned $REPO"   # $REPO, never $clone_url — that carries the token
+      OPS_DIR=/tmp/ops; echo "cloned $REPO"
     else
       echo "FATAL: could not clone $REPO — the environment will have no skills"
-      if [ -z "$TOKEN" ]; then
-        echo "HINT: this repo is private. Set OPS_TOKEN (or GH_TOKEN / GITHUB_TOKEN) to a token that can read it."
-      else
-        echo "HINT: a token was set but the clone still failed — check it can read $REPO and has not expired."
-      fi
+      echo "HINT: the engine is public, so this is network or URL, not auth. Check the runner's"
+      echo "      egress to github.com, and OPS_REPO if you set it."
     fi
-    unset TOKEN clone_url
   fi
 
   if [ -n "${OPS_DIR:-}" ]; then

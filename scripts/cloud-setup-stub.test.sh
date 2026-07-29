@@ -3,9 +3,11 @@
 # dead loopback proxy so every clone fails instantly and identically on any machine.
 #
 # The stub is pasted by a human into a web form and then almost never looked at again, so the
-# things worth testing are the ones a human cannot see failing: that the token never reaches
-# the output, that a missing token produces the message that names the actual fix, and that
-# the `rebuild:` line — the entire cache-busting mechanism — has not been dropped.
+# things worth testing are the ones a human cannot see failing: that a failed clone says
+# something true about why, that the `rebuild:` line — the entire cache-busting mechanism — has
+# not been dropped, and that no token handling has crept back in. The engine is public, so a
+# token is not part of this any more, and a stub that asks for one sends a human looking for a
+# variable that does nothing.
 set -uo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -31,34 +33,37 @@ check "it explains that only this field's text busts the cache" 1 \
 lines="$(grep -vc '^\s*#\|^\s*$' "$STUB")"
 check "the stub is under 25 lines of actual code" 1 "$( [ "$lines" -lt 25 ] && echo 1 || echo 0)"
 
-# --- token never appears in the output ------------------------------------
-out="$(nonet env OPS_TOKEN="$SECRET" bash "$STUB" 2>&1)"; rc=$?
+# --- the clone is anonymous, and no token handling has come back -----------
+# The engine is public. Splicing credentials into a URL is the one thing in here that could leak
+# a secret, so the absence is worth asserting rather than assuming.
+# Code lines only: the header legitimately explains that the token requirement was removed, and
+# a test that banned the word would force that explanation out of the file.
+code() { grep -v '^\s*#\|^\s*$' "$STUB"; }
+check "no token variable is read" 0 "$(code | grep -c 'OPS_TOKEN\|GH_TOKEN\|GITHUB_TOKEN')"
+check "no credential is spliced into the clone URL" 0 "$(code | grep -c 'x-access-token')"
+check "it clones \$REPO directly" 1 "$(grep -c 'git clone --depth 1 "\$REPO"' "$STUB")"
+
+# --- a failed clone fails loudly, and blames the right thing ---------------
+out="$(nonet bash "$STUB" 2>&1)"; rc=$?
 check "a failed clone exits non-zero" 1 "$( [ "$rc" -ne 0 ] && echo 1 || echo 0)"
+check "  it says the failure is not an auth problem" 1 \
+  "$(printf '%s' "$out" | grep -c 'not an auth one')"
+check "  and names what to check instead" 1 "$(printf '%s' "$out" | grep -c 'egress to github.com')"
+check "  it does not send anyone looking for a token" 0 \
+  "$(printf '%s' "$out" | grep -ci 'token\|private')"
+
+# --- a token in the environment is ignored, not used or echoed -------------
+# A leftover OPS_TOKEN from the private-repo era must be inert, and must certainly not appear in
+# the output now that nothing consumes it.
+out="$(nonet env OPS_TOKEN="$SECRET" GH_TOKEN="$SECRET" bash "$STUB" 2>&1)"
 if printf '%s' "$out" | grep -q "$SECRET"; then
-  fail=$((fail+1)); echo "FAIL: THE TOKEN LEAKED INTO THE OUTPUT"
+  fail=$((fail+1)); echo "FAIL: A STALE TOKEN LEAKED INTO THE OUTPUT"
 else pass=$((pass+1)); fi
-check "  a token failure blames the token, not the setup" 1 \
-  "$(printf '%s' "$out" | grep -c 'has not expired')"
 
-# --- no token: the message must name the actual fix -----------------------
-out="$(nonet env OPS_TOKEN= GH_TOKEN= GITHUB_TOKEN= bash "$STUB" 2>&1)"
-check "a missing token says the repo is private" 1 "$(printf '%s' "$out" | grep -c 'repo is private')"
-check "  and names the variable to set" 1 "$(printf '%s' "$out" | grep -c 'OPS_TOKEN')"
-
-# --- the fallbacks a runner may already have ------------------------------
-for var in GH_TOKEN GITHUB_TOKEN; do
-  out="$(nonet env "$var=$SECRET" OPS_TOKEN= bash "$STUB" 2>&1)"
-  check "$var is accepted as a token" 1 "$(printf '%s' "$out" | grep -c 'has not expired')"
-  if printf '%s' "$out" | grep -q "$SECRET"; then
-    fail=$((fail+1)); echo "FAIL: $var LEAKED INTO THE OUTPUT"
-  else pass=$((pass+1)); fi
-done
-
-# --- a non-github remote must not have a token spliced in -----------------
-out="$(nonet env OPS_REPO="file:///nonexistent-$$" OPS_TOKEN="$SECRET" bash "$STUB" 2>&1)"
-if printf '%s' "$out" | grep -q "$SECRET"; then
-  fail=$((fail+1)); echo "FAIL: token leaked on a non-github remote"
-else pass=$((pass+1)); fi
+# --- OPS_REPO still points it at a fork -----------------------------------
+out="$(nonet env OPS_REPO="file:///nonexistent-$$" bash "$STUB" 2>&1)"
+check "OPS_REPO is honoured in the failure message" 1 \
+  "$(printf '%s' "$out" | grep -c "nonexistent-$$")"
 
 # --- it hands off to the real script, and by the right name ---------------
 # Match the invocation line only — the filename also appears in the comments.
