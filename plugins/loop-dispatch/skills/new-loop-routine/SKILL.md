@@ -42,12 +42,21 @@ Never use `fable`. Never put secrets in the prompt or config.
 ## Procedure
 
 **Preconditions (once per repo):**
-1. **Labels exist**: `ops/ready-for-ai`, `ops/generated-by-ai`, `ops/ai-blocked`, `ops/auto-merge`,
-   `ops/auto-release`, `ops/release-blocked` (see `self-learning-system.md` §2).
-2. **Skills reach the env** — `loop-dispatch` (and the loops) are in the
-   `cloud-skill-sync` `SKILLS` list and the env has been rebuilt (bump `VERSION`, re-paste).
+1. **The labels exist.** Do not hand-write the list: **`/ops-install` creates every one of them**,
+   on the repo each one's role implies, from `plan-labels.sh`. If you are standing up a routine on
+   a repo that has not been onboarded, run the installer first. (This step used to carry a
+   six-name list of its own, which had gone stale by six labels — `ops/in-progress`,
+   `ops/auto-rework`, `ops/port`, `ops/proto-learning`, `ops/triaged` and `ops/loop-improvement`
+   were all missing — and cited a `self-learning-system.md` that does not exist in this repo. A
+   copy of a list is a list that rots; the planner is the source.)
+2. **Skills reach the env** — paste `scripts/cloud-setup-stub.sh` into the environment's **Setup
+   script** field, set `OPS_TOKEN`, and **bump the `# rebuild:` number** to force a rebuild.
+   There is no list to add a skill to: `cloud-skill-sync.sh` delivers **every** skill and agent in
+   the repo, precisely so that adding one needs no second edit.
 3. **Org Actions policy** allows calling a reusable workflow from `umbraco/umbraco-ai-ops`
-   (if the org restricts actions to "selected", allowlist it).
+   (if the org restricts actions to "selected", allowlist it). This repo is private, so its
+   *Settings → Actions → General → Access* must also allow org repos to reuse its workflows, or
+   every run fails with "workflow was not found" before any job starts.
 
 **Stand it up:**
 1. **Create the routine** (via `RemoteTrigger` `create`) with the [Standard config](#standard-routine-config-identical-for-every-repo),
@@ -68,10 +77,13 @@ When a product's issues live in a **separate repo** from its source (e.g.
 repos** — the same template, wired to different events in each:
 
 - In the **issues repo**: subscribe to `issues` (labelled `ops/ready-for-ai` / `ops/auto-release`)
-  and set `with.target_repo` to the **code repo**, so the route carries `target=<code repo>`
-  and the routine works there while reading the issue here.
+  and commit a `.claude/ops-repo-meta.json` there declaring **`topology.code`**. The router reads
+  it and emits `target=<code repo>`, so the routine works there while reading the issue here.
+  **`with.target_repo` also does this and is deprecated** — it was the same fact hand-written a
+  second time, in another file in another repo, with nothing to catch the two disagreeing.
 - In the **code repo**: subscribe to `pull_request_target` (labelled `ops/auto-merge` /
-  `ops/auto-rework`) — those events fire where the PRs live, no `target_repo` needed.
+  `ops/auto-rework` / `ops/port`) — those events fire where the PRs live, and the work is
+  already there, so nothing needs declaring.
 
 A same-repo consumer (issues and PRs together) keeps a single workflow subscribing to both,
 with no `target_repo`.

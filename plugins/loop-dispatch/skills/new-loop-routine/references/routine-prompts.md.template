@@ -16,8 +16,14 @@ a live routine's prompt. Substitution is the *only* per-repo change.
 Name: `loop-dispatch → {{OWNER_REPO}}`
 
 ```text
-You are running as a cloud worker; do all GitHub work via the GitHub MCP (github-ops). A GitHub loop event fired on {{OWNER_REPO}}. Run the loop-dispatch skill: read the <github-trigger-context> block, run route-event.sh to get the loop, and dispatch to it exactly as loop-dispatch specifies, or quiet no-op when loop=none. Follow loop-dispatch's guardrails verbatim; add no policy of your own.
+You are running as a cloud worker; do all GitHub work via the GitHub MCP (github-ops). A GitHub loop event fired on {{OWNER_REPO}} and was ALREADY ROUTED at the edge: your turn carries the resolved `loop=… repo=… number=…` line. Run the loop-dispatch skill and dispatch that loop exactly as loop-dispatch specifies — take the resolved loop as given, do not re-run route-event.sh or re-derive it. Re-check the entity still qualifies before acting, and quiet no-op if it does not or if no loop was resolved. Follow loop-dispatch's guardrails verbatim; add no policy of your own.
 ```
+
+> **Why it says "do not re-run `route-event.sh`".** The Action runs the router at the edge and
+> fires only on a match, so the answer is already in the prompt. This block used to tell the
+> routine to run the script itself, which contradicts the skill's own Step 1 ("take that loop as
+> given; don't re-derive it") and asks a session to re-do a decision it cannot improve on — from a
+> checkout that may not even hold the script at the path it expects.
 
 The routine has **no UI event triggers** — it's fired by the committed GitHub Action
 ([`loop-dispatch.yml.template`](loop-dispatch.yml.template)), which subscribes to all the loop events
@@ -26,4 +32,8 @@ framework base table, plus this repo's optional `.github/ops-routing.json` overl
 - Issue labelled `ops/ready-for-ai` → **ops-issue-loop**
 - PR labelled `ops/auto-merge` → **ops-merge-loop**
 - PR labelled `ops/auto-rework` → **ops-rework-loop**
+- PR labelled `ops/port` → **ops-port-loop**
 - Issue labelled `ops/auto-release` → **ops-release-loop**
+
+That list is a rendering of [`route-map.json`](../../loop-dispatch/scripts/route-map.json), which
+is the source. If the two disagree, the table is right and this needs updating.

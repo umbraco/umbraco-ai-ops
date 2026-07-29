@@ -43,6 +43,7 @@ The base table, rendered:
 | `issues.labeled` | `ops/auto-release` (issue title `release <version>`) | **`ops-release-loop`** |
 | `pull_request.labeled` | `ops/auto-merge` | **`ops-merge-loop`** |
 | `pull_request.labeled` | `ops/auto-rework` | **`ops-rework-loop`** |
+| `pull_request.labeled` | `ops/port` | **`ops-port-loop`** |
 
 **The event vocabulary is closed**: `issues.labeled`, `pull_request.labeled`,
 `issues.opened`, `pull_request.opened`. `pull_request_target.labeled` normalises to
@@ -66,7 +67,10 @@ routine.
 
 ## Config (resolve once)
 
-- **Repo** — identify the current repo (github-ops → *Detect base branch / repo*).
+- **Repo** — `ops-repo-meta · identity` for the repo you are in, and `topology` when the fire
+  carries a `target`. Do **not** ask `github-ops` to "detect the base branch / repo": that
+  operation was deleted, because resolving a base is `ops-branching`'s private business and
+  nothing at this layer may hold one.
 - **github-ops required** — every downstream loop uses it; it must be installed.
 
 ## Step 1 — take the resolved loop
@@ -97,9 +101,12 @@ specific issue/PR, and **follow that skill's instructions verbatim**:
 - `ops/auto-merge` PR → **`ops-merge-loop`** (it sweeps all `ops/auto-merge` PRs; the event is
   just the wake-up).
 - `ops/auto-rework` PR → **`ops-rework-loop`** for that PR.
+- `ops/port` PR → **`ops-port-loop`** for that PR. This row exists for the case where a human
+  labels a PR that has **already merged**; the normal way a port starts is `ops-merge-loop`
+  handing over the moment it lands, which needs no event.
 - `ops/auto-release` issue → **`ops-release-loop`**, version taken from the issue title.
 
-All four are real skill names — nothing to translate.
+All five are real skill names — nothing to translate.
 
 **One event → one loop.** Do not chain (don't build *then* merge *then* release in a
 single fire) — each of those has its own event that will dispatch its own run. Hand

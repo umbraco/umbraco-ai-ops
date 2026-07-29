@@ -6,9 +6,11 @@
 # match. The two secrets carry everything repo-specific.
 #
 # CROSS-REPO ISSUES: commit this in a repo whose issues live in a SEPARATE code repo
-# (e.g. Umbraco.Forms.Issues) and set `with.target_repo` to that code repo — the router
-# then emits `target=<code repo>` and the routine works there while reading the issue
-# here. Same-repo consumers (Automate) omit `target_repo` entirely.
+# (e.g. an issues-only repo) and declare `topology.code` in that repo's
+# `.claude/ops-repo-meta.json` — the router reads it and emits `target=<code repo>`, so the
+# routine works there while reading the issue here. `with.target_repo` below does the same
+# thing by hand and is DEPRECATED: one fact in two files in two repos, with nothing to catch
+# them disagreeing. Same-repo consumers declare neither.
 #
 # PR labels use `pull_request_target`, NOT `pull_request`: `pull_request` resolves the
 # workflow from the PR's BASE branch, and our loop PRs target `dev` (a non-default
@@ -32,9 +34,10 @@ on:
 jobs:
   dispatch:
     uses: umbraco/umbraco-ai-ops/.github/workflows/loop-dispatch.yml@main
-    # For a cross-repo issues repo (see header), uncomment and set the code repo:
+    # DEPRECATED (see header): declare `topology.code` in this repo's
+    # .claude/ops-repo-meta.json instead. Only for a one-off override.
     # with:
-    #   target_repo: umbraco/Umbraco.Forms
+    #   target_repo: owner/code-repo
     # Pass secrets explicitly rather than `secrets: inherit` — inherit only forwards when
     # the caller and the reusable workflow share an org, so being explicit keeps this
     # working even for a consumer in a different org and makes the secret flow visible.
