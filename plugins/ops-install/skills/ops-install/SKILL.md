@@ -7,8 +7,9 @@ description: >-
   capability from its catalog entry, asks whether each INHERITED default actually fits (coverage
   matches names, not behaviour), interviews the human to fill that stub's TODOs, creates every
   `ops/` label on the repo its role implies, installs the caller workflow on every repo that
-  emits routed events, and validates the routing overlay. Six of its nine steps are
-  deterministic scripts. Interactive, run once per repo.
+  emits routed events, and validates the routing overlay. It checks its OWN version first,
+  because onboarding with a stale installer wastes time on bugs already fixed. Seven of its ten
+  steps are deterministic scripts. Interactive, run once per repo.
   Trigger on "onboard this repo", "install the ops engine", "check capability coverage".
 ---
 
@@ -28,6 +29,7 @@ events reach the router, and prove all three.
 
 | Step | Deterministic? |
 |---|---|
+| 0. Check YOUR OWN copy of the engine is current | `scripts/check-installed-versions.sh` |
 | 1. Detect the repo's setup | `scripts/detect.sh` |
 | 2. Write the repo's declared facts | you + `scripts/validate-repo-meta.sh` |
 | 3. Report capability coverage | `scripts/coverage.sh` |
@@ -38,7 +40,7 @@ events reach the router, and prove all three.
 | 8. Validate the routing overlay, if there is one | `scripts/validate-overlay.sh` |
 | 9. List what is genuinely left for a human | you |
 
-**Six of the nine are scripts, deliberately.** A coverage report a model produces by reading
+**Seven of the ten are scripts, deliberately.** A coverage report a model produces by reading
 directories is a report that can be quietly wrong, and "you are covered" is exactly the claim
 nobody re-checks. Run the script and show its output.
 
@@ -55,6 +57,26 @@ mean one call per question.
 **Seed every option from what you already know.** Step 1's output, the repo's existing skills,
 its build files. A question whose first option is the detected value, marked recommended, is one
 click. The same question asked blind is homework. Never ask what detection already answered.
+
+## Step 0 — is the installer itself current?
+
+```
+scripts/check-installed-versions.sh
+```
+
+**Run this first, and show the output.** Onboarding with a stale engine is not a hypothetical:
+a repo was onboarded with `ops-install` 0.2.0 and hit three bugs already fixed upstream —
+a catalog path that needed an env var by hand, a scaffold that rejected the name the previous
+command had just printed, and detection reporting `nbgv: false` for a repo that plainly uses it.
+Every one of them cost real time and none was a real bug by then.
+
+- **Behind?** Stop. Print the commands it gives, and say the session must be **restarted**
+  afterwards — a running session keeps the skills it loaded at start, so updating without a
+  restart looks exactly like updating changing nothing.
+- **Current?** Read the second line before believing it. The check compares against the
+  **marketplace clone**, and that clone does not refresh itself. "All current" against a
+  week-old clone is true and worthless, so the script prints how old its source is. If it looks
+  old, `/plugin marketplace update` first and run this again.
 
 ## Step 1 — detect
 
