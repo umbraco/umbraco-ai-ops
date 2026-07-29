@@ -95,12 +95,34 @@ caps="$(jq -r '.capabilities[].capability' "$catalog" | tr -d '\r')"
 
 if [ "$mode" = "--check" ]; then
   rc=0
+  # The generator is jq, so its version is part of the output contract. Printed on every check
+  # so a CI log answers "was it the same jq?" without a second run.
+  echo "build-evals --check: jq $(jq --version 2>/dev/null || echo '?'), $(uname -s 2>/dev/null || echo '?')" >&2
   while IFS= read -r cap; do
     [ -n "$cap" ] || continue
     f="$evals/$cap.eval.json"
     if [ ! -f "$f" ]; then echo "ERROR: missing suite for $cap — run scripts/build-evals.sh" >&2; rc=1; continue; fi
     if ! diff -q <(suite "$cap") "$f" >/dev/null 2>&1; then
-      echo "ERROR: $f is out of date — run scripts/build-evals.sh" >&2; rc=1
+      # Say WHY, not just that. This gate failed three CI runs in a row while passing on the
+      # author's machine, and "is out of date" told nobody anything — the whole investigation
+      # went into reproducing a message that should have printed the answer.
+      #
+      # Byte counts and the first differing offset come first deliberately: the likeliest
+      # causes here are invisible in a text diff (a CR, a trailing newline, an encoding
+      # difference between jq versions), and a unified diff of those looks like two identical
+      # lines. If the sizes differ by exactly the line count, it is line endings.
+      gen="$(mktemp)"; suite "$cap" > "$gen"
+      {
+        echo "ERROR: $f is out of date — run scripts/build-evals.sh"
+        printf '  generated: %s bytes\n' "$(wc -c < "$gen" | tr -d ' ')"
+        printf '  committed: %s bytes\n' "$(wc -c < "$f" | tr -d ' ')"
+        printf '  first differing byte: %s\n' "$(cmp "$gen" "$f" 2>&1 | head -1 || true)"
+        echo "  --- diff (generated vs committed), first 20 lines ---"
+        diff "$gen" "$f" 2>&1 | head -20 | sed 's/^/  /'
+        echo "  --- end diff ---"
+      } >&2
+      rm -f "$gen"
+      rc=1
     fi
   done <<< "$caps"
   # A suite for a capability the catalog no longer declares is worse than a missing one: it

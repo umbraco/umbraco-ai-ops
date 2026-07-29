@@ -22,6 +22,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # The generators are jq and bash, so their versions are part of the output contract.
+      # Recorded on every run because a drift gate that fails only on CI is otherwise
+      # impossible to diagnose from a Windows machine — which is exactly what happened.
+      - name: Record the toolchain
+        run: |
+          echo "jq:   $(jq --version)"
+          echo "bash: $BASH_VERSION"
+          echo "os:   $(uname -srm)"
+          echo "--- line endings of a generated file, as checked out ---"
+          file evals/change.eval.json || true
+          head -c 120 evals/change.eval.json | od -c | head -4
+
       - name: Run all tests (*.test.sh)
         run: |
           set -uo pipefail

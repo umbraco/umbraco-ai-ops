@@ -17,8 +17,12 @@ TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT
 check() { if [ "$2" = "$3" ]; then pass=$((pass+1)); else fail=$((fail+1)); echo "FAIL: $1 — want [$2] got [$3]"; fi; }
 
 # --- the drift gate -------------------------------------------------------
-bash "$B" --check >/dev/null 2>&1
-check "the committed suites match the catalog" 0 $?
+# Capture the output rather than discarding it. This assertion failed three CI runs in a row
+# while passing locally, and because both streams went to /dev/null the log said only "want [0]
+# got [1]" — the one thing it could not tell you was what had drifted.
+drift_out="$(bash "$B" --check 2>&1)"; drift_rc=$?
+check "the committed suites match the catalog" 0 $drift_rc
+[ "$drift_rc" -eq 0 ] || printf '%s\n' "$drift_out" | sed 's/^/    | /'
 
 # --- one suite per capability, and no orphans -----------------------------
 check "one suite per catalogued capability" \
@@ -60,8 +64,9 @@ check "every case has an action, a context and asserts" "0" \
 
 # --- --check detects both directions of drift ----------------------------
 cp -r "$EVALS" "$TMP/evals"
-CATALOG_FILE="$CATALOG" EVALS_DIR="$TMP/evals" bash "$B" --check >/dev/null 2>&1
-check "a clean copy passes --check" 0 $?
+clean_out="$(CATALOG_FILE="$CATALOG" EVALS_DIR="$TMP/evals" bash "$B" --check 2>&1)"; clean_rc=$?
+check "a clean copy passes --check" 0 $clean_rc
+[ "$clean_rc" -eq 0 ] || printf '%s\n' "$clean_out" | sed 's/^/    | /'
 
 jq '.cases = []' "$TMP/evals/integrate.eval.json" > "$TMP/x" && mv "$TMP/x" "$TMP/evals/integrate.eval.json"
 CATALOG_FILE="$CATALOG" EVALS_DIR="$TMP/evals" bash "$B" --check >/dev/null 2>&1
