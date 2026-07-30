@@ -32,7 +32,7 @@ events reach the router, and prove all three.
 | 0. Check YOUR OWN copy of the engine is current | `scripts/check-installed-versions.sh` |
 | 1. Detect the repo's setup | `scripts/detect.sh` |
 | 2. Write the repo's declared facts | you + `scripts/validate-repo-meta.sh` |
-| 3. Report capability coverage | `scripts/coverage.sh` |
+| 3. Report capability coverage, and check the skills it found are callable | `scripts/coverage.sh` + `scripts/validate-repo-skills.sh` |
 | 4. Scaffold a stub per missing capability | `scripts/scaffold-capability.sh` |
 | 5. **Fill the stub's TODOs** with the human | you, by interview |
 | 6. Create the labels | `scripts/plan-labels.sh` + `github-ops` |
@@ -171,6 +171,38 @@ know how a product builds or ships. Everything else should read `inherited`.
 
 **Show the report verbatim.** It is the honest answer to "is this repo onboarded?", and a
 summary of it is not.
+
+### `present` is a name match too — so check the file
+
+```
+scripts/validate-repo-skills.sh <repo-root>
+```
+
+**Run this every time, including on a repo that was onboarded months ago.** It is the reason a
+re-run of `/ops-install` is worth doing at all: coverage never opens the skills it reports, so
+the rules the engine has learned since a repo was set up reach it only here.
+
+It holds the repo's own `ops-<cap>` skills to the same frontmatter rules CI holds the engine's:
+
+| Rule | Why it is a rule |
+|---|---|
+| **No `disable-model-invocation`** | It does not mean "only a loop may call this". It blocks the **Skill tool outright**, so no loop can call the capability either. |
+| **The guard sentence in the description** | *"NOT for direct use — never select it from a description match."* This is what replaced the flag, and it only works in the description. |
+| **`name:` matches the directory** | The name is the whole binding. A mismatch means the loop's invocation resolves to nothing. |
+
+**Do not treat a failure as cosmetic.** A flagged skill fails in the one way this engine is built
+to prevent: the loop reads the SKILL.md off disk and follows it as prose, produces plausible work,
+and never invokes anything — no arguments in, no result out, no unknown-action rejection.
+Umbraco.Automate ran a full issue → PR → merge → port cycle that way with three flagged skills
+(30-07-2026). Every PR looked right. Only `close-issue` reported that it could not run, and only
+because it had nowhere to fall back to.
+
+- **Fails?** Show the output and offer to fix it. Removing the flag and adding the guard sentence
+  is a two-line edit per skill, and it needs no interview.
+- **`BLOCKED`?** The engine copy is not reachable, so the rule is **unchecked**. Say so plainly
+  and do not carry on as though it passed.
+- **Reports no repo-owned skills?** Normal on a fresh repo. Everything is inherited, and Step 4
+  is about to scaffold what is missing.
 
 ### `inherited` is a name match, not a fitness check
 

@@ -23,15 +23,44 @@
 # description is the thing the flag blocks. So a flagged loop would break in cloud exactly as a
 # flagged capability broke in a routine. Nothing in the repo sets it anywhere.
 #
-# Usage: bash validate-capability-skills.sh [engine-root]
+# IT ALSO CHECKS A CONSUMER REPO, and that is not a bolt-on. `/ops-install` reports coverage by
+# matching skill NAMES, so a repo whose ops-change carries the flag reports `present` — a clean
+# bill of health for a capability no loop can call. That is exactly how Umbraco.Automate ran for
+# a day with three flagged skills (30-07-2026): the loops read the files as prose, the work
+# looked right, and only `close-issue` said out loud that it could not run. Coverage cannot catch
+# this because it never opens the file. This can, so the installer runs it.
+#
+# Two layouts, one set of rules:
+#
+#   engine     <root>/plugins/*/skills/ops-<cap>/SKILL.md    the framework defaults
+#   consumer   <root>/.claude/skills/ops-<cap>/SKILL.md      the skills a repo owns
+#
+# A root may have either or both. The catalog comes from the target when it has one and from the
+# engine otherwise, because a consumer repo has no catalog.json and the capability list is the
+# engine's to define.
+#
+# Usage: bash validate-capability-skills.sh [root]      # engine root, or a consumer repo root
 set -uo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ROOT="${1:-$HERE/..}"
-[ -d "$ROOT/plugins" ] || { echo "ERROR: no plugins/ under $ROOT" >&2; exit 2; }
+ENGINE="$HERE/.."
+ROOT="${1:-$ENGINE}"
 command -v jq >/dev/null 2>&1 || { echo "ERROR: jq required" >&2; exit 2; }
 
-CATALOG="${CATALOG_FILE:-$ROOT/catalog.json}"
+# Search roots that actually exist. Neither one is an error — the caller pointed at something
+# that is neither an engine checkout nor a repo with capability skills.
+roots=()
+[ -d "$ROOT/plugins" ] && roots+=("$ROOT/plugins")
+[ -d "$ROOT/.claude/skills" ] && roots+=("$ROOT/.claude/skills")
+if [ "${#roots[@]}" -eq 0 ]; then
+  echo "ERROR: $ROOT has neither plugins/ nor .claude/skills/ — nothing to check." >&2
+  exit 2
+fi
+
+# The target's own catalog if it is an engine checkout, otherwise this engine's. This script
+# always ships inside the engine, so $ENGINE is a reliable fallback in both layouts.
+CATALOG="${CATALOG_FILE:-}"
+[ -n "$CATALOG" ] || { [ -f "$ROOT/catalog.json" ] && CATALOG="$ROOT/catalog.json" || CATALOG="$ENGINE/catalog.json"; }
 [ -f "$CATALOG" ] || { echo "ERROR: no catalog at $CATALOG" >&2; exit 2; }
 
 GUARD="NOT for direct use"
@@ -71,7 +100,11 @@ while IFS= read -r f; do
 
   # 2. The replacement guard must be present IN THE DESCRIPTION, or nothing discourages a
   #    description match — which is the only thing the guard is for.
-  if ! printf '%s\n' "$fm" | grep -qF "$GUARD"; then
+  #    Match against a whitespace-flattened copy. Descriptions are YAML folded scalars (`>-`),
+  #    so where the author's line break happens to fall is meaningless — the parsed value joins
+  #    them with a space. A line-anchored grep fails on a skill that wraps between "direct" and
+  #    "use", which is a guard that is present, correct, and reported missing.
+  if ! printf '%s\n' "$fm" | tr '\n' ' ' | tr -s ' ' | grep -qF "$GUARD"; then
     echo "FAIL: $skill is missing the guard \"$GUARD\" in its description." >&2
     rc=1
   fi
@@ -81,9 +114,20 @@ while IFS= read -r f; do
     echo "FAIL: $skill has a frontmatter name that does not match its directory." >&2
     rc=1
   fi
-done < <(find "$ROOT/plugins" -type f -path '*/skills/ops-*/SKILL.md' 2>/dev/null | sort)
+done < <(find "${roots[@]}" -type f -path '*/ops-*/SKILL.md' 2>/dev/null | sort)
 
-[ "$checked" -gt 0 ] || { echo "ERROR: found no capability skills to check under $ROOT/plugins" >&2; exit 2; }
+# An engine tree with no capability skills is broken — the framework defaults are the point, and
+# a validator that passes when it checked nothing is the failure mode this repo keeps hitting.
+# A CONSUMER with none is normal: it inherits every default and owns no skill yet. Same silence,
+# two different meanings, so say which one it was.
+if [ "$checked" -eq 0 ]; then
+  if [ -d "$ROOT/plugins" ]; then
+    echo "ERROR: found no capability skills to check under $ROOT/plugins" >&2
+    exit 2
+  fi
+  echo "OK: no repo-owned capability skills in $ROOT/.claude/skills — every capability is inherited."
+  exit 0
+fi
 
 if [ "$rc" -eq 0 ]; then
   echo "OK: $checked capability skill(s) — none blocks the Skill tool, all carry the guard."

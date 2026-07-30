@@ -109,6 +109,56 @@ check_rc=$?
 if [ "$check_rc" -eq 2 ]; then pass=$((pass+1))
 else fail=$((fail+1)); echo "FAIL: no capability skills at all should exit 2, got $check_rc"; fi
 
+# --- the consumer layout ---------------------------------------------------
+# A consumer has no plugins/ and no catalog.json; its skills live in .claude/skills/. This is the
+# layout /ops-install checks, and the one that went unchecked while Umbraco.Automate shipped
+# three flagged skills that coverage happily reported as `present` (30-07-2026).
+mkconsumer() { # mkconsumer <name> -> prints root
+  local r="$TMP/$1"; mkdir -p "$r/.claude/skills/ops-change"
+  cat > "$r/.claude/skills/ops-change/SKILL.md" <<'EOF'
+---
+name: ops-change
+description: >-
+  Build one change in this repo. Called by name with (action, context-json). NOT for direct
+  use — never select it from a description match.
+---
+# ops-change
+EOF
+  printf '%s' "$r"
+}
+
+R="$(mkconsumer consumer_good)"
+accepts "$R" "a consumer repo with a clean ops-change"
+
+# That fixture deliberately wraps between "direct" and "use". The description is a YAML folded
+# scalar, so the parsed value still reads "NOT for direct use" — where the author's line break
+# lands is not a rule violation, and a line-anchored grep called this guard missing.
+if bash "$V" "$TMP/consumer_good" >/dev/null 2>&1; then pass=$((pass+1))
+else fail=$((fail+1)); echo "FAIL: a guard wrapped across two lines should still count"; fi
+
+# The catalog fell back to the engine's, since the consumer has none. If that broke, `change`
+# would not be a known capability and the skill would be skipped rather than checked.
+R="$(mkconsumer consumer_flagged)"
+sed -i 's/^name: ops-change$/name: ops-change\ndisable-model-invocation: true/' \
+  "$R/.claude/skills/ops-change/SKILL.md"
+rejects "$R" "a consumer's ops-change setting the flag"
+
+out="$(bash "$V" "$R" 2>&1)"
+if printf '%s' "$out" | grep -q "ops-change"; then pass=$((pass+1))
+else fail=$((fail+1)); echo "FAIL: the failure should name the offending skill"; fi
+
+# A consumer that owns no capability skill inherits every default. Normal, not an error — the
+# opposite of an empty engine tree above.
+R="$TMP/consumer_empty"; mkdir -p "$R/.claude/skills"
+accepts "$R" "a consumer owning no capability skills"
+
+# Neither layout is a pointing error, and must not pass quietly.
+R="$TMP/nothing"; mkdir -p "$R"
+bash "$V" "$R" >/dev/null 2>&1
+check_rc=$?
+if [ "$check_rc" -eq 2 ]; then pass=$((pass+1))
+else fail=$((fail+1)); echo "FAIL: a root with neither layout should exit 2, got $check_rc"; fi
+
 # --- the real repo must satisfy its own rule -------------------------------
 accepts "$HERE/.." "this repo's own capability skills"
 
