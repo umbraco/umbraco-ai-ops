@@ -33,11 +33,16 @@ status "the committed README matches catalog.json" 0 bash "$GEN" --check
 
 # --- --print --------------------------------------------------------------
 want_rows="$(jq '[.capabilities[].operations | length] | add' "$CATALOG")"
-got_rows="$(bash "$GEN" --print | grep -c '^| `ops-')"
+got_rows="$(bash "$GEN" --print | grep -c '^<tr>')"
 check "one row per catalogued action" "$want_rows" "$got_rows"
-check "the table has a header" "| Capability | Action | What it does |" "$(bash "$GEN" --print | head -1)"
+check "the table opens with a <table>" "<table>" "$(bash "$GEN" --print | head -1)"
+check "the table has a header" \
+  "<thead><tr><th>Capability</th><th>Action</th><th>What it does</th></tr></thead>" \
+  "$(bash "$GEN" --print | sed -n 2p)"
+# A blank line inside a raw HTML block ends it, so the table would render as text.
+check "no blank line inside the block" "0" "$(bash "$GEN" --print | grep -c '^$')"
 
-# --- first-sentence extraction + pipe escaping ----------------------------
+# --- first sentence, HTML escaping, backticks, rowspan ---------------------
 cat > "$TMP/one.json" <<'JSON'
 {
   "version": 1,
@@ -51,19 +56,32 @@ cat > "$TMP/one.json" <<'JSON'
       "description": "A demo.",
       "operations": [
         { "action": "go", "description": "First sentence. Second sentence MUST be dropped.", "example": {} },
-        { "action": "pipe", "description": "Takes a|b as input.", "example": {} }
+        { "action": "markup", "description": "Takes a<b & `code` as input.", "example": {} }
+      ]
+    },
+    {
+      "capability": "solo",
+      "kind": "behavioral",
+      "visibility": "service",
+      "framework_default": false,
+      "description": "One action only.",
+      "operations": [
+        { "action": "only", "description": "The single action.", "example": {} }
       ]
     }
   ]
 }
 JSON
 out="$(CATALOG_FILE="$TMP/one.json" bash "$GEN" --print)"
-check "keeps only the first sentence" \
-  '| `ops-demo` | `go` | First sentence. |' \
-  "$(printf '%s' "$out" | grep '`go`')"
-check "escapes a pipe in a description" \
-  '| `ops-demo` | `pipe` | Takes a\|b as input. |' \
-  "$(printf '%s' "$out" | grep '`pipe`')"
+check "the first action of a capability carries the rowspan" \
+  '<tr><td rowspan="2"><code>ops-demo</code></td><td><code>go</code></td><td>First sentence.</td></tr>' \
+  "$(printf '%s' "$out" | grep '>go<')"
+check "a later action omits the capability cell" \
+  '<tr><td><code>markup</code></td><td>Takes a&lt;b &amp; <code>code</code> as input.</td></tr>' \
+  "$(printf '%s' "$out" | grep '>markup<')"
+check "a one-action capability gets no rowspan" \
+  '<tr><td><code>ops-solo</code></td><td><code>only</code></td><td>The single action.</td></tr>' \
+  "$(printf '%s' "$out" | grep '>only<')"
 
 # --- marker handling ------------------------------------------------------
 printf '# no markers here\n' > "$TMP/bare.md"

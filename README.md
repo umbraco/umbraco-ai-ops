@@ -255,27 +255,30 @@ skill must implement exactly these and reject anything else.
 > `scripts/catalog-to-readme.sh`. CI fails if the two drift apart.
 
 <!-- BEGIN GENERATED: catalog-actions (scripts/catalog-to-readme.sh) -->
-| Capability | Action | What it does |
-|---|---|---|
-| `ops-change` | `implement` | Make the change the issue asks for on a work branch, and push it. |
-| `ops-change` | `verify` | Run this repo's build, tests and sanity checks against the change, and report pass or fail with enough detail for the caller to act on a failure. |
-| `ops-change` | `close-issue` | Told that a PR has landed, work out which issue it was for and close that issue only once EVERY target line has landed — one logical change lands N times at N moments. |
-| `ops-release` | `plan` | Turn the trigger into release facts: which line, which version, and which units of work the release contains. |
-| `ops-release` | `cut` | Branch, bump the version files, write the changelog, and open the release PR. |
-| `ops-release` | `publish` | Realize the release once its PR has landed: tag the commit, push the artifacts to their feed, and publish the release notes. |
-| `ops-release` | `sync` | Put the line's branches back in step after a release, so the next change starts from what actually shipped. |
-| `ops-integrate` | `land` | Check every gate, then merge, or decline with the reason. |
-| `ops-branching` | `merge` | Merge a PR using whichever strategy this repo's model calls for. |
-| `ops-branching` | `open-pr` | Open a PR from a work branch onto the correct base for its line, choosing that base internally. |
-| `ops-branching` | `start-branch` | Create a work branch for a change, named to this repo's convention and rooted on the correct base for its line. |
-| `ops-workspace` | `prepare` | Create the isolated workspace for a branch and leave it ready to build. |
-| `ops-workspace` | `teardown` | Remove the workspace and everything it created, including any database or container. |
-| `ops-repo-meta` | `identity` | Name the repo the loop is working in, and the labels and defaults it runs by. |
-| `ops-repo-meta` | `topology` | Say which repo fills each of the four roles — `code` (required), `issues`, `releases` and `learnings`. |
-| `ops-repo-meta` | `lines` | List the live lines in age order, say which is primary, and give the port order. |
-| `ops-ci` | `status` | Report the CI state of a PR: pending, green or red, and which checks produced that verdict. |
-| `ops-ci` | `log` | Return the failing part of a failing build's log, trimmed to what is needed to diagnose it rather than the whole run. |
-| `ops-notify` | `send` | Send one notification to a human through whichever channel this repo uses. |
+<table>
+<thead><tr><th>Capability</th><th>Action</th><th>What it does</th></tr></thead>
+<tbody>
+<tr><td rowspan="3"><code>ops-change</code></td><td><code>implement</code></td><td>Make the change the issue asks for on a work branch, and push it.</td></tr>
+<tr><td><code>verify</code></td><td>Run this repo's build, tests and sanity checks against the change, and report pass or fail with enough detail for the caller to act on a failure.</td></tr>
+<tr><td><code>close-issue</code></td><td>Told that a PR has landed, work out which issue it was for and close that issue only once EVERY target line has landed — one logical change lands N times at N moments.</td></tr>
+<tr><td rowspan="4"><code>ops-release</code></td><td><code>plan</code></td><td>Turn the trigger into release facts: which line, which version, and which units of work the release contains.</td></tr>
+<tr><td><code>cut</code></td><td>Branch, bump the version files, write the changelog, and open the release PR.</td></tr>
+<tr><td><code>publish</code></td><td>Realize the release once its PR has landed: tag the commit, push the artifacts to their feed, and publish the release notes.</td></tr>
+<tr><td><code>sync</code></td><td>Put the line's branches back in step after a release, so the next change starts from what actually shipped.</td></tr>
+<tr><td><code>ops-integrate</code></td><td><code>land</code></td><td>Check every gate, then merge, or decline with the reason.</td></tr>
+<tr><td rowspan="3"><code>ops-branching</code></td><td><code>merge</code></td><td>Merge a PR using whichever strategy this repo's model calls for.</td></tr>
+<tr><td><code>open-pr</code></td><td>Open a PR from a work branch onto the correct base for its line, choosing that base internally.</td></tr>
+<tr><td><code>start-branch</code></td><td>Create a work branch for a change, named to this repo's convention and rooted on the correct base for its line.</td></tr>
+<tr><td rowspan="2"><code>ops-workspace</code></td><td><code>prepare</code></td><td>Create the isolated workspace for a branch and leave it ready to build.</td></tr>
+<tr><td><code>teardown</code></td><td>Remove the workspace and everything it created, including any database or container.</td></tr>
+<tr><td rowspan="3"><code>ops-repo-meta</code></td><td><code>identity</code></td><td>Name the repo the loop is working in, and the labels and defaults it runs by.</td></tr>
+<tr><td><code>topology</code></td><td>Say which repo fills each of the four roles — <code>code</code> (required), <code>issues</code>, <code>releases</code> and <code>learnings</code>.</td></tr>
+<tr><td><code>lines</code></td><td>List the live lines in age order, say which is primary, and give the port order.</td></tr>
+<tr><td rowspan="2"><code>ops-ci</code></td><td><code>status</code></td><td>Report the CI state of a PR: pending, green or red, and which checks produced that verdict.</td></tr>
+<tr><td><code>log</code></td><td>Return the failing part of a failing build's log, trimmed to what is needed to diagnose it rather than the whole run.</td></tr>
+<tr><td><code>ops-notify</code></td><td><code>send</code></td><td>Send one notification to a human through whichever channel this repo uses.</td></tr>
+</tbody>
+</table>
 <!-- END GENERATED: catalog-actions -->
 
 Each catalogued action also carries a worked `example` context, which does double duty: the

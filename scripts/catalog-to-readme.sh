@@ -28,19 +28,40 @@ command -v jq >/dev/null 2>&1 || { echo "ERROR: jq required" >&2; exit 2; }
 
 # One row per action. The table cell takes the description's FIRST SENTENCE — the
 # full text carries per-action MUSTs that belong in the catalog, not the README.
+#
+# The output is a raw HTML <table>, not a markdown one, for ONE reason: a capability
+# with several actions gets a single `rowspan`-ed cell instead of its name repeated
+# down the column. Markdown tables have no rowspan, so this is the only way to get it.
+# The cost is that GitHub does NOT process markdown inside a raw HTML block, so the
+# generator does that work itself: HTML-escape the text first, then turn the catalog's
+# `backticks` into <code>. Keep those two in that order — escaping afterwards would
+# eat the tags it just wrote. Emit exactly one <tr> per line and no blank lines: the
+# tests count action rows with '^<tr>', and a blank line would end the HTML block
+# mid-table.
 generate() {
   jq -r '
     def first_sentence:
       (. + " ") | capture("^(?<s>[^.]*\\.)") .s // .;
     def cell:
-      first_sentence | gsub("\\|"; "\\|");
-    "| Capability | Action | What it does |",
-    "|---|---|---|",
+      first_sentence
+      | gsub("&"; "&amp;") | gsub("<"; "&lt;") | gsub(">"; "&gt;")
+      | gsub("`(?<t>[^`]*)`"; "<code>\(.t)</code>");
+    "<table>",
+    "<thead><tr><th>Capability</th><th>Action</th><th>What it does</th></tr></thead>",
+    "<tbody>",
     ( .capabilities[]
       | ("ops-" + .capability) as $cap
-      | .operations[]
-      | "| `\($cap)` | `\(.action)` | \(.description | cell) |"
-    )
+      | (.operations | length) as $n
+      | (if $n > 1 then " rowspan=\"\($n)\"" else "" end) as $span
+      | .operations
+      | to_entries[]
+      | if .key == 0
+        then "<tr><td\($span)><code>\($cap)</code></td><td><code>\(.value.action)</code></td><td>\(.value.description | cell)</td></tr>"
+        else "<tr><td><code>\(.value.action)</code></td><td>\(.value.description | cell)</td></tr>"
+        end
+    ),
+    "</tbody>",
+    "</table>"
   ' "$catalog"
 }
 
@@ -73,5 +94,5 @@ if cmp -s "$tmp" "$readme"; then
   echo "OK: README action table already current"
 else
   cat "$tmp" > "$readme"
-  echo "Wrote $(grep -c '^| `ops-' "$block") action rows to $readme"
+  echo "Wrote $(grep -c '^<tr>' "$block") action rows to $readme"
 fi
