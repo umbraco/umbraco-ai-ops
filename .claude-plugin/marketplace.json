@@ -28,7 +28,7 @@
     {
       "name": "ops-issue-loop",
       "source": "./plugins/ops-issue-loop",
-      "description": "The orchestration loop: work a backlog of `ops/ready-for-ai` issues to CI-green PRs by commanding the repo's own `ops-change` (implement → verify) once per issue. It owns the loop only — the queue, the durable /goal, rolling cap-3 dispatch, model selection per issue, the 8-attempt CI-green cap and the backstops — and knows nothing about how to build any product. It stops at a green PR: it never merges and never applies the landing label, so there stays exactly one merge path behind one human gate. Bundles `ops-rework-loop`, the label-triggered review-response half, which pushes and hands the PR back rather than landing its own fix. Repo-agnostic; requires ops-capabilities, github-ops, and the repo's `ops-change`.",
+      "description": "The orchestration loop: work a backlog of `ops/ready-for-ai` issues to CI-green PRs by commanding the repo's own `ops-change` (implement → verify) once per issue. It owns the loop only — the queue, the durable /goal, rolling cap-3 dispatch, model selection per issue, the 8-attempt CI-green cap and the backstops — and knows nothing about how to build any product. It stops at a green PR: it never merges and never applies the landing label, so there stays exactly one merge path behind one human gate. Bundles two label-triggered loops that share the same `ops-change` contract: `ops-rework-loop`, the review-response half, which pushes and hands the PR back rather than landing its own fix; and `ops-port-loop`, which lands an already-merged change on the repo's other live lines, taking the direction from the repo's declared line order rather than a branch name, treating each port as a real change with its own verify and CI, and never landing one. Repo-agnostic; requires ops-capabilities, github-ops, and the repo's `ops-change`.",
       "version": "0.5.0",
       "category": "workflow",
       "keywords": [
@@ -37,6 +37,7 @@
         "ci",
         "pull-request",
         "rework",
+        "port",
         "automation",
         "cloud-routine"
       ]

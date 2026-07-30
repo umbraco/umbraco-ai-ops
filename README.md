@@ -50,7 +50,7 @@ Installed from this marketplace (`.claude-plugin/marketplace.json`):
 | Plugin | What it is |
 |--------|------------|
 | **ops-install** | Onboarding, and the proof it worked. `/ops-install` first checks its own version is current, then detects the repo's setup, writes the few facts detection can't reach to `.claude/ops-repo-meta.json`, reports capability coverage, scaffolds a stub for anything missing, interviews you to fill that stub's TODOs, creates every `ops/` label on the repo its role implies, installs the caller workflows and validates the routing. Seven of its ten steps are scripts. Run it first. |
-| **ops-issue-loop** | The orchestrator: queue, dispatch up to three at once, stop at a green PR. It owns sequencing only and commands your `ops-change` for the work. Bundles `ops-rework-loop` (review feedback) and `ops-port-loop` (landing one change on your other live lines). |
+| **ops-issue-loop** | The orchestrator: queue, dispatch up to three at once, stop at a green PR. It owns sequencing only and commands your `ops-change` for the work. Bundles `ops-rework-loop` (review feedback) and `ops-port-loop` (one merged change, a PR per other live line, none of them landed). |
 | **ops-learnings** | Self-learning. Read-only hooks file `ops/proto-learning` issues off the critical path; `ops-triage-loop` sweeps them weekly and routes each lesson to whoever owns it. |
 | **github-ops** | All GitHub work, in both environments: `gh`/`git` locally, `mcp__github__*` on web. Also wraps the CI provider, either `github-checks` or `azure-pipelines`. Every loop needs it. |
 | **loop-dispatch** | The event router, `route-event.sh`. One routine per repo. It can work in a different repo from the one that fired the event, which is what Forms needs. |
@@ -198,8 +198,11 @@ which, so review can hold the line:
 flowchart TD
   subgraph L["framework loops (engine)"]
     IL[ops-issue-loop]
+    RW[ops-rework-loop]
+    PT[ops-port-loop]
     MF[ops-merge-loop]
     AR[ops-release-loop]
+    TR[ops-triage-loop]
   end
   subgraph S["services: all a loop may command"]
     CH[ops-change]
@@ -216,8 +219,12 @@ flowchart TD
     NO[ops-notify]
   end
   IL --> CH
+  RW --> CH
+  PT --> CH
   MF --> IN
+  MF --> CH
   AR --> RE
+  MF -.-> PT
   CH --> WS
   CH --> BR
   IN --> BR
@@ -228,6 +235,14 @@ flowchart TD
 no loop ever holds a branch name or a merge strategy. It asks for an outcome, "merge this PR", and
 branching decides how. That one absence is what collapses the four places base-branch knowledge
 lives today.
+
+**Only service edges are drawn.** Every loop also reads the cross-cutting three, and drawing those
+eighteen arrows would hide the shape. Two nodes therefore look sparse and are not: `ops-triage-loop`
+commands **no** service at all — it routes lessons into issues and drafted PRs and touches nothing
+else — and `ops-port-loop` reaches only `ops-change`, because it deliberately has no landing path.
+The one dotted edge is the hand-off `ops-merge-loop → ops-port-loop`, a loop starting a loop rather
+than commanding a capability: it is the normal way a port begins, since a port is cut from the merge
+commit and cannot exist before one.
 
 ### The actions each one answers to
 
