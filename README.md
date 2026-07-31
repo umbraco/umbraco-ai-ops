@@ -296,7 +296,7 @@ guard, which is the deliberate trade the spec makes.
   loop-dispatch.yml        # reusable runtime workflow consumers call (edge router -> fire routine)
 catalog.json               # the capability catalog: capabilities, actions, worked examples
 catalog.schema.json        # its shape (a deliberate superset of the conformance spec's keys)
-docs/                      # migration plan, the two design docs, the vocabulary
+docs/                      # migration plan, the two design docs, the vocabulary, the risk register
 evals/                     # GENERATED from the catalog: one suite per capability, opt-in
 plugins/
   <plugin>/                # one dir per plugin (skills/, agents/, scripts/, references/)
@@ -318,3 +318,7 @@ and generic, and the config contract is replaced by the capability model above. 
 per-consumer work in the consumer repos — each product's own `ops-change` and `ops-release`. The
 design, the phases, the decisions, the deviations log and the hazard register are all in
 **[`docs/capabilities-migration-plan.md`](docs/capabilities-migration-plan.md)**.
+
+Standing risks that outlive that plan — chiefly the fact that web routines, the main runtime, are a
+**research preview**, and that every dispatch spends from a per-account daily run allowance — are in
+**[`docs/risks.md`](docs/risks.md)**.
