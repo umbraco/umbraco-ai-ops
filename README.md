@@ -307,5 +307,5 @@ design, the phases, the decisions, the deviations log and the hazard register ar
 **[`docs/capabilities-migration-plan.md`](docs/capabilities-migration-plan.md)**.
 
 Standing risks that outlive that plan — chiefly the fact that web routines, the main runtime, are a
-**research preview** with capped GitHub event delivery — are in
+**research preview**, and that every dispatch spends from a per-account daily run allowance — are in
 **[`docs/risks.md`](docs/risks.md)**.

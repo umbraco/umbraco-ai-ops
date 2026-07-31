@@ -40,64 +40,86 @@ The docs are explicit: *"Routines are in research preview. Behavior, limits, and
 change."*
 ([Automate work with routines](https://code.claude.com/docs/en/routines))
 
-**Partly mitigated for the API trigger only.** The `/fire` endpoint ships behind a dated beta header
-(`experimental-cc-routine-2026-04-01`), and *"Breaking changes ship behind new dated beta header
-versions, and the two most recent previous header versions continue to work so that callers have
-time to migrate."* So an API-triggered break gives us two versions of warning. **Nothing equivalent
-is promised for the routine configuration itself, the setup-script/environment contract, or GitHub
-triggers.** That is where our exposure actually sits.
+**Narrower than it looks, because of which trigger we use.** The `/fire` endpoint ships behind a
+dated beta header (`experimental-cc-routine-2026-04-01`), and *"Breaking changes ship behind new
+dated beta header versions, and the two most recent previous header versions continue to work so
+that callers have time to migrate."* We fire only through that endpoint (see the note below R2), so
+the trigger half of our exposure comes with two versions of warning. **No equivalent promise covers
+the routine configuration itself or the setup-script/environment contract** — `cloud-setup-stub.sh`
+and `cloud-skill-sync.sh` sit on an unversioned surface. That is where the real exposure is.
 
 ---
 
-## R2 — GitHub webhook events are capped, and overflow is dropped silently
+> ### Which trigger we use, and why the caps differ
+>
+> A routine can be started three ways, and the limits are **not** the same for each.
+>
+> We do **not** use Anthropic's native **GitHub event trigger**. `.github/workflows/loop-dispatch.yml`
+> is our own GitHub Actions workflow: it receives the repo event, runs `route-event.sh` at the edge,
+> and **POSTs to the routine's API trigger `/fire` endpoint only when the event maps to a loop**.
+>
+> That is a deliberate design choice and it buys two things. Non-matching events (a Dependabot
+> `dependencies` label) cost nothing — not even a routine session. And the **per-routine and
+> per-account hourly webhook caps that apply to the native GitHub trigger do not apply to us**, because
+> no webhook is delivered to Anthropic at all. GitHub delivers to GitHub Actions; we decide; we call.
+>
+> What applies to us instead is R2: the `/fire` endpoint's own limit.
+
+## R2 — The `/fire` endpoint 429s on the account's daily run allowance
 
 | | |
 |---|---|
-| **Impact** | Direct hit on `loop-dispatch`. A dropped event is a loop that never fires: an `ops/ready-for-ai` issue never picked up, a merged PR that never triggers the release loop. The engine has no idea it missed anything. |
-| **Signal** | **There is none on our side.** Nothing errors. The only evidence is work that quietly did not happen. |
-| **Status** | **open** — no mitigation. |
+| **Impact** | Direct hit on `loop-dispatch`. Once the allowance is gone, every fire is rejected and every loop stops: no issue picked up, no merge, no release. |
+| **Signal** | **Good — the workflow step fails loudly.** `curl --fail-with-body` turns the 429 into a non-zero exit, so the run goes red in the caller repo's Actions tab. Remaining runs are visible at [claude.ai/code/routines](https://claude.ai/code/routines). |
+| **Status** | **open** — visible, but the lost event is never replayed. |
 | **Review** | 31-10-2026, or the first time a consumer repo runs a busy day. |
 
-The docs: *"During the research preview, GitHub webhook events are subject to per-routine and
-per-account hourly caps. Events beyond the limit are dropped until the window resets. See your
-current limits at [claude.ai/code/routines](https://claude.ai/code/routines)."*
-([Automate work with routines](https://code.claude.com/docs/en/routines))
+The API reference: *"Routine runs count against a per-account daily allowance that varies by plan,
+and the resulting sessions draw down the same Claude Code subscription usage as interactive
+sessions. When either limit is reached, the endpoint returns `429 rate_limit_error` with a
+`Retry-After` header. Organizations with extra usage enabled continue past the included allowance on
+metered overage."*
+([Trigger a routine through the API](https://platform.claude.com/docs/en/api/claude-code/routines-fire))
 
-**The cap is hourly, and no number is published.** The limit is shown per-account in the UI, so it
-has to be read there rather than quoted from docs. Until someone reads the live figure, we do not
-know our headroom — so treat any number for this as a guess.
+**No number is published** — the allowance varies by plan and remaining runs are read off
+`claude.ai/code/routines`. Until someone reads the live figure we do not know our headroom, so treat
+any number for this as a guess.
 
-**Why this is worse for us than for most callers.** Our routing is event-driven end to end, and
-`ops-issue-loop` / `ops-merge-loop` fire per event. A repo with a normal day of PR activity generates
-`pull_request` events on `opened`, `synchronize`, `labeled` and `closed` — and the docs are clear
-that *"Each matching GitHub event starts a new session"*, with no reuse. Filters on the trigger are
-the only lever that reduces the count, since they decide what starts a session at all.
+**The real cost is the lost event, not the red build.** Nothing re-fires a route once the window
+resets. The issue keeps its `ops/ready-for-ai` label and simply sits there until something else
+touches it. A failed dispatch is visible to whoever looks at Actions, and invisible to everyone else.
 
-**What would close this:** read the live per-account figure, count the events a real consumer repo
-emits in its busiest hour, and either confirm the headroom or narrow the GitHub trigger filters so
-only events a loop actually routes on reach the routine.
+**Two things to check in the workflow.** The fire step runs
+`curl --retry 3 --retry-delay 5 --retry-all-errors`, added for transient 5xx. Against a 429 those
+retries cannot succeed, and curl's handling of the `Retry-After` header interacts with
+`--retry-delay` in ways worth confirming rather than assuming — a long `Retry-After` should not be
+allowed to park a runner. Distinguishing 429 from 5xx and failing fast on it would be the tidier
+shape.
+
+**What would close this:** read the live allowance, count the loop-mapped events a real consumer repo
+emits on its busiest day, and either confirm the headroom or turn on extra usage (below).
 
 ---
 
-## R3 — A separate daily cap on routine runs, per account
+## R3 — Extra usage is what turns the R2 wall into a slope
 
 | | |
 |---|---|
-| **Impact** | Once hit, further runs are rejected outright until the window resets. Every loop stops. |
-| **Signal** | Runs rejected. Consumption is visible at [claude.ai/settings/usage](https://claude.ai/settings/usage). |
-| **Status** | **mitigated, conditionally** — usage credits turn the wall into metered overage. |
-| **Review** | 31-10-2026. |
+| **Impact** | Without it, hitting the allowance is a hard stop until the window resets. With it, runs continue on metered overage and the engine keeps going. |
+| **Signal** | Same 429 as R2 — the difference is whether it happens at all. |
+| **Status** | **available, not confirmed on** — a setting, not a hazard, until someone checks it. |
+| **Review** | Before any consumer goes live. |
 
-Distinct from R2 and easy to confuse with it: R2 caps **inbound events per hour**, R3 caps **runs
-started per day**. The docs: *"routines have a daily cap on how many runs can start per account"*,
-and *"When a routine hits the daily cap or your subscription usage limit, organizations with usage
-credits turned on can keep running routines on metered overage. Without usage credits, additional
-runs are rejected until the window resets."*
+Not a separate limit from R2; it is the lever that changes what R2 does. The docs: *"When a routine
+hits the daily cap or your subscription usage limit, organizations with usage credits turned on can
+keep running routines on metered overage. Without usage credits, additional runs are rejected until
+the window resets."*
 ([Automate work with routines](https://code.claude.com/docs/en/routines))
 
-**No number is published here either.** On a Team plan an admin turns usage credits on for the
-organisation at [claude.ai/admin-settings/usage](https://claude.ai/admin-settings/usage) — worth
-confirming that is on before a consumer goes live, or the first busy day stops the engine dead.
+On a Team plan an admin turns this on for the organisation at
+[claude.ai/admin-settings/usage](https://claude.ai/admin-settings/usage). Worth confirming before a
+consumer goes live, or the first busy day stops the engine dead. It has a cost, so it is a decision
+for whoever owns the budget, not a default to flip.
 
 ---
 
@@ -105,7 +127,7 @@ confirming that is on before a consumer goes live, or the first busy day stops t
 
 | | |
 |---|---|
-| **Impact** | Bus factor of one on the runtime. Everything the engine does on GitHub carries that person's identity, and the caps in R2/R3 are **that individual's**, not the organisation's. If they leave, change plan, or spend their allowance on other work, the engine stops. |
+| **Impact** | Bus factor of one on the runtime. Everything the engine does on GitHub carries that person's identity, and R2's daily allowance is **that individual's**, not the organisation's. If they leave, change plan, or spend their allowance on other work, the engine stops. |
 | **Signal** | None automatic. |
 | **Status** | **open** — inherent to the platform today. |
 | **Review** | 31-10-2026. |
