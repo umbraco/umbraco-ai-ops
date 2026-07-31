@@ -81,6 +81,19 @@ sessions. When either limit is reached, the endpoint returns `429 rate_limit_err
 metered overage."*
 ([Trigger a routine through the API](https://platform.claude.com/docs/en/api/claude-code/routines-fire))
 
+**Two independent limits, and the run count is the one that bites first.** *"Either"* in that quote
+is load-bearing, so read the row this way and not as one limit with two names:
+
+| | Counts | Reached when |
+|---|---|---|
+| **Daily run allowance** | **Runs started.** A count, not tokens. Varies by plan. | Enough dispatches happen, however small each one was. |
+| **Subscription usage** | The normal Claude Code usage pool, shared with interactive sessions. | The account's usage is spent. |
+
+Having plenty of usage left does **not** buy a run. **Every dispatch is one run regardless of size** —
+a one-line label change spends the same slot as a full build-test-PR cycle — so we can exhaust the
+day's allowance on cheap work while barely denting usage. That asymmetry is ours specifically: most
+callers fire a routine occasionally, and we fire one per routed event.
+
 **No number is published** — the allowance varies by plan and remaining runs are read off
 `claude.ai/code/routines`. Until someone reads the live figure we do not know our headroom, so treat
 any number for this as a guess.
@@ -115,6 +128,15 @@ hits the daily cap or your subscription usage limit, organizations with usage cr
 keep running routines on metered overage. Without usage credits, additional runs are rejected until
 the window resets."*
 ([Automate work with routines](https://code.claude.com/docs/en/routines))
+
+**It covers the run allowance, not just usage.** *"Continue past the included allowance on metered
+overage"* is the API reference's wording, and *"the daily cap **or** your subscription usage limit"*
+is the routines page's — both of R2's limits, one lever. So the run count is a hard wall **only**
+while extra usage is off.
+
+**Unverified:** whether extra usage lifts the run allowance with no further ceiling behind it. The
+wording implies yes and never says so outright. Do not plan capacity on the assumption that runs
+become unlimited.
 
 On a Team plan an admin turns this on for the organisation at
 [claude.ai/admin-settings/usage](https://claude.ai/admin-settings/usage). Worth confirming before a
