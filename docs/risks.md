@@ -63,11 +63,9 @@ per-account hourly caps. Events beyond the limit are dropped until the window re
 current limits at [claude.ai/code/routines](https://claude.ai/code/routines)."*
 ([Automate work with routines](https://code.claude.com/docs/en/routines))
 
-**Two corrections to how this was first framed.** The cap is **hourly**, not daily. And **no number
-is published** — the limit is shown per-account in the UI, so it has to be read there rather than
-quoted from docs. An earlier framing of "25 per account per day" is **unverified and does not match
-the published wording**; treat it as a guess until someone reads the actual figure off the routines
-page.
+**The cap is hourly, and no number is published.** The limit is shown per-account in the UI, so it
+has to be read there rather than quoted from docs. Until someone reads the live figure, we do not
+know our headroom — so treat any number for this as a guess.
 
 **Why this is worse for us than for most callers.** Our routing is event-driven end to end, and
 `ops-issue-loop` / `ops-merge-loop` fire per event. A repo with a normal day of PR activity generates
