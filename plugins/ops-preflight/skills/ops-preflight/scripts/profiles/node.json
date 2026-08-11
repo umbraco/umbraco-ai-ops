@@ -1,0 +1,47 @@
+{
+  "version": 1,
+  "profile": "node",
+  "when": { "any_path": ["package.json", "*/package.json"] },
+  "checks": [
+    {
+      "id": "verify-build-command",
+      "detect": {
+        "any_file_contains": [{ "glob": "*package.json", "pattern": "\"build\"" }],
+        "any_path": ["Makefile", "build.sh", "scripts/build*"]
+      }
+    },
+    {
+      "id": "verify-test-command",
+      "detect": {
+        "any_file_contains": [{ "glob": "*package.json", "pattern": "\"test\"" }],
+        "any_path": ["vitest.config.*", "jest.config.*", "karma.conf.*", "web-test-runner.config.*"]
+      }
+    },
+    {
+      "id": "verify-lint-command",
+      "detect": {
+        "any_file_contains": [{ "glob": "*package.json", "pattern": "\"lint\"" }],
+        "any_path": [".eslintrc*", "eslint.config.*", ".stylelintrc*", "biome.json"]
+      }
+    },
+    {
+      "id": "node-component-tests",
+      "consumer": "ops-change",
+      "action": "verify",
+      "severity": "quality",
+      "title": "Front-end components have their own tests",
+      "why": "A component with no test is one an agent can only check by looking at it, which it cannot do. Component tests are where a front-end change gets its pass or fail.",
+      "detect": { "any_path": ["*.test.ts", "*.test.js", "*.spec.ts", "*.spec.js"] },
+      "ask": "Do the front-end components here have unit or component tests?"
+    },
+    {
+      "id": "node-lockfile",
+      "consumer": "ops-workspace",
+      "action": "prepare",
+      "severity": "quality",
+      "title": "A lockfile is committed",
+      "why": "Without one, two worktrees resolve different dependency versions and a failure that reproduces in one will not reproduce in the other.",
+      "detect": { "any_path": ["package-lock.json", "yarn.lock", "pnpm-lock.yaml", "bun.lockb"] }
+    }
+  ]
+}

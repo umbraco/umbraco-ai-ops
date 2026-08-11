@@ -1,0 +1,97 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/umbraco/umbraco-ai-ops/plugins/ops-preflight/checks.schema.json",
+  "title": "ops-preflight check catalog",
+  "description": "One shape for all three layers: the engine base (scripts/checks.json), a stack profile (scripts/profiles/<stack>.json) and a repo's override (<repo>/.claude/ops-preflight-profile.json). A profile adds `profile` and `when`; the base has neither. Layers merge by `id`, later wins, so a profile entry may carry nothing but `id` and the field it is replacing. This schema is the readable contract; inspect.sh is the enforced one.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "checks"],
+  "properties": {
+    "version": { "const": 1 },
+    "profile": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*$",
+      "description": "Names a STACK, never a product. A product-shaped check belongs in the repo's own override file, not in the engine."
+    },
+    "when": {
+      "$ref": "#/$defs/detect",
+      "description": "Present only on a stack profile. The profile loads when this matches the repo. Every matching profile loads; they are additive, not exclusive."
+    },
+    "checks": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/check" }
+    }
+  },
+  "$defs": {
+    "check": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]*$",
+          "description": "Stable. The issue title and the answers-file key both derive from it, so renaming one orphans every issue already filed against it."
+        },
+        "consumer": {
+          "type": "string",
+          "description": "Which capability or plugin breaks without this. The report groups on it. Required on a NEW check; omitted on a profile entry that only overrides `detect`."
+        },
+        "action": {
+          "type": "string",
+          "description": "Optional. The catalog action that breaks, printed beside the consumer."
+        },
+        "severity": {
+          "enum": ["blocking", "quality"],
+          "description": "`blocking` — the consumer capability cannot be written without it. `quality` — the loops run, the output is worse. There is no third level and no score."
+        },
+        "title": { "type": "string", "minLength": 1 },
+        "why": {
+          "type": "string",
+          "minLength": 1,
+          "description": "One line, printed in the report and in the filed issue. Say what breaks, not that the item is good practice."
+        },
+        "detect": {
+          "$ref": "#/$defs/detect",
+          "description": "Optional. Absent means no file can answer this and only a human can."
+        },
+        "signal": {
+          "type": "boolean",
+          "description": "Optional, defaults false. `true` INVERTS what a match means: finding the file is a reason to ASK, never a pass. A NuGet.config proves a private feed might need a credential; it proves nothing about whether a restore works without one. The check reports `unknown` with `source: signal` and keeps its evidence, so the interview can open with what was found. A signal check MUST carry an `ask` — without one nothing could ever resolve it, and inspect.sh rejects it."
+        },
+        "ask": {
+          "type": "string",
+          "description": "Optional. Absent means report it and never interview on it — for checks where a miss is worth showing but not worth a question."
+        }
+      }
+    },
+    "detect": {
+      "type": "object",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "description": "Matches when ANY rule matches. Deliberately tiny: detection is a seed, not an authority.",
+      "properties": {
+        "any_path": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string" },
+          "description": "Globs matched against the whole repo-relative path. `*` matches any characters INCLUDING `/`, so `*.sln` finds one at any depth and `scripts/build*` is anchored at the root. There is no `**`."
+        },
+        "any_file_contains": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["glob", "pattern"],
+            "properties": {
+              "glob": { "type": "string", "description": "Same glob rules as any_path." },
+              "pattern": { "type": "string", "description": "An extended regular expression, as grep -E reads it." }
+            }
+          }
+        }
+      }
+    }
+  }
+}

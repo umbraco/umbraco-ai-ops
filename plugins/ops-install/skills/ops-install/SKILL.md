@@ -25,6 +25,15 @@ guesses at a fact a human had to decide.
 declare the handful of facts nothing can detect, make sure the named skills exist, make sure the
 events reach the router, and prove all three.
 
+> **This answers "will the loops run here?", not "will they do good work?"** Those are different
+> questions with different failure modes, and this skill only answers the first: coverage matches
+> skill **names**, so a repo with no single test command, a build that cannot run in a bare
+> worktree and a branch model nobody wrote down onboards **green** and then wastes every run.
+> **`ops-preflight` answers the second** — mention it at the start, and if the human has not run
+> it, say what it would catch. Do not run it for them, do not wait for it, and **do not gate on
+> it**: a repo may onboard with readiness gaps and close them afterwards. It will simply meet the
+> same gaps later, at a worse moment.
+
 ## What it does, in order
 
 | Step | Deterministic? |

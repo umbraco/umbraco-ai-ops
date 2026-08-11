@@ -1,0 +1,19 @@
+{
+  "name": "ops-preflight",
+  "version": "0.1.0",
+  "description": "Readiness, and the honest answer to whether the loops will do GOOD work here. `ops-install` proves a repo is wired up; this proves it is worth wiring, because coverage matches skill names and a repo with no test command, no isolated build and an undocumented branch model onboards green and wastes every run. Reads the repo against a merged check catalog — an engine base, every matching STACK profile (never a product profile), then the repo's own `.claude/ops-preflight-profile.json` — and reports each check under the capability that breaks without it, as blocking or quality. Three verdicts, never two: present, gap, and unknown for anything detection could not see, because silence is not a pass and a self-reported yes is printed differently from evidence. It never runs your build, so it works on a machine that cannot compile the product. Then it interviews the human on what the files could not answer, and offers to file one issue per real gap under a stable title a re-run will not duplicate. Advisory: it blocks nothing, and a repo may onboard with gaps and close them afterwards. Interactive, run before /ops-install.",
+  "author": {
+    "name": "Umbraco",
+    "url": "https://github.com/umbraco"
+  },
+  "homepage": "https://github.com/umbraco/umbraco-ai-ops/tree/main/plugins/ops-preflight",
+  "license": "MIT",
+  "keywords": [
+    "readiness",
+    "preflight",
+    "onboarding",
+    "checklist",
+    "detection",
+    "capabilities"
+  ]
+}
