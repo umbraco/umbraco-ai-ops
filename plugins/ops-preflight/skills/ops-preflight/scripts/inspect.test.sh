@@ -206,5 +206,48 @@ check "  every consumer is a real capability or plugin" "" \
 check "  every blocking check is either detectable or askable" "" \
   "$(jq -r '[.checks[] | select(.severity=="blocking" and (has("detect")|not) and (has("ask")|not)) | .id] | join(", ")' "$SHIPPED")"
 
+# --- dual-stack merge: two matching STACK profiles are additive, not a winner-take-all ---------
+# select-profile.sh's own contract is that stacks are ADDITIVE ("nothing picks one winner"). This
+# goes through the REAL auto-discovery path (no --checks), because the additive merge only exists
+# there: a repo matching two stack profiles that both override the same check id used to have
+# whichever profile sorted last silently erase the other's `detect`, even though a repo genuinely
+# holding both stacks needs both sets of evidence.
+STACKDIR="$TMP/stackprofiles"; mkdir -p "$STACKDIR"
+DUALBASE="$(cf dualbase '{"version":1,"checks":[
+  {"id":"shared-check","consumer":"ops-change","severity":"blocking","title":"t","why":"w","ask":"q"}
+]}')"
+printf '%s' '{"version":1,"profile":"a-stack","when":{"any_path":["marker-a"]},
+  "checks":[{"id":"shared-check","detect":{"any_path":["only-in-a"]}}]}' > "$STACKDIR/a-stack.json"
+printf '%s' '{"version":1,"profile":"b-stack","when":{"any_path":["marker-b"]},
+  "checks":[{"id":"shared-check","detect":{"any_path":["only-in-b"]}}]}' > "$STACKDIR/b-stack.json"
+
+dualrun() { OPS_PREFLIGHT_CHECKS="$DUALBASE" OPS_PREFLIGHT_PROFILES="$STACKDIR" bash "$I" "$1" --json 2>/dev/null; }
+
+d="$(mkrepo dualstack marker-a marker-b only-in-a)"
+r="$(dualrun "$d")"
+check "both matching stack profiles are recorded as sources" 2 \
+  "$(printf '%s' "$r" | jq '[.sources[] | select(test("-stack\\.json$"))] | length')"
+check "  the FIRST stack's glob alone still detects present — nothing erased" "present" "$(v "$r" shared-check)"
+check "  with its own evidence intact" "only-in-a" \
+  "$(printf '%s' "$r" | jq -r '.findings[] | select(.id=="shared-check") | .evidence[0]')"
+
+r2="$(dualrun "$(mkrepo dualstack2 marker-a marker-b only-in-b)")"
+check "  and the SECOND stack's glob alone also still detects present" "present" "$(v "$r2" shared-check)"
+
+# --- shipped false-pass fixes, on a blocking check, through the real auto-discovery path -------
+# Both reproduce a false PRESENT this PR fixes: a match that used to skip the interview question
+# on the check most likely to matter is now, at worst, `unknown` — never a silent pass.
+d="$(mkrepo npmplaceholder)"
+printf '%s' '{"scripts":{"test":"echo \"Error: no test specified\" && exit 1"}}' > "$d/package.json"
+r="$(bash "$I" "$d" --json 2>/dev/null)"
+check "npm's own placeholder test script is not mistaken for a real one" "unknown" "$(v "$r" verify-test-command)"
+
+d="$(mkrepo dotnetrun Directory.Build.props scripts/run-evals.sh)"
+r="$(bash "$I" "$d" --json 2>/dev/null)"
+check "a script merely named *run* does not silently pass the runnable-instance check" "unknown" \
+  "$(v "$r" dotnet-runnable-instance)"
+check "  its source says signal, so the interview opens with what was found" "signal" \
+  "$(src "$r" dotnet-runnable-instance)"
+
 printf '\n%s: %d passed, %d failed\n' "$(basename "$0")" "$pass" "$fail"
 [ "$fail" -eq 0 ]

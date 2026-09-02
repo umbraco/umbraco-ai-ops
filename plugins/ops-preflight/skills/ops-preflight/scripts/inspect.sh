@@ -47,9 +47,60 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "$HERE/detect-lib.sh"
 repo="$(cd "$repo" && pwd)"
 
+merge_files=()
 if [ "${#files[@]}" -eq 0 ]; then
-  mapfile -t files < <(bash "$HERE/select-profile.sh" "$repo" | tr -d '\r')
-  [ "${#files[@]}" -gt 0 ] || { echo "ERROR: select-profile.sh returned nothing" >&2; exit 2; }
+  sel_json="$(bash "$HERE/select-profile.sh" "$repo" --json)" \
+    || { echo "ERROR: select-profile.sh failed" >&2; exit 2; }
+  base_file="$(printf '%s' "$sel_json" | jq -r '.sources[] | select(.layer=="base") | .path' | tr -d '\r')"
+  mapfile -t stack_files < <(printf '%s' "$sel_json" | jq -r '.sources[] | select(.layer=="stack") | .path' | tr -d '\r')
+  repo_file="$(printf '%s' "$sel_json" | jq -r '.sources[] | select(.layer=="repo") | .path' | tr -d '\r')"
+  [ -n "$base_file" ] || { echo "ERROR: select-profile.sh returned no base layer" >&2; exit 2; }
+
+  # `files` stays the REAL shipped paths — every matching profile individually — so validation
+  # errors and the printed "Checks from:" list still name the file a human can go look at.
+  files=("$base_file" "${stack_files[@]+"${stack_files[@]}"}")
+  [ -n "$repo_file" ] && files+=("$repo_file")
+
+  merge_files=("$base_file")
+  if [ "${#stack_files[@]}" -gt 1 ]; then
+    # Two or more STACK profiles can match one repo — a repo with a solution and a package.json
+    # genuinely has both stacks. select-profile.sh's own promise is that stacks are ADDITIVE
+    # ("nothing picks one winner"), but the sequential merge below is later-wins BY FIELD, so
+    # feeding these in one at a time would let the second stack silently erase the first stack's
+    # `detect` for any check id both override — exactly the dual-stack bug this guards against.
+    # Pre-combine the stack layer into ONE synthetic file that UNIONS `detect` across stack peers
+    # before it ever reaches the sequential merge, so that merge still only ever sees one entry
+    # per layer and its existing base<-override replace contract (tested below) is untouched.
+    stack_overlay="$(mktemp)"
+    trap 'rm -f "$stack_overlay"' EXIT
+    jq -s '
+      def union_detect(a; b):
+        if a == null then b
+        elif b == null then a
+        else
+          (((a.any_path // []) + (b.any_path // [])) | unique) as $ap
+          | (((a.any_file_contains // []) + (b.any_file_contains // [])) | unique) as $afc
+          | ( {} + (if ($ap|length) > 0 then {any_path: $ap} else {} end)
+                 + (if ($afc|length) > 0 then {any_file_contains: $afc} else {} end) )
+        end;
+      { version: 1,
+        checks: (
+          reduce .[] as $f ({};
+            reduce ($f.checks[]) as $c (.;
+              (.[$c.id] // {}) as $prev
+              | .[$c.id] = (($prev * $c) | .detect = union_detect($prev.detect; $c.detect))
+            )
+          ) | to_entries | map(.value)
+        ) }
+    ' "${stack_files[@]}" > "$stack_overlay" \
+      || { echo "ERROR: could not combine the matching stack profiles" >&2; exit 2; }
+    merge_files+=("$stack_overlay")
+  elif [ "${#stack_files[@]}" -eq 1 ]; then
+    merge_files+=("${stack_files[@]}")
+  fi
+  [ -n "$repo_file" ] && merge_files+=("$repo_file")
+else
+  merge_files=("${files[@]}")
 fi
 for f in "${files[@]}"; do
   [ -f "$f" ] || { echo "ERROR: no such check file: $f" >&2; exit 2; }
@@ -64,11 +115,14 @@ done
 # Later wins BY FIELD, not by whole entry: `*` is jq's recursive merge, so a stack profile can
 # carry nothing but an `id` and the `detect` it is replacing and still inherit the base's title,
 # why and severity. Arrays replace rather than concatenate, which is what a `detect` override
-# needs — a profile giving `any_path` means "these instead", never "these as well".
+# needs — a profile giving `any_path` means "these instead", never "these as well". This is why
+# the layer that actually feeds the merge is `merge_files`, not `files`: two matching STACK
+# profiles are peers, not an override chain, and were already unioned into one synthetic entry
+# above so this step only ever sees one file per layer.
 merged="$(jq -s '
   reduce .[] as $f ({}; reduce ($f.checks[]) as $c (.; .[$c.id] = ((.[$c.id] // {}) * $c)))
   | to_entries | map(.value)
-' "${files[@]}")" || { echo "ERROR: could not merge the check files" >&2; exit 2; }
+' "${merge_files[@]}")" || { echo "ERROR: could not merge the check files" >&2; exit 2; }
 
 # A profile that only ever overrode `detect` can leave a NEW check without the fields the report
 # needs. Fail loudly here rather than printing a row with an empty title.

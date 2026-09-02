@@ -56,6 +56,20 @@ check "  base first, stack second"        '["base","stack"]' "$(layers "$r")"
 r="$(sel "$(mkrepo deep src/dir/sub/Product.sln)")"
 check "a nested solution matches too"     '["alpha"]' "$(stacks "$r")"
 
+# --- a `when` is a full detect object, not just any_path --------------------
+# The schema says `when` accepts the same shape a check's own `detect` does — any_path AND
+# any_file_contains — because it is the same $defs/detect. A profile that gates on file CONTENT
+# is legal under the schema and must load exactly like one gating on a path.
+cat > "$FIX/profiles/gamma.json" <<'JSON'
+{"version":1,"profile":"gamma","when":{"any_file_contains":[{"glob":"marker.txt","pattern":"gamma-stack"}]},"checks":[{"id":"g-one","consumer":"general","severity":"quality","title":"t","why":"w"}]}
+JSON
+d="$(mkrepo bycontent)"; printf 'this repo needs the gamma-stack\n' > "$d/marker.txt"
+r="$(sel "$d")"
+check "a when.any_file_contains match loads the profile" '["gamma"]' "$(stacks "$r")"
+d2="$(mkrepo bycontentmiss)"; printf 'nothing relevant here\n' > "$d2/marker.txt"
+check "  and a file without the pattern does not load it" '[]' "$(stacks "$(sel "$d2")")"
+rm -f "$FIX/profiles/gamma.json"
+
 # --- profiles are ADDITIVE, not exclusive -----------------------------------
 # The case that matters: a repo with a backend and a front-end has both stacks, and both sets of
 # checks are true of it. Nothing picks one winner.

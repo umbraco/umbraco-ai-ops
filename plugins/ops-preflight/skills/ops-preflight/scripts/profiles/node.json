@@ -13,7 +13,9 @@
     {
       "id": "verify-test-command",
       "detect": {
-        "any_file_contains": [{ "glob": "*package.json", "pattern": "\"test\"" }],
+        "any_file_contains": [
+          { "glob": "*package.json", "pattern": "\"test\": *\"(vitest|jest|mocha|ava|tape|jasmine|karma|qunit|playwright|cypress|wdio|c8|nyc|node (--test|test)|tsc|\\./|npm run|pnpm |yarn )" }
+        ],
         "any_path": ["vitest.config.*", "jest.config.*", "karma.conf.*", "web-test-runner.config.*"]
       }
     },

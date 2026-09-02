@@ -34,6 +34,7 @@
       "severity": "blocking",
       "title": "A script stands up a running instance with this project installed",
       "why": "An agent that cannot start the product cannot check its change by hand or run anything end to end. This is the single biggest difference between a repo the loops do good work in and one they do not.",
+      "signal": true,
       "detect": {
         "any_path": ["scripts/*demo*", "scripts/*install*", "scripts/*run*", "docker-compose*.yml", "compose*.yml", "Dockerfile"]
       },

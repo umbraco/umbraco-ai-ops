@@ -50,13 +50,17 @@ jq empty "$BASE" 2>/dev/null || { echo "ERROR: $BASE is not valid JSON" >&2; exi
 preflight_scan "$repo"
 
 matches_when() { # matches_when <profile-file>
-  local f="$1" globs
+  local f="$1" d
   # A profile with no `when` never auto-loads. Deliberate: an unconditional stack profile would
   # apply its checks to every repo, which is the one thing profiles exist to prevent.
   jq -e 'has("when")' "$f" >/dev/null 2>&1 || return 1
-  mapfile -t globs < <(jq -r '(.when.any_path // [])[]' "$f" 2>/dev/null | tr -d '\r')
-  [ "${#globs[@]}" -gt 0 ] || return 1
-  preflight_match_any_path "${globs[@]}"
+  # `when` is a full `detect` object per the schema, so it must be evaluated by the same
+  # preflight_detect() a check's own `detect` uses — any_path AND any_file_contains — or a
+  # profile gating on file content matches under the schema and never loads here, which is
+  # exactly the split-brain disagreement detect-lib.sh exists to prevent.
+  d="$(jq -c '.when' "$f" 2>/dev/null)"
+  [ -n "$d" ] && [ "$d" != "null" ] || return 1
+  preflight_detect "$repo" "$d" >/dev/null
 }
 
 rows="[]"
