@@ -18,7 +18,11 @@
         "any_file_contains": [
           { "glob": "*package.json", "pattern": "\"test\": *\"[^\"]*(vitest|jest|mocha|ava|tape|jasmine|karma|qunit|playwright|cypress|wdio|c8|nyc|node (--test|test)|tsc|\\./|npm run|pnpm |yarn )" }
         ],
-        "any_path": ["test.sh", "scripts/test.sh", "*[Tt]ests/*", "*[Tt]est/*", "*.test.*", "*.spec.*", "vitest.config.*", "jest.config.*", "karma.conf.*", "web-test-runner.config.*"]
+        "any_path": [
+          "test.sh", "scripts/test.sh",
+          "*[Tt]ests/*.ts", "*[Tt]ests/*.js", "*[Tt]est/*.ts", "*[Tt]est/*.js",
+          "*.test.*", "*.spec.*", "vitest.config.*", "jest.config.*", "karma.conf.*", "web-test-runner.config.*"
+        ]
       }
     },
     {

@@ -87,6 +87,7 @@ check "a blocking body says the capability cannot be written" "yes" \
   "$(printf '%s' "$one" | jq -r '.body' | grep -q 'cannot be written' && echo yes || echo no)"
 check "the body names the check id, so a re-run can be traced" "yes" \
   "$(printf '%s' "$one" | jq -r '.body' | grep -q 'a-block' && echo yes || echo no)"
+check "the body has no em dash" 0 "$(printf '%s' "$one" | jq -r '.body' | grep -c $'\xe2\x80\x94')"
 
 r="$(plan "$(w q '{"b-qual":"gap"}')")"
 check "a quality body says the loops still run" "yes" \

@@ -76,7 +76,7 @@ plan="$(jq -c --argjson a "$ans" '
           .why
           + "\n\nWhat breaks without it: **" + .consumer
           + (if (.action // "") != "" then " " + .action else "" end) + "**"
-          + " — " + (if .severity == "blocking" then
+          + ": " + (if .severity == "blocking" then
                        "this capability cannot be written until it is true."
                      else
                        "the loops will run, but the work they produce will be worse."

@@ -111,6 +111,26 @@ check "a match inside node_modules does not count" "unknown" "$(v "$r" anywhere)
 r="$(run "$(mkrepo pruned2 obj/Debug/Product.sln)" "$G")"
 check "  nor one inside obj"                       "unknown" "$(v "$r" anywhere)"
 
+# --- a git worktree is scratch, not the repo (a real dry run's worst finding) -------------------
+# `ops-workspace`'s framework default creates one worktree per change under `.claude/worktrees`, so
+# every repo using the loops hits this. A real run against a live repo reported evidence paths
+# INSIDE `.claude/worktrees/*` — a throwaway checkout answering checks about itself, not the repo.
+r="$(run "$(mkrepo wt1 .claude/worktrees/mcp-trigger/Tests.Integration/Foo.cs)" "$G")"
+check "a .sln (or any file) inside .claude/worktrees does not count" "unknown" "$(v "$r" anywhere)"
+r="$(run "$(mkrepo wt2 .worktrees/some-branch/Product.sln)" "$G")"
+check "  nor one inside the alternate .worktrees convention" "unknown" "$(v "$r" anywhere)"
+# `.claude` itself is NOT pruned wholesale — .claude/skills/* is legitimate evidence several
+# shipped checks depend on, so both facts must hold true in the SAME repo.
+d="$(mkrepo wt3 .claude/worktrees/x/Product.sln .claude/skills/release-management/SKILL.md)"
+r="$(bash "$I" "$d" --json 2>/dev/null)"
+check "a worktree copy is excluded while .claude/skills in the same repo is still found" \
+  "unknown" "$(v "$r" verify-build-command)"
+check "  release-prepare still finds the real skill in .claude/skills" "signal" \
+  "$(src "$r" release-prepare)"
+check "  with the skill path as evidence, not anything under .claude/worktrees" \
+  ".claude/skills/release-management/SKILL.md" \
+  "$(printf '%s' "$r" | jq -r '.findings[] | select(.id=="release-prepare") | .evidence[0]')"
+
 # --- layer merge: later wins, BY FIELD ----------------------------------------
 # A profile entry carrying only an id and a detect must inherit title/why/severity from the base.
 # If it did not, a stack override would silently blank the report row it replaced.
@@ -197,6 +217,41 @@ check "  and quality as what makes the loops better"           2 \
 check "  and never as the bare word BLOCKING"                  0 \
   "$(printf '%s' "$out" | grep -c 'BLOCKING')"
 
+# --- a severity heading is printed ONCE per section, never repeated per row ----------------------
+# The actual bug: "[SIGNAL ] Needed for the loops to work, Title (consumer)" glued the severity onto
+# every row with a comma, and repeating that long label got worse the more checks a section held.
+MANY="$(cf many '{"version":1,"checks":[
+  {"id":"m-one","consumer":"general","severity":"blocking","section":"Backend","title":"First one","why":"w"},
+  {"id":"m-two","consumer":"general","severity":"blocking","section":"Backend","title":"Second one","why":"w"},
+  {"id":"m-three","consumer":"general","severity":"blocking","section":"Backend","title":"Third one","why":"w"}
+]}')"
+mout="$(bash "$I" "$(mkrepo many)" --checks "$MANY" 2>/dev/null)"
+check "three blocking checks in ONE section print the heading only once" 1 \
+  "$(printf '%s' "$mout" | grep -c 'Needed for the loops to work')"
+check "  and each of the three titles still appears" 3 \
+  "$(printf '%s' "$mout" | grep -cE 'First one|Second one|Third one')"
+check "  with no row gluing the severity onto the title via a comma" 0 \
+  "$(printf '%s' "$mout" | grep -c 'Needed for the loops to work,')"
+
+# --- the closing summary is one exact, unbroken sentence, and matches the rows' own words --------
+# A real run against a live repo ended mid-word: "...turns whatever i." — whatever the cause, the
+# fix is a message built and printed as ONE piece so no partial write can land inside it. It also
+# has to say "needed for the loops to work" like every row does, not the old bare word "blocking".
+# BASE against the "text" fixture is the same run already used above: 5 checks, 1 present, 4
+# unknown, 2 of them blocking, 3 with a question — pinned here exactly, word for word.
+SUM_EXPECT='  5 checks: 1 present, 4 unknown (2 needed for the loops to work)
+
+  UNKNOWN IS NOT A PASS. Detection could not see these; 3 of them have a question
+  waiting. Answer them, then plan-issues.sh turns whatever is genuinely missing into work.'
+check "the closing summary matches the pinned text exactly, word for word" "$SUM_EXPECT" \
+  "$(printf '%s' "$out" | tail -4)"
+check "  and uses a colon, not an em dash, after the check count" 1 \
+  "$(printf '%s' "$out" | grep -c '[0-9] checks: ')"
+check "no em dash anywhere in the text report" 0 \
+  "$(printf '%s' "$out" | grep -c $'\xe2\x80\x94')"
+check "the report header itself uses a colon, not an em dash" 1 \
+  "$(printf '%s' "$out" | grep -c '^ops-preflight: ')"
+
 # --- failure modes ------------------------------------------------------------
 bash "$I" >/dev/null 2>&1;                                check "no argument exits 2" 2 $?
 bash "$I" "$TMP/absent" >/dev/null 2>&1;                  check "a missing directory exits 2" 2 $?
@@ -255,6 +310,15 @@ check "  no product name or tool leaks into a PROSE field of any shipped check f
       [ .[] | .checks[] | (.title // "") + " " + (.why // "") + " " + (.ask // "")
         | ascii_downcase
         | select(test("umbraco|npm |yarn |stylecop|nuget"))
+      ] | join("; ")
+     ' "${SHIPPED_CHECK_FILES[@]}")"
+# A ` - ` used as punctuation reads as a broken sentence, same complaint as the row layout; an em
+# dash is banned outright. A real hyphenated word (`well-known`) has no surrounding spaces, so this
+# pattern only ever catches the punctuation use, never a compound word.
+check "  no ' - ' punctuation or em dash in a PROSE field of any shipped check file" "" \
+  "$(jq -rs '
+      [ .[] | .checks[] | (.title // "") + " | " + (.why // "") + " | " + (.ask // "")
+        | select(test(" - ") or test("—"))
       ] | join("; ")
      ' "${SHIPPED_CHECK_FILES[@]}")"
 
@@ -324,11 +388,18 @@ check "verify-build-command: the node-only package.json content signal survives 
   "unknown" "$(v "$r2" verify-build-command)"
 check "  with package.json as the content-match evidence" "package.json" \
   "$(printf '%s' "$r2" | jq -r '.findings[] | select(.id=="verify-build-command") | .evidence[] | select(.=="package.json")')"
-# verify-lint-command is `quality`, never `signal` — its match resolves to a plain PRESENT, the
-# contrast that shows `signal` above is doing real work and not just how every check behaves.
-check "verify-lint-command (quality, not signal) resolves to a plain PRESENT when matched" \
-  "present" "$(v "$r2" verify-lint-command)"
-check "  and its source says detected, not signal" "detected" "$(src "$r2" verify-lint-command)"
+# verify-lint-command is `quality` AND `signal` — a linter's config file existing is not the same
+# fact as "one command lints, and it fails on error", so a match here asks rather than passes too.
+check "verify-lint-command (quality, but signal) still asks rather than a silent PRESENT" \
+  "unknown" "$(v "$r2" verify-lint-command)"
+check "  and its source says signal, not detected" "signal" "$(src "$r2" verify-lint-command)"
+# node-component-tests is the contrast: quality and NOT signal, so a match there resolves to a
+# plain PRESENT — proof that `signal` above is doing real work and not just how every check behaves.
+d2b="$(mkrepo realdual-node-quality Widget.test.ts package.json)"
+r2b="$(bash "$I" "$d2b" --json 2>/dev/null)"
+check "node-component-tests (quality, not signal) resolves to a plain PRESENT when matched" \
+  "present" "$(v "$r2b" node-component-tests)"
+check "  and its source says detected, not signal" "detected" "$(src "$r2b" node-component-tests)"
 
 # --- shipped false-pass fixes, on a blocking check, through the real auto-discovery path -------
 # Both reproduce a false PRESENT this PR fixes: a match that used to skip the interview question
@@ -344,6 +415,147 @@ check "a script merely named *run* does not silently pass the runnable-instance 
   "$(v "$r" dotnet-runnable-instance)"
 check "  its source says signal, so the interview opens with what was found" "signal" \
   "$(src "$r" dotnet-runnable-instance)"
+
+
+# --- shipped fixes: the release checks find real evidence instead of nothing -------------------
+# A real dry run against a consumer repo found none of these, even though the harness fact they
+# ask about ("a skill to prepare/trigger/clean up a release", "the file holding the version") was
+# demonstrably there. Through the real auto-discovery path (no --checks) against the SHIPPED
+# checks.json, so these prove the actual catalog rather than a synthetic fixture.
+
+# release-prepare: was already correct (a signal match, not a silent present) — this pins it so a
+# future edit cannot regress it while fixing its two neighbours below.
+d="$(mkrepo relprepare .claude/skills/release-management/SKILL.md)"
+r="$(bash "$I" "$d" --json 2>/dev/null)"
+check "release-prepare finds a release-management-style skill by directory name" \
+  "unknown" "$(v "$r" release-prepare)"
+check "  via signal, not a silent present" "signal" "$(src "$r" release-prepare)"
+check "  with the skill file as evidence" ".claude/skills/release-management/SKILL.md" \
+  "$(printf '%s' "$r" | jq -r '.findings[] | select(.id=="release-prepare") | .evidence[] | select(.==".claude/skills/release-management/SKILL.md")')"
+
+# release-cleanup had NO detect block at all — a post-release-cleanup skill could not have been
+# found on any repo, ever, regardless of how the repo looked. It now looks under .claude/skills/
+# by directory name, the same harness fact release-prepare already looked for.
+d="$(mkrepo relcleanup .claude/skills/post-release-cleanup/SKILL.md)"
+r="$(bash "$I" "$d" --json 2>/dev/null)"
+check "release-cleanup finds a post-release-cleanup-style skill — it used to have no detect at all" \
+  "unknown" "$(v "$r" release-cleanup)"
+check "  via signal, not a silent present" "signal" "$(src "$r" release-cleanup)"
+check "  with the skill file as evidence" ".claude/skills/post-release-cleanup/SKILL.md" \
+  "$(printf '%s' "$r" | jq -r '.findings[] | select(.id=="release-cleanup") | .evidence[] | select(.==".claude/skills/post-release-cleanup/SKILL.md")')"
+r2="$(bash "$I" "$(mkrepo relcleanupmiss)" --json 2>/dev/null)"
+check "  and a repo with no such skill stays unknown with no evidence" \
+  "unknown" "$(v "$r2" release-cleanup)"
+
+# release-trigger: CI is not always GitHub Actions. Azure Pipelines is a shape the engine already
+# supports elsewhere (github-ops has an azure-pipelines CI-provider reference), so an
+# azure-pipelines.yml at the root is a base-engine fact, not a product fact.
+d="$(mkrepo reltrigger azure-pipelines.yml)"
+r="$(bash "$I" "$d" --json 2>/dev/null)"
+check "release-trigger finds an azure-pipelines.yml CI/release trigger" \
+  "unknown" "$(v "$r" release-trigger)"
+check "  with the pipeline file as evidence" "azure-pipelines.yml" \
+  "$(printf '%s' "$r" | jq -r '.findings[] | select(.id=="release-trigger") | .evidence[] | select(.=="azure-pipelines.yml")')"
+d2="$(mkrepo reltrigger2 pipelines/ci.yml)"
+r2="$(bash "$I" "$d2" --json 2>/dev/null)"
+check "  and the pipelines/*.yml shape also counts" "unknown" "$(v "$r2" release-trigger)"
+
+# release-version-source: the bare "version.json" pattern is anchored to the literal repo-relative
+# path (detect-lib.sh's glob semantics: no wildcard means no crossing into a subdirectory), so a
+# repo whose version.json lives one level down under each product folder was invisible to it.
+# "*/version.json" fixes that without needing "**". It is also `signal: true` (see below), so a
+# match ASKS rather than passes — evidence stays intact either way, only the verdict changed.
+d="$(mkrepo relversion Product/version.json)"
+r="$(bash "$I" "$d" --json 2>/dev/null)"
+check "release-version-source finds a version.json nested under a product folder, not only at the root" \
+  "unknown" "$(v "$r" release-version-source)"
+check "  via signal, not a silent present" "signal" "$(src "$r" release-version-source)"
+check "  with the nested path as evidence" "Product/version.json" \
+  "$(printf '%s' "$r" | jq -r '.findings[] | select(.id=="release-version-source") | .evidence[] | select(.=="Product/version.json")')"
+check "  and a root-level version.json still matches too" "unknown" \
+  "$(v "$(bash "$I" "$(mkrepo relversion2 version.json)" --json 2>/dev/null)" release-version-source)"
+
+# --- shipped fix: release-version-source no longer hard-passes on the wrong file ----------------
+# A repo publishing packages under version.json, that ALSO happens to have a root package.json
+# (a docs toolchain, a front-end demo, anything), used to match package.json first and report
+# PRESENT for the wrong file — a real dry run hit this on a .NET repo. `signal: true` turns that
+# into a question instead of a guess about which of two matches is the one that matters.
+d="$(mkrepo relversion-both version.json)"
+printf '{}' > "$d/package.json"
+r="$(bash "$I" "$d" --json 2>/dev/null)"
+check "a repo with both version.json and package.json no longer hard-passes on the wrong one" \
+  "unknown" "$(v "$r" release-version-source)"
+check "  via signal, so a human confirms which file is the published one" \
+  "signal" "$(src "$r" release-version-source)"
+
+# --- shipped fix: a test-shaped directory glob requires a plausible source extension -----------
+# The bug a real dry run hit: `verify-test-command`'s bare "*[Tt]est/*" matched ANY file under a
+# directory whose name contains "test" — so a "pack-test" folder full of build output (a .nupkg and
+# its .snupkg) counted as test evidence, right alongside the real thing. The verdict was still
+# right (this check is signal:true, so a match only ever asks) but the EVIDENCE shown was wrong,
+# which defeats the point of showing evidence at all. Through the real auto-discovery path against
+# the shipped checks.json — no dotnet/node profile matches either fixture, so this exercises the
+# base check's own detect, the one that was broken.
+d="$(mkrepo packartifact pack-test/Product.0.1.0.nupkg pack-test/Product.0.1.0.snupkg)"
+r="$(bash "$I" "$d" --json 2>/dev/null)"
+check "a package artifact inside a test-shaped directory is NOT test evidence" 0 \
+  "$(printf '%s' "$r" | jq '[.findings[] | select(.id=="verify-test-command") | .evidence[]] | length')"
+check "  so the check still stays unknown, never a false present" "unknown" "$(v "$r" verify-test-command)"
+check "  with no source at all — nothing matched" "null" "$(src "$r" verify-test-command)"
+
+d="$(mkrepo realtestsrc Tests/FooTests.cs)"
+r="$(bash "$I" "$d" --json 2>/dev/null)"
+check "a real .cs test source file inside a Tests directory is still found" "signal" "$(src "$r" verify-test-command)"
+check "  with the source file itself as evidence" "Tests/FooTests.cs" \
+  "$(printf '%s' "$r" | jq -r '.findings[] | select(.id=="verify-test-command") | .evidence[] | select(.=="Tests/FooTests.cs")')"
+
+d="$(mkrepo realtestsrcjs Tests/foo.something.js)"
+r="$(bash "$I" "$d" --json 2>/dev/null)"
+check "  and a .js source file inside a Tests directory is found too" "Tests/foo.something.js" \
+  "$(printf '%s' "$r" | jq -r '.findings[] | select(.id=="verify-test-command") | .evidence[] | select(.=="Tests/foo.something.js")')"
+
+# The dotnet and node stack profiles override verify-test-command's own detect, so their bare
+# directory globs needed the same fix independently — this proves each profile's OWN override,
+# through the real profiles/ directory (a repo matching that stack's `when`).
+d="$(mkrepo dotnetpackartifact App.csproj pack-test/Product.0.1.0.nupkg)"
+r="$(bash "$I" "$d" --json 2>/dev/null)"
+check "dotnet profile: a package artifact in a test-shaped directory still isn't test evidence" 0 \
+  "$(printf '%s' "$r" | jq '[.findings[] | select(.id=="verify-test-command") | .evidence[] | select(test("nupkg"))] | length')"
+d="$(mkrepo dotnettestsrc App.csproj Tests/FooTests.cs)"
+r="$(bash "$I" "$d" --json 2>/dev/null)"
+check "  while a real .cs test file in the same shape still is" "Tests/FooTests.cs" \
+  "$(printf '%s' "$r" | jq -r '.findings[] | select(.id=="verify-test-command") | .evidence[] | select(.=="Tests/FooTests.cs")')"
+
+d="$(mkrepo nodepackartifact package.json pack-test/Product.tgz)"
+r="$(bash "$I" "$d" --json 2>/dev/null)"
+check "node profile: a package artifact in a test-shaped directory still isn't test evidence" 0 \
+  "$(printf '%s' "$r" | jq '[.findings[] | select(.id=="verify-test-command") | .evidence[] | select(test("tgz"))] | length')"
+d="$(mkrepo nodetestsrc package.json Tests/foo.js)"
+r="$(bash "$I" "$d" --json 2>/dev/null)"
+check "  while a real .js test file in the same shape still is" "Tests/foo.js" \
+  "$(printf '%s' "$r" | jq -r '.findings[] | select(.id=="verify-test-command") | .evidence[] | select(.=="Tests/foo.js")')"
+
+# --- shipped fix: evidence beyond the cap says how many more, instead of going silent -------------
+# The report caps evidence at 3 paths per row (plenty to answer "is this real"). Before this fix,
+# a check matching a dozen files just showed three with no sign anything was cut — reading as "that
+# is everything" when it was not. `evidence_more` carries the true count past the cap, and the text
+# report renders it as "(+N more)".
+d="$(mkrepo manytests Tests/A.cs Tests/B.cs Tests/C.cs Tests/D.cs Tests/E.cs)"
+r="$(bash "$I" "$d" --json 2>/dev/null)"
+check "evidence in JSON stays capped at 3 entries" 3 \
+  "$(printf '%s' "$r" | jq '[.findings[] | select(.id=="verify-test-command") | .evidence[]] | length')"
+check "  and evidence_more carries the true remainder" 2 \
+  "$(printf '%s' "$r" | jq '.findings[] | select(.id=="verify-test-command") | .evidence_more')"
+out="$(bash "$I" "$d" 2>/dev/null)"
+check "  the text report renders it as \"(+N more)\"" 1 "$(printf '%s' "$out" | grep -c '(+2 more)')"
+
+d="$(mkrepo onetest Tests/OnlyOne.cs)"
+r="$(bash "$I" "$d" --json 2>/dev/null)"
+check "evidence at or under the cap carries evidence_more of 0" 0 \
+  "$(printf '%s' "$r" | jq '.findings[] | select(.id=="verify-test-command") | .evidence_more')"
+out="$(bash "$I" "$d" 2>/dev/null)"
+check "  and the text report prints no \"(+N more)\" suffix at all" 0 \
+  "$(printf '%s' "$out" | grep -c '(+.*more)')"
 
 printf '\n%s: %d passed, %d failed\n' "$(basename "$0")" "$pass" "$fail"
 [ "$fail" -eq 0 ]

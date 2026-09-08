@@ -41,12 +41,26 @@ Every check is **data**, not prose in a skill:
 | Field | Meaning |
 |---|---|
 | `id` | stable; the issue title and the answers file key both derive from it |
-| `consumer` | which capability or plugin breaks without it — the report groups on this |
+| `consumer` | which capability or plugin breaks without it, printed on every row alongside its `action` |
 | `severity` | `blocking` (a capability cannot be written without it) or `quality` (the loops run, the output is worse) |
+| `section` | one of the source checklist's nine headings; the report and the filed issues group on this, in a fixed order, not on `consumer` |
 | `why` | one line, printed in the report and in the filed issue |
 | `detect` | optional. Absent means the check can only be answered by a human |
 | `signal` | optional. `true` inverts what a match means — see below |
 | `ask` | optional. Absent means report it, never interview on it |
+
+**Grouped by `section`, in a fixed order.** Release management and testing first, then harness,
+environment, frontend, backend, best practices, utilities, misc last: release management and
+testing are what unlock the merge and release parts of the pipeline, and are the two sections worth
+doing first if someone only has time for one. Within a section, a `blocking` check sorts above a
+`quality` one. `consumer` still prints on every row, saying what breaks, but it is no longer what
+the report or the filed issues are ordered by.
+
+**Severity reads as English, not as the raw word.** `blocking` and `quality` are unchanged as data
+(nothing renamed them, and no other script that reads this data changed) but the report never
+prints those words on their own. `blocking` shows as *Needed for the loops to work*, `quality` as
+*Makes the loops better*, under a header saying this is a map of the repo and not an entry exam
+that anyone clears every box of.
 
 ### Three verdicts, never two
 
@@ -103,6 +117,22 @@ Deliberately tiny. A check is `present` if **any** rule matches:
 Nothing else. Detection is a seed, not an authority — the same stance `ops-install`'s `detect.sh`
 takes.
 
+Evidence for a match is capped at three paths in the report; a match beyond that still counts but
+prints as `(+N more)` rather than vanishing, so a check that legitimately matches dozens of files
+does not bury the row it belongs to.
+
+### Pruning the scan before it starts
+
+`scripts/prune.json` is a third data file alongside the checks and the profiles, read by
+`select-profile.sh` and `inspect.sh` before either walks the repo tree, with an `OPS_PREFLIGHT_PRUNE`
+env override that replaces the list wholesale (no per-repo layering, unlike checks and profiles).
+Added after a dry run found evidence pointing straight into `.claude/worktrees`: the engine's own
+`ops-workspace` default puts a throwaway checkout there per change, and an unpruned scan was
+answering every check about that copy of the repo rather than the one being inspected. `.claude`
+itself stays readable: `.claude/skills/*` is real evidence several checks depend on
+(`release-prepare`, `release-cleanup`, `general-pattern-mining`); only the worktrees subtree under
+it is pruned.
+
 ## Flow
 
 ```
@@ -112,6 +142,8 @@ inspect.sh <repo> --json            → findings.json (present / unknown)
    batched AskUserQuestion           → answers.json  (present / gap)
         ↓
 plan-issues.sh findings answers     → one issue plan per gap
+        ↓
+score.sh findings answers           → a grade, once nothing is left unknown
         ↓
    github-ops · create-issue        → only on a yes
 ```
@@ -123,6 +155,13 @@ plan-issues.sh findings answers     → one issue plan per gap
   already answered is never asked.
 - **Issue titles are stable** (`ops-preflight: <title>`), so a re-run finds the existing issue and
   files nothing. Gaps are labelled `ops/preflight`, created idempotently before the first file.
+- **`score.sh` refuses to grade while any check is still `unknown`.** Unknown means detection could
+  not see it, not that it is missing; grading a raw scan would hand a well-prepared repo an F for
+  having files this tool cannot read. It grades only once every check reads `present` or `gap`:
+  `blocking` weighs 3, `quality` weighs 1, and the score is the weight of what is `present` over the
+  weight of everything. Bands run `A*` at 95% and above, then `A` 85, `B` 75, `C` 65, `D` 55, `E` 45,
+  `F` below that. One hard cap sits on top: any blocking check that is a `gap` pulls the grade down
+  to `C` at best, however good the rest of the repo looks.
 
 ## What it does not do
 
@@ -132,8 +171,10 @@ plan-issues.sh findings answers     → one issue plan per gap
 - **Does not commit a report file.** It would be stale the moment somebody fixed something.
 - **Does not block `ops-install`.** Advisory only; `ops-install` gains one pointer line. A repo is
   allowed to onboard with gaps and close them afterwards.
-- **Does not score.** No percentage, no grade. A blocking gap is a blocking gap whether there is
-  one or nine.
+- **Does not grade a raw scan.** `score.sh` refuses to turn a repo's `present` / `gap` / `unknown`
+  mix into a percentage until the interview has resolved every `unknown`, and even then a blocking
+  `gap` caps the grade at `C`: a percentage is never allowed to let quality polish paper over
+  something the loops actually need.
 
 ## Knock-ons
 
