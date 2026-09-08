@@ -97,9 +97,18 @@ ships the default data; a consumer overrides by shipping its own file of the sam
 | Event → loop routing, **per-repo overlay** (merged over the base at the edge) | `<consumer>/.github/ops-routing.json` | `loop-dispatch/.../scripts/ops-routing.schema.json` |
 | **Declared repo facts** (topology, live lines, label overrides) | `<consumer>/.claude/ops-repo-meta.json` | `ops-capabilities/.../ops-repo-meta.schema.json` |
 | GitHub/CI provider interface | `github-ops/.../operation-catalog.json` | `operation-catalog.schema.json` |
+| **Readiness checks**, engine base + **stack** profiles | `ops-preflight/.../scripts/checks.json`, `.../scripts/profiles/<stack>.json` | `checks.schema.json` |
+| **Readiness checks**, per-repo overlay (merged last, so it wins) | `<consumer>/.claude/ops-preflight-profile.json` | the same `checks.schema.json` |
 
 When you add a seam, follow the same pattern (data file + schema alongside the code that
 reads it) and document it here.
+
+> **The preflight profiles are named for a STACK, never a product** — `dotnet`, `node`. That is
+> what keeps them on the right side of the golden rule: a `.sln` or a `package.json` is a stack
+> fact, and no engine profile names a product, a product's tool or a product's command. Anything
+> that *is* product-shaped goes in the consumer's own `ops-preflight-profile.json`, which is layer
+> three and exists for exactly that. `inspect.test.sh` greps the shipped base for product names
+> and fails on a hit, so this is enforced rather than trusted.
 
 ## Plugin & skill folder layout
 
@@ -184,8 +193,15 @@ Two rules follow:
 Every GitHub label the engine owns is prefixed **`ops/`** — `ops/ready-for-ai`,
 `ops/in-progress`, `ops/generated-by-ai`, `ops/ai-blocked`, `ops/auto-merge`,
 `ops/auto-rework`, `ops/auto-release`, `ops/release-blocked`, `ops/proto-learning`,
-`ops/port`, `ops/triaged`, `ops/loop-improvement`. The prefix says at a glance that a label drives
-automation, and keeps engine labels out of a repo's existing triage vocabulary.
+`ops/port`, `ops/triaged`, `ops/loop-improvement`, `ops/preflight`. The prefix says at a glance
+that a label drives automation, and keeps engine labels out of a repo's existing triage
+vocabulary.
+
+**`ops/preflight` is the odd one: it triggers nothing.** It marks an issue `ops-preflight` filed
+for a readiness gap, so the set is findable and a re-run can tell its own work from a human's.
+Nothing routes on it and nothing sweeps it — it is a marker, like `ops/triaged`. It is created by
+`ops-preflight` itself, not by `plan-labels.sh`, because it belongs to a step that runs before
+onboarding.
 
 **State and provenance are separate labels, deliberately.** `ops/in-progress` says a loop is
 working an issue **now** and comes off when it stops; `ops/generated-by-ai` says a loop built

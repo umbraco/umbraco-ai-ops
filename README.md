@@ -1,55 +1,126 @@
 # umbraco-ai-ops
 
-The **generic engine** for AI-driven issue automation across Umbraco products. It turns a
-`ops/ready-for-ai` GitHub backlog into CI-green, reviewed, merged PRs. It also feeds what it learns
-back into the repos it works on.
+This engine is built toward three stages, in that order.
+
+The horizon is a full graph. Every stage is wired to the next, and failures feed back too. A fix
+that fails to land loops back to build. A change loops back into the build queue. A regression
+loops back to rollback. A production signal loops back into the backlog. This is a
+self-supporting agentic development environment (a system that fixes and improves itself). Every
+node in that graph is itself a loop underneath, and the graph is what connects them all. That is
+the destination, not this week's work.
+
+The reachable step, and the one this repo targets now, is the SDLC spine: issue, build, merge,
+release. It comes first for three reasons. It has the most work and the least need for
+judgement calls. It is the easiest part to check, because CI is either green or it is not. And it
+is the part of the process tied to a person's job. Some things are deliberately left out at this
+stage: coordinating across loops, running on a schedule, and an agent deciding on its own to
+refactor. Get one lane working end to end first. Then add more lanes. The full graph is what you
+get once enough lanes exist to connect.
+
+Neither of those stages is reachable until the loops underneath them actually work. A loop that
+works needs a harness and validation built on purpose, not assumed. That is what `ops-preflight`
+checks for, before any of the rest is trusted to run unattended.
+
+The **generic engine** below is stage two: it turns a `ops/ready-for-ai` GitHub backlog into
+CI-green, reviewed, merged PRs, across whatever product it is pointed at. It also feeds what it
+learns back into the repos it works on.
 
 This repo is product-**agnostic**. It knows *how to run the loop*. It does **not** know how to
 build any one product. Each consumer supplies **two skills it owns**:
 
-1. **`ops-change`** — build, test and verify one change, and close the issue behind it.
-2. **`ops-release`** — bump, tag, publish, put the branches back in step.
+1. **`ops-change`**: build, test and verify one change, and close the issue behind it.
+2. **`ops-release`**: bump, tag, publish, put the branches back in step.
 
 The engine holds no build steps of its own. A loop reaches your repo by **invoking a skill by
-name** — `ops-change` — with an action and a JSON context. Nothing is injected into a slot,
-nothing relies on one skill shadowing another, and there is no config pointer. Six more
+name**, for example `ops-change`, with an action and a JSON context. Nothing is injected into a
+slot, nothing relies on one skill shadowing another, and there is no config pointer. Six more
 capabilities ship as defaults you inherit and can override the same way.
 
 Extracted from the [`umbraco-mcp-ops`](https://github.com/hifi-phil/umbraco-mcp-ops)
 prototype, which proved the model on Claude Code web routines.
 
+## Loop and graph
+
+Two words carry specific meaning here.
+
+- A **loop** is one agent running to a finishing point you accept: one box in the diagram.
+  Triage is a loop. Build is a loop. Release is a loop.
+- A **graph** is the whole diagram once loops are wired together with feedback. Solid lines show
+  the normal handoff. Dashed lines show what comes back when something fails. What most people
+  call a graph is usually a workflow instead: a straight line with no feedback edges.
+
+Feedback only exists once something downstream can tell pass from fail without a person
+watching for it. No validation, no dashed line back, no graph, and no safe auto-merge either.
+
+## Prompt, context, harness, loop
+
+A loop that actually works gets built in the same order every time, and skipping a step makes
+the later ones theatre.
+
+1. **Prompt.** Ask for something, get something poor, fix it yourself.
+2. **Context.** Add the source material that actually matters.
+3. **Harness.** Skills, sub-agents, the supporting structure a repo defines. Quicker and better
+   defined, but a person is still the one checking the result.
+4. **Loop.** The agent validates its own work, sees what is broken, fixes it, and comes back
+   done.
+
+The SDLC spine needs loops that work, and loops that work need a harness and validation you can
+trust. Skip a layer and the whole thing is theatre. A "loop" running on a harness that never
+checks its own work is really just a prompt with extra scaffolding. It gives a false sense of
+safety.
+
+`ops-preflight` is the check for that layer, the stage-three prerequisite. It is diagnostic: a
+map of the gaps in a repo's readiness, not an entry exam. Run it against your own repo. Find what
+is missing. Treat the result as a to-do list, not a verdict. Nobody clears every check, including
+this repo.
+
+None of this is all-or-nothing. Automate where validation is strongest, a green build or a
+passing test, and leave the rest manual. Control stays with a person at triage, at the backlog,
+and at PR review. A release still needs a human, because release notes need judgement a machine
+does not have. The skill is deciding where the gates belong, not removing them. A change that
+only raises test coverage, without touching runtime code, needs less of that judgement than one
+that does.
+
 ## Who consumes it, and how
 
-Consumer shape follows **repo cardinality**:
+Consumer shape follows **repo cardinality** (how many repos a product uses):
 
 | Consumer | Shape | Where its capability skills live |
 |----------|-------|----------------------------------|
 | **Umbraco.Forms** | single product, one repo | its own `.claude/skills/ops-change` + `ops-release` |
 | **Umbraco.Automate** | single product (multi-package), one repo | its own `.claude/skills/`, same shape |
-| **MCP server family** | many repos, one toolchain | **not supported yet** — see below |
+| **MCP server family** | many repos, one toolchain | **not supported yet**, see below |
 
 > **One product = one repo → your two skills live in-repo.** That is the shape the engine supports
-> today. It is what both single-repo consumers will use; neither has written its two skills yet.
+> today. It is what both single-repo consumers will use. Neither one has written its two skills
+> yet.
 
 **The many-repos-one-toolchain shape is deferred.** One toolchain serving a whole repo family is a
-real need, and the `umbraco-mcp-ops` prototype **did solve it** — so this is a port, not a blank
+real need, and the `umbraco-mcp-ops` prototype **did solve it**. So this is a port, not a blank
 page. What it is *not* is ported onto the convention model, and that needs input from whoever owns
 that family. The reasoning and when to re-open it are in
 **[the plan, §6.10](docs/capabilities-migration-plan.md#610-the-repo-family-consumer-shape--deferred-not-designed)**.
 
 The one feature that assumes a family is triage's `shared-skills` destination. On a single-repo
-consumer the skill says only `code` and `loop-self` are live, and to **hold** a lesson rather than
-mis-file it — so a family lesson stays an open `ops/proto-learning` issue for a human. Nothing is
-lost, but the skill does not say where such a lesson *should* go on a single repo. That is a known
-small gap, not a safety net.
+consumer, the skill says only `code` and `loop-self` are live. It chooses to **hold** a lesson
+rather than mis-file it, so a family lesson stays an open `ops/proto-learning` issue for a human.
+Nothing is lost, but the skill does not say where such a lesson *should* go on a single repo.
+That is a known small gap, not a safety net.
 
 ## Plugins
+
+`ops-issue-loop`, `ops-merge-loop`, `ops-release-loop`, `ops-rework-loop`, `ops-port-loop` and
+`ops-triage-loop` are the shipped loops. Together they make up the SDLC spine described above:
+issue, build, merge, release. `ops-preflight` is the stage-three prerequisite. Run it before any
+of them are trusted to run unattended. It is diagnostic rather than a gate: a map of the gaps,
+not an entry exam.
 
 Installed from this marketplace (`.claude-plugin/marketplace.json`):
 
 | Plugin | What it is |
 |--------|------------|
-| **ops-install** | Onboarding, and the proof it worked. `/ops-install` first checks its own version is current, then detects the repo's setup, writes the few facts detection can't reach to `.claude/ops-repo-meta.json`, reports capability coverage, scaffolds a stub for anything missing, interviews you to fill that stub's TODOs, creates every `ops/` label on the repo its role implies, installs the caller workflows and validates the routing. Seven of its ten steps are scripts. Run it first. |
+| **ops-install** | Onboarding, and the proof it worked. `/ops-install` first checks its own version is current, then detects the repo's setup, writes the few facts detection can't reach to `.claude/ops-repo-meta.json`, reports capability coverage, scaffolds a stub for anything missing, interviews you to fill that stub's TODOs, creates every `ops/` label on the repo its role implies, installs the caller workflows and validates the routing. Seven of its ten steps are scripts. Run it **second**. |
+| **ops-preflight** | Readiness. `ops-install` proves a repo is *wired up*; `/ops-preflight` proves it is worth wiring, because coverage matches skill names and a repo with no test command, no isolated build and an undocumented branch model onboards green and wastes every run. Reads the repo against an engine base plus every matching **stack** profile plus your own `.claude/ops-preflight-profile.json`, and groups each check under the capability that breaks without it. Three verdicts, never two: `present`, `gap`, and `unknown` for anything detection couldn't see, because silence is not a pass. It never runs your build, so it works anywhere. Then it interviews you and offers to file an issue per real gap. Advisory: it blocks nothing. Run it **first**. |
 | **ops-issue-loop** | The orchestrator: queue, dispatch up to three at once, stop at a green PR. It owns sequencing only and commands your `ops-change` for the work. Bundles `ops-rework-loop` (review feedback) and `ops-port-loop` (one merged change, a PR per other live line, none of them landed). |
 | **ops-learnings** | Self-learning. Read-only hooks file `ops/proto-learning` issues off the critical path; `ops-triage-loop` sweeps them weekly and routes each lesson to whoever owns it. |
 | **github-ops** | All GitHub work, in both environments: `gh`/`git` locally, `mcp__github__*` on web. Also wraps the CI provider, either `github-checks` or `azure-pipelines`. Every loop needs it. |
@@ -65,17 +136,17 @@ Installed from this marketplace (`.claude-plugin/marketplace.json`):
 
 ## Getting started (onboarding a repo)
 
-> **No prerequisite on this repo.** It is **public**, so a consumer needs nothing from it: the
+> **No prerequisite on this repo.** It is **public**, so a consumer needs nothing from it. The
 > reusable workflow resolves, and a cloud environment clones it anonymously.
 >
-> This block used to describe two failures caused by the repo being private — Actions refusing to
-> read a reusable workflow out of it (*"workflow was not found"*, before any job starts, so no
-> logs) and a cloud environment building with no skills unless `OPS_TOKEN` was set. **Both are
-> gone, and so is the token.** If the engine is ever made private again, both come back, and the
-> fixes are an org-access setting plus a token in every environment.
+> This block used to describe two failures caused by the repo being private. One: Actions
+> refused to read a reusable workflow out of it (*"workflow was not found"*, before any job
+> starts, so no logs). Two: a cloud environment built with no skills unless `OPS_TOKEN` was set.
+> **Both are gone, and so is the token.** If the engine is ever made private again, both come
+> back. The fixes are an org-access setting plus a token in every environment.
 
-1. **Install the engine** in the target repo's workspace. Two separate steps — adding the
-   marketplace only registers the catalogue, it installs nothing:
+1. **Install the engine** in the target repo's workspace. This is two separate steps. Adding the
+   marketplace only registers the catalogue. It installs nothing:
    ```
    /plugin marketplace add umbraco/umbraco-ai-ops
    /plugin install ops-install@umbraco-ai-ops
@@ -102,20 +173,20 @@ Installed from this marketplace (`.claude-plugin/marketplace.json`):
 4. **Fill in the TODOs in the scaffolded skills, then review and commit.** A scaffold is not an
    implementation: the loops cannot run until those are done.
 
-Nothing in the engine is product-specific. Whatever your repo *does* differently lives in a skill
-you own named `ops-<capability>`; the handful of things it *is* differently are declared in
+Nothing in the engine is product-specific. Whatever your repo *does* differently lives in a
+skill you own named `ops-<capability>`. The handful of things it *is* differently are declared in
 `.claude/ops-repo-meta.json`.
 
 ## How a consumer links to the engine
 
-**One thing does the linking: the skill's name.** `ops-issue-loop` invokes `ops-change`;
-`ops-release-loop` invokes `ops-release`; everything reaches `github-ops` by its name. Nothing is
+**One thing does the linking: the skill's name.** `ops-issue-loop` invokes `ops-change`.
+`ops-release-loop` invokes `ops-release`. Everything reaches `github-ops` by its name. Nothing is
 copied, nothing depends on one skill shadowing another, and no pointer has to be kept in step.
 
 - **Local:** run `/plugin marketplace add umbraco/umbraco-ai-ops`, then install the engine
   plugins. A repo's own skills load automatically as project skills.
 - **Web routines**, the main runtime: paste **`scripts/cloud-setup-stub.sh`** into the
-  environment's **Setup script** field. **That is the whole setup — no variables, no token.** The
+  environment's **Setup script** field. **That is the whole setup: no variables, no token.** The
   stub clones the engine anonymously and runs `scripts/cloud-skill-sync.sh`, which delivers every
   skill and agent to `$HOME/.claude` and wires the capture hooks. A routine picks up the
   checked-out repo's own `.claude/skills/` and `.claude/settings.json` hooks by itself.
@@ -130,12 +201,12 @@ copied, nothing depends on one skill shadowing another, and no pointer has to be
 
 ## Capability skills
 
-> **Where things stand.** The engine is **done**. The catalog exists, routing is base ⊕ overlay at
-> the edge, every loop commands capabilities by name, all six framework defaults ship, the
-> installer proves coverage and creates the labels, evals are generated from the catalog, and the
-> old central config is deleted. What is left is per-consumer: Forms' and Automate's own two skills
-> (Phase 6). The plan is in
-> **[`docs/capabilities-migration-plan.md`](docs/capabilities-migration-plan.md)**; shared terms
+> **Where things stand.** The engine is **done**. The catalog exists. Routing is base plus
+> overlay at the edge. Every loop commands capabilities by name. All six framework defaults ship.
+> The installer proves coverage and creates the labels. Evals are generated from the catalog. And
+> the old central config is deleted. What is left is per-consumer: Forms' and Automate's own two
+> skills (Phase 6). The plan is in
+> **[`docs/capabilities-migration-plan.md`](docs/capabilities-migration-plan.md)**. Shared terms
 > are in **[`docs/vocabulary.md`](docs/vocabulary.md)**.
 
 ### It's one interface
@@ -151,8 +222,8 @@ flowchart LR
 ```
 
 The skill's **name** is the address. The **action** is the verb. JSON goes in and facts come back.
-There is no frontmatter to key on, no registry and no config pointer. Everything below is
-commentary on that one arrow.
+There is no frontmatter (a file's metadata header) to key on, no registry and no config pointer.
+Everything below is commentary on that one arrow.
 
 ### You write two of them
 
@@ -237,16 +308,16 @@ branching decides how. That one absence is what collapses the four places base-b
 lives today.
 
 **Only service edges are drawn.** Every loop also reads the cross-cutting three, and drawing those
-eighteen arrows would hide the shape. Two nodes therefore look sparse and are not: `ops-triage-loop`
-commands **no** service at all — it routes lessons into issues and drafted PRs and touches nothing
-else — and `ops-port-loop` reaches only `ops-change`, because it deliberately has no landing path.
-The one dotted edge is the hand-off `ops-merge-loop → ops-port-loop`, a loop starting a loop rather
-than commanding a capability: it is the normal way a port begins, since a port is cut from the merge
-commit and cannot exist before one.
+eighteen arrows would hide the shape. Two nodes therefore look sparse, and that is misleading.
+`ops-triage-loop` commands **no** service at all: it routes lessons into issues and drafted PRs,
+and touches nothing else. `ops-port-loop` reaches only `ops-change`, because it deliberately has
+no landing path. The one dotted edge is the hand-off from `ops-merge-loop` to `ops-port-loop`.
+That is a loop starting a loop, rather than commanding a capability. It is the normal way a port
+begins, since a port is cut from the merge commit and cannot exist before one.
 
 ### The actions each one answers to
 
-The capability is the address; the **action** is the verb. These come from
+The capability is the address. The **action** is the verb. These come from
 **[`catalog.json`](catalog.json)**, whose shape is set by
 **[`catalog.schema.json`](catalog.schema.json)**. The action *names* are the contract: a capability
 skill must implement exactly these and reject anything else.
@@ -260,7 +331,7 @@ skill must implement exactly these and reject anything else.
 <tbody>
 <tr><td rowspan="3"><code>ops-change</code></td><td><code>implement</code></td><td>Make the change the issue asks for on a work branch, and push it.</td></tr>
 <tr><td><code>verify</code></td><td>Run this repo's build, tests and sanity checks against the change, and report pass or fail with enough detail for the caller to act on a failure.</td></tr>
-<tr><td><code>close-issue</code></td><td>Told that a PR has landed, work out which issue it was for and close that issue only once EVERY target line has landed — one logical change lands N times at N moments.</td></tr>
+<tr><td><code>close-issue</code></td><td>Told that a PR has landed, work out which issue it was for and close that issue only once EVERY target line has landed.</td></tr>
 <tr><td rowspan="4"><code>ops-release</code></td><td><code>plan</code></td><td>Turn the trigger into release facts: which line, which version, and which units of work the release contains.</td></tr>
 <tr><td><code>cut</code></td><td>Branch, bump the version files, write the changelog, and open the release PR.</td></tr>
 <tr><td><code>publish</code></td><td>Realize the release once its PR has landed: tag the commit, push the artifacts to their feed, and publish the release notes.</td></tr>
@@ -272,7 +343,7 @@ skill must implement exactly these and reject anything else.
 <tr><td rowspan="2"><code>ops-workspace</code></td><td><code>prepare</code></td><td>Create the isolated workspace for a branch and leave it ready to build.</td></tr>
 <tr><td><code>teardown</code></td><td>Remove the workspace and everything it created, including any database or container.</td></tr>
 <tr><td rowspan="3"><code>ops-repo-meta</code></td><td><code>identity</code></td><td>Name the repo the loop is working in, and the labels and defaults it runs by.</td></tr>
-<tr><td><code>topology</code></td><td>Say which repo fills each of the four roles — <code>code</code> (required), <code>issues</code>, <code>releases</code> and <code>learnings</code>.</td></tr>
+<tr><td><code>topology</code></td><td>Say which repo fills each of the four roles: <code>code</code> (required), <code>issues</code>, <code>releases</code> and <code>learnings</code>.</td></tr>
 <tr><td><code>lines</code></td><td>List the live lines in age order, say which is primary, and give the port order.</td></tr>
 <tr><td rowspan="2"><code>ops-ci</code></td><td><code>status</code></td><td>Report the CI state of a PR: pending, green or red, and which checks produced that verdict.</td></tr>
 <tr><td><code>log</code></td><td>Return the failing part of a failing build's log, trimmed to what is needed to diagnose it rather than the whole run.</td></tr>
@@ -281,10 +352,10 @@ skill must implement exactly these and reject anything else.
 </table>
 <!-- END GENERATED: catalog-actions -->
 
-Each catalogued action also carries a worked `example` context, which does double duty: the
-installer scaffolds a stub from it and the eval suite is seeded from it. What an action *does* is
-not enforced anywhere — no static types, no payload validation. Evals are the only behavioural
-guard, which is the deliberate trade the spec makes.
+Each catalogued action also carries a worked `example` context. This does double duty: the
+installer scaffolds a stub from it, and the eval suite is seeded from it. What an action *does*
+is not enforced anywhere: there are no static types and no payload validation. Evals are the only
+behavioural guard, which is the deliberate trade the spec makes.
 
 ## Layout
 
@@ -315,6 +386,6 @@ scripts/                   # engine-wide scripts, not tied to one skill; each ha
 
 **The engine is complete.** Both jobs are done: the proven `umbraco-mcp-ops` plugins are extracted
 and generic, and the config contract is replaced by the capability model above. What remains is
-per-consumer work in the consumer repos — each product's own `ops-change` and `ops-release`. The
+per-consumer work in the consumer repos: each product's own `ops-change` and `ops-release`. The
 design, the phases, the decisions, the deviations log and the hazard register are all in
 **[`docs/capabilities-migration-plan.md`](docs/capabilities-migration-plan.md)**.

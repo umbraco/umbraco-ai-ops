@@ -1,0 +1,245 @@
+{
+  "version": 1,
+  "checks": [
+    {
+      "id": "workspace-isolated-build",
+      "consumer": "ops-workspace",
+      "action": "prepare",
+      "severity": "blocking",
+      "section": "Environment",
+      "title": "A bare worktree is enough to build and test one change",
+      "why": "The framework default hands each change a plain git worktree and nothing else. If a build here needs a database, a container, a free port or a credential, that default cannot provide it and this repo must ship its own ops-workspace.",
+      "signal": true,
+      "detect": { "any_path": ["docker-compose*.yml", "compose*.yml", "Dockerfile", "*/Dockerfile", ".devcontainer/*"] },
+      "ask": "Starting from a fresh git worktree of this repo and nothing else, can someone build it and run its tests?"
+    },
+    {
+      "id": "workspace-parallel",
+      "consumer": "ops-workspace",
+      "action": "prepare",
+      "severity": "blocking",
+      "section": "Environment",
+      "title": "Three builds can run at once without colliding",
+      "why": "ops-issue-loop dispatches up to three changes at a time. If two builds share a port, a database name, a lock file or a fixed output directory, they corrupt each other and the failures look random.",
+      "ask": "Can three builds of this repo run at the same time without sharing a port, a database name or an output directory?"
+    },
+    {
+      "id": "verify-build-command",
+      "consumer": "ops-change",
+      "action": "verify",
+      "severity": "blocking",
+      "section": "Backend",
+      "title": "One command builds the product",
+      "why": "ops-change verify has to build before it can report pass or fail. Without a single command, verify becomes a prose recipe that drifts away from what CI actually does.",
+      "signal": true,
+      "detect": { "any_path": ["Makefile", "build.sh", "build.ps1", "build.cmd", "scripts/build.sh", "scripts/build.ps1", "*.sln", "*.slnx"] },
+      "ask": "What single command builds this whole product?"
+    },
+    {
+      "id": "verify-test-command",
+      "consumer": "ops-change",
+      "action": "verify",
+      "severity": "blocking",
+      "section": "Backend",
+      "title": "One command runs the tests",
+      "why": "A verify that cannot run the tests reports a pass that means nothing. This is the check the whole engine leans on: the loops stop at a green PR and never re-derive whether the change was correct.",
+      "signal": true,
+      "detect": { "any_path": ["test.sh", "scripts/test.sh", "*[Tt]ests/*", "*[Tt]est/*", "*.test.*", "*.spec.*"] },
+      "ask": "What single command runs this repo's tests?"
+    },
+    {
+      "id": "verify-lint-command",
+      "consumer": "ops-change",
+      "action": "verify",
+      "severity": "quality",
+      "section": "Frontend",
+      "title": "One command lints, and it fails on error",
+      "why": "Lint is the cheapest signal an agent has that it wrote something unidiomatic. A linter that only warns is one an agent learns to ignore.",
+      "detect": {
+        "any_path": [".editorconfig", "lint.sh", "scripts/lint*", ".eslintrc*", "eslint.config.*", ".stylelintrc*"]
+      },
+      "ask": "What single command lints this repo, and does it exit non-zero on an error?"
+    },
+    {
+      "id": "verify-warnings-clean",
+      "consumer": "ops-change",
+      "action": "verify",
+      "severity": "quality",
+      "section": "Backend",
+      "title": "The build is free of warnings today",
+      "why": "An agent cannot tell the one warning it just introduced from the four hundred that were already there. A noisy baseline turns a real signal into wallpaper.",
+      "ask": "Does a full build of this repo finish with zero warnings today?"
+    },
+    {
+      "id": "verify-review-gate",
+      "consumer": "ops-change",
+      "action": "verify",
+      "severity": "blocking",
+      "section": "Misc",
+      "title": "Something reviews a change before it is pushed",
+      "why": "The catalog puts code and security review inside ops-change verify, and the loops require only that it happened. A verify that builds and tests but reviews nothing silently drops a gate its caller believes held, and verify must report which reviews ran.",
+      "ask": "What reviews a change in this repo before it reaches a PR - a reviewer agent, a security scan, a required human?"
+    },
+    {
+      "id": "verify-integration-tests",
+      "consumer": "ops-change",
+      "action": "verify",
+      "severity": "quality",
+      "section": "Testing",
+      "title": "Integration tests cover the seams unit tests cannot",
+      "why": "Unit tests pass on changes that break the moment two components meet. Where this repo has real seams - a database, an HTTP boundary, a plugin host - unit tests alone let an agent ship a plausible break.",
+      "detect": { "any_path": ["*[Ii]ntegration*[Tt]est*/*", "*[Tt]est*[Ii]ntegration*/*"] },
+      "ask": "Are there integration tests covering the seams between components here?"
+    },
+    {
+      "id": "verify-e2e-or-navigation",
+      "consumer": "ops-change",
+      "action": "verify",
+      "severity": "quality",
+      "section": "Testing",
+      "title": "End-to-end tests exist, or a skill explains how to navigate the product",
+      "why": "An agent that cannot drive the product cannot tell whether its change works in the thing a person uses. End-to-end tests are the strong form; a skill describing how to reach each screen is the weak one, and it is far better than nothing.",
+      "detect": {
+        "any_path": ["playwright.config.*", "cypress.config.*", "*[Ee]2[Ee]*/*", ".claude/skills/*navigat*/*"]
+      },
+      "ask": "Can an agent drive this product end to end - real tests, or a skill telling it how to navigate?"
+    },
+    {
+      "id": "verify-page-objects",
+      "consumer": "ops-change",
+      "action": "verify",
+      "severity": "quality",
+      "section": "Testing",
+      "title": "Browser tests go through page objects, not raw selectors",
+      "why": "A test full of raw selectors breaks on every markup change, and an agent asked to fix it edits the selector rather than the bug. Page objects give it one place to look.",
+      "detect": { "any_path": ["*[Pp]age[-_]?[Oo]bject*/*", "*/pom/*", "*.page.ts", "*PageObject*"] }
+    },
+    {
+      "id": "verify-coding-standards",
+      "consumer": "ops-change",
+      "action": "implement",
+      "severity": "quality",
+      "section": "Best practices",
+      "title": "Coding standards are written down and reachable from CLAUDE.md",
+      "why": "Standards that live in reviewers' heads cannot reach an agent. Written down but unreferenced is nearly as bad - nothing loads them.",
+      "detect": {
+        "any_file_contains": [
+          { "glob": "CLAUDE.md", "pattern": "[Ss]tandard|[Cc]onvention|[Ss]tyle [Gg]uide" },
+          { "glob": "AGENTS.md", "pattern": "[Ss]tandard|[Cc]onvention|[Ss]tyle [Gg]uide" }
+        ],
+        "any_path": ["docs/*standard*", "docs/*convention*", "docs/*style*"]
+      },
+      "ask": "Are this repo's coding standards written down, and does CLAUDE.md point at them?"
+    },
+    {
+      "id": "verify-ui-approval",
+      "consumer": "ops-change",
+      "action": "verify",
+      "severity": "quality",
+      "section": "Misc",
+      "title": "A change that alters the UI has a defined approval path",
+      "why": "Nothing in the automated chain can judge whether a screen looks right. Without a named path, a UI change either stalls or lands unreviewed, and neither shows up as a failure.",
+      "ask": "When a change alters the UI, who approves the look of it, and how does the loop reach them?"
+    },
+    {
+      "id": "verify-self-check",
+      "consumer": "ops-change",
+      "action": "verify",
+      "severity": "quality",
+      "section": "Harness",
+      "title": "The harness validates its own work before reporting pass",
+      "why": "A verify that reports pass without having run the lint and the tests is the failure this engine is built to prevent: it looks exactly like the working path.",
+      "ask": "Will ops-change verify run the lint and the full test command itself, rather than trusting CI to catch it later?"
+    },
+    {
+      "id": "branching-documented",
+      "consumer": "ops-branching",
+      "action": "merge",
+      "severity": "blocking",
+      "section": "Best practices",
+      "title": "The branch model is written down",
+      "why": "ops-branching is the only holder of this repo's branch model, and ops-install asks a human to confirm the lines and the primary. If nobody has written the model down, nobody can confirm it, and a wrong primary sends every change to the wrong branch with nothing failing.",
+      "detect": {
+        "any_path": ["docs/*branch*", "CONTRIBUTING*"],
+        "any_file_contains": [
+          { "glob": "CLAUDE.md", "pattern": "[Bb]ranch" },
+          { "glob": "README.md", "pattern": "[Bb]ranching" }
+        ]
+      },
+      "ask": "Is this repo's branching strategy written down somewhere an agent can read?"
+    },
+    {
+      "id": "release-version-source",
+      "consumer": "ops-release",
+      "action": "cut",
+      "severity": "blocking",
+      "section": "Release management",
+      "title": "The version lives in a known file",
+      "why": "ops-release cut has to bump the version. If the version is spread across several files, or only exists as a tag someone types, cut cannot be written and a release goes out mislabelled.",
+      "detect": { "any_path": ["version.json", "Directory.Build.props", "Directory.Version.props", "package.json", "*.nuspec", "VERSION"] },
+      "ask": "Which file holds the version this repo publishes under?"
+    },
+    {
+      "id": "release-prepare",
+      "consumer": "ops-release",
+      "action": "cut",
+      "severity": "blocking",
+      "section": "Release management",
+      "title": "Something already knows how to prepare a release",
+      "why": "Preparing a release - branch, bump, changelog, open the PR - is the half of ops-release nothing generic can guess. A script or skill that already does it is what cut should delegate to.",
+      "signal": true,
+      "detect": { "any_path": [".claude/skills/*release*/*", "scripts/*release*", "scripts/*version*"] },
+      "ask": "What prepares a release here today - a script, a skill, or a person following notes?"
+    },
+    {
+      "id": "release-trigger",
+      "consumer": "ops-release",
+      "action": "publish",
+      "severity": "blocking",
+      "section": "Release management",
+      "title": "Something already knows how to publish a release",
+      "why": "ops-release publish must leave nothing half-published on failure. Where a pipeline already publishes, the honest publish waits for it and reports; where nothing does, publish has to be written from scratch and that is the riskiest action in the engine.",
+      "signal": true,
+      "detect": { "any_path": [".github/workflows/*release*", ".github/workflows/*publish*", "azure-pipelines*.yml", ".azuredevops/*"] },
+      "ask": "What publishes a release here - which pipeline, feed or command?"
+    },
+    {
+      "id": "release-cleanup",
+      "consumer": "ops-release",
+      "action": "sync",
+      "severity": "quality",
+      "section": "Release management",
+      "title": "After a release, the branches get put back in step",
+      "why": "This is the step manual releases most often forget, which is exactly why the engine has an action for it. If nobody does it today, the next change starts from something other than what shipped.",
+      "ask": "After a release here, what merges it back and publishes the notes?"
+    },
+    {
+      "id": "learnings-failure-capture",
+      "consumer": "ops-learnings",
+      "severity": "quality",
+      "section": "Harness",
+      "title": "Failures get recorded so the process improves",
+      "why": "ops-learnings files proto-learning issues off the critical path and sweeps them weekly. A repo with nowhere to put a lesson loses every one of them, and repeats the failure at the same cost.",
+      "ask": "When an automated run goes wrong here, where does the lesson get written down?"
+    },
+    {
+      "id": "general-tool-exposure",
+      "consumer": "general",
+      "severity": "quality",
+      "section": "Misc",
+      "title": "The tools the team relies on are reachable by an agent",
+      "why": "Anything a human needs to do this work and an agent cannot reach becomes a silent ceiling on what the loops can finish.",
+      "ask": "Which tools does your team use for this repo that an agent currently has no way to reach?"
+    },
+    {
+      "id": "general-pattern-mining",
+      "consumer": "general",
+      "severity": "quality",
+      "section": "Utilities",
+      "title": "Repeated patterns get promoted into written standards",
+      "why": "A pattern used forty times and written down nowhere is a convention an agent will break, plausibly, in every new file.",
+      "detect": { "any_path": [".claude/skills/*pattern*/*", ".claude/skills/*standard*/*"] },
+      "ask": "Is there anything that turns repeated patterns in this codebase into documented standards?"
+    }
+  ]
+}
