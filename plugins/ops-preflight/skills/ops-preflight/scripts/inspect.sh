@@ -125,12 +125,15 @@ merged="$(jq -s '
 ' "${merge_files[@]}")" || { echo "ERROR: could not merge the check files" >&2; exit 2; }
 
 # A profile that only ever overrode `detect` can leave a NEW check without the fields the report
-# needs. Fail loudly here rather than printing a row with an empty title.
+# needs. Fail loudly here rather than printing a row with an empty title. `section` is one of
+# these now too: the report groups on it, so a check that arrives without one would silently drop
+# out of every section rather than just rendering blank.
 bad="$(printf '%s' "$merged" | jq -r '
   [ .[] | select((.consumer // "") == "" or (.title // "") == "" or (.why // "") == ""
+                 or (.section // "") == ""
                  or ((.severity // "") | IN("blocking","quality") | not))
         | .id ] | join(", ")')"
-[ -z "$bad" ] || { echo "ERROR: incomplete check(s) after merge — need consumer, severity, title, why: $bad" >&2; exit 2; }
+[ -z "$bad" ] || { echo "ERROR: incomplete check(s) after merge — need consumer, severity, title, why, section: $bad" >&2; exit 2; }
 
 # A `signal` check can never resolve itself: a match means ask, and a miss means unknown, so
 # without an `ask` there is no path to any verdict but unknown, ever.
@@ -163,13 +166,16 @@ while IFS= read -r id; do
     '.[$id] = {verdict:$v, source:(if $s=="null" then null else $s end), evidence:$e}')"
 done < <(printf '%s' "$merged" | jq -r '.[].id' | tr -d '\r')
 
-# The report groups on `consumer`, in the order a repo actually hits the problems: you cannot
-# build a change without a workspace, cannot verify one without tests, and cannot release
-# anything until both work. Anything unlisted sorts last, alphabetically.
+# The report groups on `section` — the nine headings on the source checklist (AI Ops — Preparing
+# your Harness for Automation) — in a FIXED order, not alphabetical and not by `consumer`. Release
+# management and Testing come first because they are what unlock the merge and release parts of
+# the pipeline; Misc comes last. Within a section, blocking sorts above quality. A `section` this
+# map does not recognise sorts after Misc rather than erroring or vanishing from the report.
 findings="$(printf '%s' "$merged" | jq -c --argjson v "$verdicts" '
-  def gorder: {"ops-workspace":0,"ops-change":1,"ops-branching":2,"ops-release":3,"ops-learnings":4,"general":5};
+  def sorder: {"Release management":0,"Testing":1,"Harness":2,"Environment":3,"Frontend":4,
+               "Backend":5,"Best practices":6,"Utilities":7,"Misc":8};
   [ .[] | . + ($v[.id] // {verdict:"unknown", source:null, evidence:[]}) ]
-  | sort_by([ (gorder[.consumer] // 9), .consumer, (if .severity=="blocking" then 0 else 1 end), .id ])
+  | sort_by([ (sorder[.section] // 9), (if .severity=="blocking" then 0 else 1 end), .id ])
 ')"
 
 report="$(jq -nc --argjson f "$findings" --arg repo "$repo" --args '
@@ -188,6 +194,9 @@ if [ "$fmt" = "json" ]; then printf '%s\n' "$report"; exit 0; fi
 
 # --- text report ------------------------------------------------------------------------------
 printf 'ops-preflight — %s\n\n' "$repo"
+printf 'This is a map, not an entry exam, and nobody clears every box.\n'
+printf 'Release management and Testing come first below. If you only have time for one section,\n'
+printf 'do that one: they are what unlock the merge and release parts of the pipeline.\n\n'
 printf 'Checks from:\n'
 for f in "${files[@]}"; do printf '  %s\n' "$f"; done
 printf '\n'
@@ -196,14 +205,16 @@ while IFS= read -r group; do
   [ -n "$group" ] || continue
   printf '%s\n' "$group"
   printf '%s' "$findings" | jq -r --arg g "$group" '
-    .[] | select(.consumer==$g)
-    | "  [\(if .verdict=="present" then "PRESENT" elif .source=="signal" then "SIGNAL " else "unknown" end)] \(if .severity=="blocking" then "BLOCKING" else "quality " end)  \(.title)"
+    .[] | select(.section==$g)
+    | "  [\(if .verdict=="present" then "PRESENT" elif .source=="signal" then "SIGNAL " else "unknown" end)] " +
+      "\(if .severity=="blocking" then "Needed for the loops to work" else "Makes the loops better" end), " +
+      "\(.title) (\(.consumer)\(if (.action // "") != "" then " " + .action else "" end))"
       + (if (.evidence|length) > 0 then "\n              found: " + (.evidence | join(", ")) else "" end)
       + (if .verdict=="unknown" then "\n              why:   " + .why else "" end)' | tr -d '\r'
   printf '\n'
-  # `findings` is already sorted into group order, so dedupe WITHOUT sorting — `unique` would
-  # re-alphabetise the groups and undo the ordering the sort above exists to produce.
-done < <(printf '%s' "$findings" | jq -r '.[].consumer' 2>/dev/null | tr -d '\r' | awk '!seen[$0]++')
+  # `findings` is already sorted into section order, so dedupe WITHOUT sorting — `unique` would
+  # re-alphabetise the sections and undo the fixed ordering the sort above exists to produce.
+done < <(printf '%s' "$findings" | jq -r '.[].section' 2>/dev/null | tr -d '\r' | awk '!seen[$0]++')
 
 printf '%s' "$report" | jq -r '.summary
   | "  \(.total) checks — \(.present) present, \(.unknown) unknown (\(.blocking_unknown) of them blocking)"'

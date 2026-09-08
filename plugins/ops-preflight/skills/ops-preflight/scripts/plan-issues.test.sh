@@ -21,10 +21,10 @@ w() { printf '%s' "$2" > "$TMP/$1.json"; printf '%s' "$TMP/$1.json"; }
 F="$(w findings '{
   "repo":"/x","sources":[],
   "findings":[
-    {"id":"a-block","consumer":"ops-release","action":"publish","severity":"blocking","title":"Publishing works","why":"Because it must.","verdict":"unknown","source":null,"evidence":[]},
-    {"id":"b-qual","consumer":"ops-change","action":"verify","severity":"quality","title":"Lint runs","why":"Cheap signal.","verdict":"unknown","source":null,"evidence":[]},
-    {"id":"c-seen","consumer":"ops-change","severity":"blocking","title":"Tests run","why":"Needed.","verdict":"present","source":"detected","evidence":["test.sh"]},
-    {"id":"d-noask","consumer":"general","severity":"quality","title":"Nice to have","why":"Mild.","verdict":"unknown","source":null,"evidence":[]}
+    {"id":"a-block","consumer":"ops-release","action":"publish","severity":"blocking","section":"Release management","title":"Publishing works","why":"Because it must.","verdict":"unknown","source":null,"evidence":[]},
+    {"id":"b-qual","consumer":"ops-change","action":"verify","severity":"quality","section":"Testing","title":"Lint runs","why":"Cheap signal.","verdict":"unknown","source":null,"evidence":[]},
+    {"id":"c-seen","consumer":"ops-change","severity":"blocking","section":"Backend","title":"Tests run","why":"Needed.","verdict":"present","source":"detected","evidence":["test.sh"]},
+    {"id":"d-noask","consumer":"general","severity":"quality","section":"Misc","title":"Nice to have","why":"Mild.","verdict":"unknown","source":null,"evidence":[]}
   ],
   "summary":{"total":4,"present":1,"unknown":3,"blocking_unknown":1,"interview":3}}')"
 
@@ -46,7 +46,25 @@ check "  an explicit unknown is left alone"  0 "$(printf '%s' "$r" | jq '[.issue
 check "  a present check is left alone"      0 "$(printf '%s' "$r" | jq '[.issues[] | select(.id=="c-seen")] | length')"
 check "  blocking is counted apart"          1 "$(printf '%s' "$r" | jq '.summary.blocking')"
 check "  and quality"                        1 "$(printf '%s' "$r" | jq '.summary.quality')"
-check "blocking sorts first"                 '["a-block","b-qual"]' "$(ids "$r")"
+check "issues come out in section order (Release management before Testing)" \
+                                              '["a-block","b-qual"]' "$(ids "$r")"
+
+# --- grouping order matches inspect.sh's report: section first, blocking above quality within it
+FS="$(w findings-sect '{
+  "repo":"/x","sources":[],
+  "findings":[
+    {"id":"early-quality","consumer":"general","severity":"quality","section":"Release management","title":"t","why":"w","verdict":"unknown","source":null,"evidence":[]},
+    {"id":"late-blocking","consumer":"general","severity":"blocking","section":"Misc","title":"t","why":"w","verdict":"unknown","source":null,"evidence":[]},
+    {"id":"same-block","consumer":"general","severity":"blocking","section":"Testing","title":"t","why":"w","verdict":"unknown","source":null,"evidence":[]},
+    {"id":"same-qual","consumer":"general","severity":"quality","section":"Testing","title":"t","why":"w","verdict":"unknown","source":null,"evidence":[]}
+  ],
+  "summary":{"total":4,"present":0,"unknown":4,"blocking_unknown":2,"interview":4}}')"
+r="$(bash "$P" "$FS" "$(w allgap '{"early-quality":"gap","late-blocking":"gap","same-block":"gap","same-qual":"gap"}')" --json 2>/dev/null)"
+check "a quality gap in an earlier section still sorts before a blocking gap in a later one" \
+  "early-quality" "$(printf '%s' "$r" | jq -r '.issues[0].id')"
+check "  and within one section, blocking still sorts above quality" \
+  '["same-block","same-qual"]' \
+  "$(printf '%s' "$r" | jq -c '[.issues[] | select(.section=="Testing") | .id]')"
 
 # An answer may also OVERTURN detection: a human who looks and finds the detected thing is the
 # wrong thing must be able to say so, or a false present is unfixable.

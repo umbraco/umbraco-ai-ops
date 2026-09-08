@@ -6,7 +6,9 @@ description: >-
   matches skill names and a repo with no test command, no isolated build and an undocumented
   branch model onboards green and wastes every run. Reads the repo against a merged check catalog
   (engine base + every matching stack profile + the repo's own override), groups every check under
-  the capability that breaks without it, and reports blocking or quality. Three verdicts, never
+  the section of the source checklist it belongs to (release management and testing first, since
+  they unlock the merge and release parts of the pipeline), and reports each as needed for the
+  loops to work or as making them better rather than as a pass or fail grade. Three verdicts, never
   two: present, gap, and unknown for anything detection could not see. It never runs your build.
   Then it interviews the human on what the files could not answer and offers to file one issue per
   real gap. Advisory — it blocks nothing. Interactive, run before `/ops-install`.
@@ -59,6 +61,18 @@ evidence** — that is why `present (declared)` prints differently from a detect
 is the count of questions still open, and reporting it as either of the other two is the one
 failure mode of this skill.
 
+## A map, not an entry exam
+
+The data still carries two severities, `blocking` and `quality`. Nothing renamed them, and no
+other tool that reads this data changed. What changed is how a human reads them. This is a
+diagnostic map of a repo, not a pass/fail test, and nobody clears every box. The report says so at
+the top, and prints each severity as what it means for the loops rather than as a grade:
+
+| Severity (data, unchanged) | Printed as |
+|---|---|
+| `blocking` | **Needed for the loops to work** |
+| `quality` | **Makes the loops better** |
+
 ## Step 1 — which checks apply
 
 ```
@@ -88,6 +102,22 @@ scripts/inspect.sh <repo-root> --json   # keep this; step 4 needs it
 
 **Show the report verbatim.** It is the honest answer, and a summary of it is not — particularly
 the `unknown` count.
+
+**It groups by section, in a fixed order**, not alphabetically and not by which capability breaks:
+
+1. Release management
+2. Testing
+3. Harness
+4. Environment
+5. Frontend
+6. Backend
+7. Best practices
+8. Utilities
+9. Misc
+
+Release management and Testing come first because they are what unlock the merge and release
+parts of the pipeline, and they are the two sections to do first if someone only has time for one.
+Within a section, a `blocking` check sorts above a `quality` one.
 
 **It never runs your build.** A preflight that compiles the product only works on a machine that
 can compile the product, which rules out CI, a routine, and anyone looking at a repo they do not
@@ -134,12 +164,13 @@ generates no question at all.
 
 Ask in this order, and say why the order matters:
 
-1. **`blocking` before `quality`.** A blocking gap means a capability cannot be written; a quality
-   gap means the loops run and produce worse work. If the human tires after eight questions, the
-   eight that mattered are done.
-2. **Within blocking, in the printed group order** — workspace, then change, then branching, then
-   release. That is the order a repo hits the problems: you cannot build a change without a
-   workspace, cannot verify one without tests, and cannot release anything until both work.
+1. **In the printed section order**, release management and testing first, then harness,
+   environment, frontend, backend, best practices, utilities, and misc last. That is the order a
+   repo hits the problems, and it is why those two sections come first even if the human runs out
+   of patience before the rest: they are what unlock the merge and release parts of the pipeline.
+2. **Within a section, `blocking` before `quality`.** A blocking gap means a capability cannot be
+   written; a quality gap means the loops run and produce worse work. If the human tires partway
+   through a section, the ones that mattered there are done first.
 
 A check with **no `ask`** is never asked. It is reported and left — some misses are worth showing
 and not worth a question.
@@ -165,6 +196,10 @@ scripts/plan-issues.sh <findings.json> <answers.json>
 Only a `gap` becomes an issue. `unknown` never does — filing work for something nobody looked at
 fills a backlog with noise, and it would quietly convert *"we could not see it"* into *"it is
 missing"*.
+
+The planned issues come out in the same fixed section order as the report (release management and
+testing first, misc last, blocking above quality within a section), so the backlog reads in the
+order a repo actually hits the problems.
 
 ## Step 5 — file them
 

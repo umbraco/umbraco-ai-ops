@@ -27,7 +27,7 @@
     "check": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id"],
+      "required": ["id", "section"],
       "properties": {
         "id": {
           "type": "string",
@@ -45,6 +45,10 @@
         "severity": {
           "enum": ["blocking", "quality"],
           "description": "`blocking` — the consumer capability cannot be written without it. `quality` — the loops run, the output is worse. There is no third level and no score."
+        },
+        "section": {
+          "enum": ["Environment", "Frontend", "Backend", "Testing", "Best practices", "Release management", "Utilities", "Harness", "Misc"],
+          "description": "Which of the nine headings on the source checklist (AI Ops — Preparing your Harness for Automation) this check belongs to. Required on every check, including a profile entry that only overrides `detect` — the report groups on it independent of `consumer`."
         },
         "title": { "type": "string", "minLength": 1 },
         "why": {

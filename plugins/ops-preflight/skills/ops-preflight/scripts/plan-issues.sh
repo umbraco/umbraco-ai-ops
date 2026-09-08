@@ -55,13 +55,20 @@ unknown_keys="$(jq -r --slurpfile f "$findings" '
   | [ keys[] | select(. as $k | $ids | index($k) | not) ] | join(", ")' <<<"$ans")"
 [ -z "$unknown_keys" ] || echo "WARN: answers name check(s) this report does not contain: $unknown_keys" >&2
 
+# Sections come out in the same FIXED order inspect.sh's report groups on: release management and
+# testing first, since they unlock the merge and release parts of the pipeline, misc last. Within
+# a section, blocking sorts above quality — same as the report, so the filed backlog reads in the
+# order a repo actually hits the problems.
 plan="$(jq -c --argjson a "$ans" '
+  def sorder: {"Release management":0,"Testing":1,"Harness":2,"Environment":3,"Frontend":4,
+               "Backend":5,"Best practices":6,"Utilities":7,"Misc":8};
   [ .findings[]
     | . + { resolved: ($a[.id] // .verdict) }
     | select(.resolved == "gap")
     | {
         id: .id,
         severity: .severity,
+        section: .section,
         consumer: .consumer,
         title: ("ops-preflight: " + .title),
         labels: ["ops/preflight"],
@@ -79,7 +86,7 @@ plan="$(jq -c --argjson a "$ans" '
           + "the preflight finds this issue and files nothing._"
         )
       } ]
-  | sort_by([(if .severity=="blocking" then 0 else 1 end), .consumer, .id])
+  | sort_by([(sorder[.section] // 9), (if .severity=="blocking" then 0 else 1 end), .id])
 ' "$findings")"
 
 if [ "$fmt" = "json" ]; then
@@ -104,8 +111,8 @@ if [ "$n" -eq 0 ]; then
 fi
 
 printf 'Issues to file (%s)\n\n' "$n"
-printf '%s' "$plan" | jq -r '.[] | "  \(if .severity=="blocking" then "BLOCKING" else "quality " end)  \(.title)"' | tr -d '\r'
-printf '\n  %s blocking, %s quality — all labelled ops/preflight\n' \
+printf '%s' "$plan" | jq -r '.[] | "  \(if .severity=="blocking" then "Needed for the loops to work" else "Makes the loops better" end)  \(.title)"' | tr -d '\r'
+printf '\n  %s needed for the loops to work, %s that make the loops better, all labelled ops/preflight\n' \
   "$(printf '%s' "$plan" | jq '[.[] | select(.severity=="blocking")] | length')" \
   "$(printf '%s' "$plan" | jq '[.[] | select(.severity=="quality")] | length')"
 printf '\n  Create the ops/preflight label first (github-ops -> create-label, idempotent), then\n'

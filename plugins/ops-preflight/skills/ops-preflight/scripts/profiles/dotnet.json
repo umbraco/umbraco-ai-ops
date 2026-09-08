@@ -5,17 +5,20 @@
   "checks": [
     {
       "id": "verify-build-command",
-      "detect": { "any_path": ["*.sln", "*.slnx", "*.csproj", "build.sh", "build.ps1", "scripts/build*"] }
+      "section": "Backend",
+      "detect": { "any_path": ["*.sln", "*.slnx", "*.csproj", "Makefile", "build.sh", "build.ps1", "build.cmd", "scripts/build*"] }
     },
     {
       "id": "verify-test-command",
-      "detect": { "any_path": ["*[Tt]ests*.csproj", "*[Tt]ests/*", "*[Tt]est/*.csproj"] }
+      "section": "Backend",
+      "detect": { "any_path": ["*[Tt]ests*.csproj", "*[Tt]ests/*", "*[Tt]est/*.csproj", "test.sh", "scripts/test.sh"] }
     },
     {
       "id": "dotnet-analyzers",
       "consumer": "ops-change",
       "action": "verify",
       "severity": "quality",
+      "section": "Backend",
       "title": "Analyzers are wired in and runnable by one command",
       "why": "Analyzer rules are this stack's written-down conventions in a form a machine can enforce. Configured but only visible inside an IDE means an agent never sees them.",
       "detect": {
@@ -32,6 +35,7 @@
       "consumer": "ops-workspace",
       "action": "prepare",
       "severity": "blocking",
+      "section": "Environment",
       "title": "A script stands up a running instance with this project installed",
       "why": "An agent that cannot start the product cannot check its change by hand or run anything end to end. This is the single biggest difference between a repo the loops do good work in and one they do not.",
       "signal": true,
@@ -45,6 +49,7 @@
       "consumer": "ops-workspace",
       "action": "prepare",
       "severity": "blocking",
+      "section": "Environment",
       "title": "A restore in a fresh worktree needs no credential",
       "why": "A restore that needs a feed credential fails inside the bare worktree the default ops-workspace creates, and the failure reads as a broken build rather than a missing secret.",
       "signal": true,
