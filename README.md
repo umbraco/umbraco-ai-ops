@@ -1,36 +1,8 @@
 # umbraco-ai-ops
 
-An engine that turns a GitHub backlog into merged, released code. An agent does the work. A
-person keeps the gates.
-
-Three things, in this order.
-
-**Where this is heading.** Every step feeds the next one, and failures feed
-backwards. A build that fails goes back to be fixed. A release that breaks something goes back to
-be undone. A problem on the live site turns into a new item in the backlog. None of that waits
-for a person to notice. That is the end goal, not this week's work.
-
-**What this repo does today.** The everyday path a piece of work follows. Someone
-opens an issue. The code gets built. A pull request gets merged. A release goes out. That path is
-all this repo targets today.
-
-It comes first for three reasons. It is the most work and the least judgement. It is the easiest
-part to check, because a build is either green or it is not. And it is the part of the job
-somebody is currently paid to do by hand.
-
-Left out on purpose, for now: the loops do not talk to each other, nothing runs on a schedule,
-and no agent decides on its own to go and tidy up code.
-
-**What it takes to get there.** None of it runs until the loops underneath it
-work. A loop only works if something can tell pass from fail without you watching. That is what a
-harness is, and `ops-preflight` is how you find out whether you have one.
-
-Get one lane working end to end. Then add lanes. The full picture is what you get when enough
-lanes connect.
-
-The **generic engine** below is that everyday path. It turns a `ops/ready-for-ai` GitHub backlog into pull
-requests (PRs) that are CI-green, reviewed and merged. It does this for whatever product it is
-pointed at. It also feeds what it learns back into the repos it works on.
+The **generic engine** for AI-driven issue automation across Umbraco products. It turns a
+`ops/ready-for-ai` GitHub backlog into CI-green, reviewed, merged PRs. It also feeds what it learns
+back into the repos it works on.
 
 This repo does not care which product it is used for. It knows *how to run the loop*. It does
 **not** know how to build any one product. Each **consumer** (the repo that uses this engine)
@@ -48,49 +20,6 @@ override them the same way.
 
 Extracted from the [`umbraco-mcp-ops`](https://github.com/hifi-phil/umbraco-mcp-ops)
 prototype, which proved the model on Claude Code web routines.
-
-## Loop and graph
-
-Two words carry specific meaning here.
-
-- A **loop** is one agent running to a finishing point you accept: one box in the diagram.
-  Triage is a loop. Build is a loop. Release is a loop.
-- A **graph** is the whole diagram once loops are connected with feedback. Solid lines show the
-  normal handoff. Dashed lines show what comes back when something fails. What most people call a
-  graph is usually just a workflow. A workflow is a straight line with no way for problems to
-  flow back.
-
-Feedback only exists once something downstream can tell pass from fail without a person watching
-for it. Without that check, there is no dashed line back, no graph, and no safe auto-merge either.
-
-## Prompt, context, harness, loop
-
-A loop that actually works gets built in the same order every time. Skip a step, and the later
-steps become theatre: they look real but do not work.
-
-1. **Prompt.** Ask for something, get something poor, fix it yourself.
-2. **Context.** Add the source material that actually matters.
-3. **Harness.** Skills, sub-agents, the supporting structure a repo defines. Quicker and better
-   defined, but a person is still the one checking the result.
-4. **Loop.** The agent validates its own work, sees what is broken, fixes it, and comes back
-   done.
-
-The SDLC spine needs loops that work, and loops that work need a harness and validation you can
-trust. Skip a layer and the whole thing is theatre. A "loop" running on a harness that never
-checks its own work is really just a prompt with extra scaffolding. It gives a false sense of
-safety.
-
-`ops-preflight` is the check for that layer. It is diagnostic: a
-map of the gaps in a repo's readiness, not an entry exam. Run it against your own repo. Find what
-is missing. Treat the result as a to-do list, not a verdict. Nobody clears every check, including
-this repo.
-
-None of this is all-or-nothing. Automate where validation is strongest, a green build or a
-passing test, and leave the rest manual. Control stays with a person at triage, at the backlog,
-and at PR review. A release still needs a human, because release notes need judgement a machine
-does not have. The skill is deciding where the gates belong, not removing them. A change that
-only raises test coverage, without touching runtime code, needs less of that judgement than one
-that does.
 
 ## Who consumes it, and how
 
@@ -122,12 +51,6 @@ where such a lesson *should* go on a single repo. That is a known small gap, not
 
 ## Plugins
 
-`ops-issue-loop`, `ops-merge-loop`, `ops-release-loop`, `ops-rework-loop`, `ops-port-loop` and
-`ops-triage-loop` are the shipped loops. Together they make up the SDLC spine described above:
-issue, build, merge, release. Run `ops-preflight` before any of them are trusted to run
-unattended. It is diagnostic rather than a gate: a map of the gaps,
-not an entry exam.
-
 Installed from this marketplace (`.claude-plugin/marketplace.json`):
 
 | Plugin | What it is |
@@ -148,6 +71,9 @@ Installed from this marketplace (`.claude-plugin/marketplace.json`):
 > fail on the whole marketplace. It is re-declared when it exists.
 
 ## Getting started (onboarding a repo)
+
+Run `ops-preflight` first: it checks whether a repo is worth wiring up before you run
+`/ops-install`.
 
 > **No prerequisite on this repo.** It is **public**, so a consumer needs nothing from it. The
 > reusable workflow resolves, and a cloud environment clones it anonymously.
