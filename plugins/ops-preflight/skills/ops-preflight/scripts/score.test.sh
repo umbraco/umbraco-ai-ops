@@ -77,7 +77,7 @@ check "the missing blocking check is named"          '["b5"]' "$(printf '%s' "$r
 
 out="$(bash "$S" "$CAPFIND" "$CAPANS" 2>/dev/null)"
 check "text mode prints the capped grade"        1 "$(printf '%s' "$out" | grep -c '^Grade: C (capped). Weighted score 85%')"
-check "text mode explains the cap in plain words" 1 "$(printf '%s' "$out" | grep -ci 'cannot read better than C')"
+check "text mode explains the cap in plain words" 1 "$(printf '%s' "$out" | tr '\n' ' ' | grep -ci 'cannot read better than C')"
 check "the cap explanation has no em dash"        0 "$(printf '%s' "$out" | grep -c $'\xe2\x80\x94')"
 check "no tone word 'fail' anywhere in the report" 0 "$(printf '%s' "$out" | grep -ci 'fail')"
 check "no tone word 'bad' anywhere in the report"  0 "$(printf '%s' "$out" | grep -ci '\bbad\b')"
