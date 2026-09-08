@@ -40,7 +40,8 @@ must not do is let anyone believe there are none.
 | 2. Read the repo against them | `scripts/inspect.sh` |
 | 3. **Ask about everything the files could not answer** | you, by interview |
 | 4. Plan an issue per real gap | `scripts/plan-issues.sh` |
-| 5. File them, on a yes | you, with `github-ops` |
+| 5. Score the repo, once every check is answered | `scripts/score.sh` |
+| 6. File the planned issues, on a yes | you, with `github-ops` |
 
 ## Three verdicts, never two
 
@@ -218,7 +219,62 @@ The planned issues come out in the same fixed section order as the report (relea
 testing first, misc last, blocking above quality within a section), so the backlog reads in the
 order a repo actually hits the problems.
 
-## Step 5 — file them
+## Step 5 — score it
+
+```
+scripts/score.sh <findings.json> <answers.json>
+scripts/score.sh <findings.json> <answers.json> --json
+```
+
+Same two inputs as Step 4, and the same resolution: an answer overrides what `inspect.sh` found,
+and a check nobody answered keeps whatever verdict it already had.
+
+**A score is only honest after the interview.** If even one check still reads `unknown`, this
+prints **no grade and no percentage**, only the counts that are known, and how many questions are
+still open. Guessing at the rest would let a well-prepared repo take an F for having files this
+tool cannot read, which is exactly the failure mode the rest of this skill exists to avoid:
+
+```
+No grade yet.
+
+Needed for the loops to work: 1 of 2 present
+Makes the loops better: 1 of 2 present
+
+Release management
+  Needed for the loops to work: 0 of 1 present
+...
+
+2 checks are still unknown. Finish the interview (step 3 in the ops-preflight
+skill), then run this again for a grade.
+
+Loops can start: no. 1 check needed for the loops to work is not present yet: ...
+```
+
+Once every check reads `present` or `gap`, it grades. `blocking` weighs 3, `quality` weighs 1, a
+must-have outweighs a nice-to-have, and the score is the weight of what is `present` over the
+weight of everything. Bands run `A*` at 95% and above, then `A` at 85, `B` at 75, `C` at 65, `D` at
+55, `E` at 45, and `F` below that.
+
+**One hard cap sits on top:** any blocking check that is a `gap` pulls the grade down to `C` at
+best, however good the rest of the repo looks:
+
+```
+Grade: C (capped). Weighted score 85%.
+A check needed for the loops to work is a gap, so the grade cannot read better than
+C, however good the rest of the repo looks.
+
+Needed for the loops to work: 4 of 5 present
+Makes the loops better: 5 of 5 present
+...
+
+Loops can start: no. 1 check needed for the loops to work is not present yet: ...
+```
+
+The grade is a snapshot of the repo as it stands, never a judgement on the people who built it,
+the same stance the rest of this report takes. It never persists either: run `score.sh` again next
+time, the same as everything else here.
+
+## Step 6 — file them
 
 **Ask first.** Filing issues on someone's repo is a visible, outward-facing write, and the plan is
 useful on its own.
@@ -258,4 +314,10 @@ find the same gaps again the first time a loop runs, at a much worse moment.
 - **Never put a product fact in `checks.json` or in a stack profile.** A product name, a product's
   tool, a product's command — all of it belongs in the repo's own
   `.claude/ops-preflight-profile.json`.
-- **Never persist the run.** No report file, no flag, no score. Ask again next time.
+- **Never grade while any check is still `unknown`.** `score.sh` refuses and prints the known
+  counts instead. A raw scan is mostly `unknown`; scoring it would hand a well-prepared repo an F
+  for having files this tool cannot read.
+- **Never let a good score hide a missing must-have.** Any blocking `gap` caps the grade at `C`,
+  whatever the rest of the repo looks like.
+- **Never persist the run.** No report file, no flag, no stored score. Ask again next time; score
+  again next time, freshly, from whatever the interview says then.
