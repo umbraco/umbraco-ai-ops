@@ -11,7 +11,13 @@
     {
       "id": "verify-test-command",
       "section": "Backend",
-      "detect": { "any_path": ["*[Tt]ests*.csproj", "*[Tt]ests/*", "*[Tt]est/*.csproj", "test.sh", "scripts/test.sh"] }
+      "detect": {
+        "any_path": [
+          "*[Tt]ests*.csproj", "*[Tt]ests/*.cs",
+          "*[Tt]est/*.csproj", "*[Tt]est/*.cs",
+          "test.sh", "scripts/test.sh"
+        ]
+      }
     },
     {
       "id": "dotnet-analyzers",

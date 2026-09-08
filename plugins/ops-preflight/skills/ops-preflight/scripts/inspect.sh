@@ -147,11 +147,21 @@ verdicts='{}'
 while IFS= read -r id; do
   [ -n "$id" ] || continue
   d="$(printf '%s' "$merged" | jq -c --arg id "$id" 'map(select(.id==$id))[0].detect // null')"
-  ev=()
+  ev=(); ev_total=0
   if [ "$d" != "null" ]; then
-    while IFS= read -r line; do [ -n "$line" ] && ev+=("$line"); done \
-      < <(preflight_detect "$repo" "$d" | tr -d '\r' | sort -u | head -3)
+    all_ev="$(preflight_detect "$repo" "$d" | tr -d '\r' | sort -u)"
+    if [ -n "$all_ev" ]; then
+      ev_total="$(printf '%s\n' "$all_ev" | grep -c .)"
+      while IFS= read -r line; do [ -n "$line" ] && ev+=("$line"); done \
+        < <(printf '%s\n' "$all_ev" | head -3)
+    fi
   fi
+  # Evidence is capped at 3 paths in the report — plenty to answer "is this real", too many buries
+  # the row on a check that legitimately matches dozens of files. The count beyond the cap still
+  # matters (three package artifacts and three real test files both print as three), so it rides
+  # along as `evidence_more` and the text report renders it as "(+N more)" rather than dropping it
+  # silently, which read as "that's everything" when it was not.
+  ev_more=$(( ev_total > 3 ? ev_total - 3 : 0 ))
   sig="$(printf '%s' "$merged" | jq -r --arg id "$id" 'map(select(.id==$id))[0].signal // false')"
   if [ "${#ev[@]}" -eq 0 ]; then
     verdict="unknown"; source="null"
@@ -162,8 +172,8 @@ while IFS= read -r id; do
   fi
   evjson="$(printf '%s\n' "${ev[@]+"${ev[@]}"}" | jq -R . | jq -sc 'map(select(length>0))')"
   verdicts="$(printf '%s' "$verdicts" | jq -c \
-    --arg id "$id" --arg v "$verdict" --arg s "$source" --argjson e "$evjson" \
-    '.[$id] = {verdict:$v, source:(if $s=="null" then null else $s end), evidence:$e}')"
+    --arg id "$id" --arg v "$verdict" --arg s "$source" --argjson e "$evjson" --argjson m "$ev_more" \
+    '.[$id] = {verdict:$v, source:(if $s=="null" then null else $s end), evidence:$e, evidence_more:$m}')"
 done < <(printf '%s' "$merged" | jq -r '.[].id' | tr -d '\r')
 
 # The report groups on `section` — the nine headings on the source checklist (AI Ops — Preparing
@@ -174,7 +184,7 @@ done < <(printf '%s' "$merged" | jq -r '.[].id' | tr -d '\r')
 findings="$(printf '%s' "$merged" | jq -c --argjson v "$verdicts" '
   def sorder: {"Release management":0,"Testing":1,"Harness":2,"Environment":3,"Frontend":4,
                "Backend":5,"Best practices":6,"Utilities":7,"Misc":8};
-  [ .[] | . + ($v[.id] // {verdict:"unknown", source:null, evidence:[]}) ]
+  [ .[] | . + ($v[.id] // {verdict:"unknown", source:null, evidence:[], evidence_more:0}) ]
   | sort_by([ (sorder[.section] // 9), (if .severity=="blocking" then 0 else 1 end), .id ])
 ')"
 
@@ -193,7 +203,7 @@ report="$(jq -nc --argjson f "$findings" --arg repo "$repo" --args '
 if [ "$fmt" = "json" ]; then printf '%s\n' "$report"; exit 0; fi
 
 # --- text report ------------------------------------------------------------------------------
-printf 'ops-preflight — %s\n\n' "$repo"
+printf 'ops-preflight: %s\n\n' "$repo"
 printf 'This is a map, not an entry exam, and nobody clears every box.\n'
 printf 'Release management and Testing come first below. If you only have time for one section,\n'
 printf 'do that one: they are what unlock the merge and release parts of the pipeline.\n\n'
@@ -201,23 +211,42 @@ printf 'Checks from:\n'
 for f in "${files[@]}"; do printf '  %s\n' "$f"; done
 printf '\n'
 
+# Severity used to be glued onto every row with a comma — "[SIGNAL ] Needed for the loops to
+# work, Title (consumer)" — which reads as one broken sentence, and repeating the same long label
+# on every one of 26 rows was the actual problem, not just the comma. It is printed ONCE per
+# section as a sub-heading instead, so it reads as a label over a group rather than a clause welded
+# onto each title. `findings` is already sorted blocking-before-quality within a section (see the
+# `sort_by` above), so a plain loop over the two severities in that order reproduces it exactly.
 while IFS= read -r group; do
   [ -n "$group" ] || continue
   printf '%s\n' "$group"
-  printf '%s' "$findings" | jq -r --arg g "$group" '
-    .[] | select(.section==$g)
-    | "  [\(if .verdict=="present" then "PRESENT" elif .source=="signal" then "SIGNAL " else "unknown" end)] " +
-      "\(if .severity=="blocking" then "Needed for the loops to work" else "Makes the loops better" end), " +
-      "\(.title) (\(.consumer)\(if (.action // "") != "" then " " + .action else "" end))"
-      + (if (.evidence|length) > 0 then "\n              found: " + (.evidence | join(", ")) else "" end)
-      + (if .verdict=="unknown" then "\n              why:   " + .why else "" end)' | tr -d '\r'
+  for sev in blocking quality; do
+    n="$(printf '%s' "$findings" | jq --arg g "$group" --arg s "$sev" \
+      '[ .[] | select(.section==$g and .severity==$s) ] | length')"
+    [ "$n" -gt 0 ] || continue
+    if [ "$sev" = blocking ]; then printf '  Needed for the loops to work\n'
+    else                            printf '  Makes the loops better\n'
+    fi
+    printf '%s' "$findings" | jq -r --arg g "$group" --arg s "$sev" '
+      .[] | select(.section==$g and .severity==$s)
+      | "    [\(if .verdict=="present" then "PRESENT" elif .source=="signal" then "SIGNAL " else "unknown" end)] " +
+        "\(.title) (\(.consumer)\(if (.action // "") != "" then " " + .action else "" end))"
+        + (if (.evidence|length) > 0 then "\n              found: " + (.evidence | join(", "))
+             + (if (.evidence_more // 0) > 0 then " (+\(.evidence_more) more)" else "" end)
+           else "" end)
+        + (if .verdict=="unknown" then "\n              why:   " + .why else "" end)' | tr -d '\r'
+  done
   printf '\n'
   # `findings` is already sorted into section order, so dedupe WITHOUT sorting — `unique` would
   # re-alphabetise the sections and undo the fixed ordering the sort above exists to produce.
 done < <(printf '%s' "$findings" | jq -r '.[].section' 2>/dev/null | tr -d '\r' | awk '!seen[$0]++')
 
-printf '%s' "$report" | jq -r '.summary
-  | "  \(.total) checks — \(.present) present, \(.unknown) unknown (\(.blocking_unknown) of them blocking)"'
-printf '\n  UNKNOWN IS NOT A PASS. Detection could not see these; %s of them have a question\n' \
-  "$(printf '%s' "$report" | jq -r '.summary.interview')"
-printf '  waiting. Answer them, then plan-issues.sh turns whatever is genuinely missing into work.\n'
+# One jq call, one printf: the closing message used to be split across three separate printf
+# statements with a hand-wrapped line break in the middle of a sentence. Building the whole block
+# as one string and printing it once removes any chance of a partial write landing between them.
+printf '%s' "$report" | jq -r '
+  .summary
+  | "  \(.total) checks: \(.present) present, \(.unknown) unknown (\(.blocking_unknown) needed for the loops to work)"
+  + "\n\n  UNKNOWN IS NOT A PASS. Detection could not see these; \(.interview) of them have a question"
+  + "\n  waiting. Answer them, then plan-issues.sh turns whatever is genuinely missing into work."
+' | tr -d '\r'

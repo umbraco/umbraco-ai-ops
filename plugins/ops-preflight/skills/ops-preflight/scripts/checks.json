@@ -44,7 +44,14 @@
       "title": "One command runs the tests",
       "why": "A verify that cannot run the tests reports a pass that means nothing. This is the check the whole engine leans on: the loops stop at a green PR and never re-derive whether the change was correct.",
       "signal": true,
-      "detect": { "any_path": ["test.sh", "scripts/test.sh", "*[Tt]ests/*", "*[Tt]est/*", "*.test.*", "*.spec.*"] },
+      "detect": {
+        "any_path": [
+          "test.sh", "scripts/test.sh",
+          "*[Tt]ests/*.cs", "*[Tt]ests/*.csproj", "*[Tt]ests/*.ts", "*[Tt]ests/*.js",
+          "*[Tt]est/*.cs", "*[Tt]est/*.csproj", "*[Tt]est/*.ts", "*[Tt]est/*.js",
+          "*.test.*", "*.spec.*"
+        ]
+      },
       "ask": "What single command runs this repo's tests?"
     },
     {
@@ -55,6 +62,7 @@
       "section": "Frontend",
       "title": "One command lints, and it fails on error",
       "why": "Lint is the cheapest signal an agent has that it wrote something unidiomatic. A linter that only warns is one an agent learns to ignore.",
+      "signal": true,
       "detect": {
         "any_path": [".editorconfig", "lint.sh", "scripts/lint*", ".eslintrc*", "eslint.config.*", ".stylelintrc*"]
       },
@@ -78,7 +86,7 @@
       "section": "Misc",
       "title": "Something reviews a change before it is pushed",
       "why": "The catalog puts code and security review inside ops-change verify, and the loops require only that it happened. A verify that builds and tests but reviews nothing silently drops a gate its caller believes held, and verify must report which reviews ran.",
-      "ask": "What reviews a change in this repo before it reaches a PR - a reviewer agent, a security scan, a required human?"
+      "ask": "What reviews a change in this repo before it reaches a PR: a reviewer agent, a security scan, a required human?"
     },
     {
       "id": "verify-integration-tests",
@@ -87,8 +95,13 @@
       "severity": "quality",
       "section": "Testing",
       "title": "Integration tests cover the seams unit tests cannot",
-      "why": "Unit tests pass on changes that break the moment two components meet. Where this repo has real seams - a database, an HTTP boundary, a plugin host - unit tests alone let an agent ship a plausible break.",
-      "detect": { "any_path": ["*[Ii]ntegration*[Tt]est*/*", "*[Tt]est*[Ii]ntegration*/*"] },
+      "why": "Unit tests pass on changes that break the moment two components meet. Where this repo has real seams (a database, an HTTP boundary, a plugin host), unit tests alone let an agent ship a plausible break.",
+      "detect": {
+        "any_path": [
+          "*[Ii]ntegration*[Tt]est*/*.cs", "*[Ii]ntegration*[Tt]est*/*.ts", "*[Ii]ntegration*[Tt]est*/*.js",
+          "*[Tt]est*[Ii]ntegration*/*.cs", "*[Tt]est*[Ii]ntegration*/*.ts", "*[Tt]est*[Ii]ntegration*/*.js"
+        ]
+      },
       "ask": "Are there integration tests covering the seams between components here?"
     },
     {
@@ -100,9 +113,13 @@
       "title": "End-to-end tests exist, or a skill explains how to navigate the product",
       "why": "An agent that cannot drive the product cannot tell whether its change works in the thing a person uses. End-to-end tests are the strong form; a skill describing how to reach each screen is the weak one, and it is far better than nothing.",
       "detect": {
-        "any_path": ["playwright.config.*", "cypress.config.*", "*[Ee]2[Ee]*/*", ".claude/skills/*navigat*/*"]
+        "any_path": [
+          "playwright.config.*", "cypress.config.*",
+          "*[Ee]2[Ee]*/*.cs", "*[Ee]2[Ee]*/*.ts", "*[Ee]2[Ee]*/*.js",
+          ".claude/skills/*navigat*/*"
+        ]
       },
-      "ask": "Can an agent drive this product end to end - real tests, or a skill telling it how to navigate?"
+      "ask": "Can an agent drive this product end to end: real tests, or a skill telling it how to navigate?"
     },
     {
       "id": "verify-page-objects",
@@ -112,7 +129,13 @@
       "section": "Testing",
       "title": "Browser tests go through page objects, not raw selectors",
       "why": "A test full of raw selectors breaks on every markup change, and an agent asked to fix it edits the selector rather than the bug. Page objects give it one place to look.",
-      "detect": { "any_path": ["*[Pp]age[-_]?[Oo]bject*/*", "*/pom/*", "*.page.ts", "*PageObject*"] }
+      "detect": {
+        "any_path": [
+          "*[Pp]age[-_]?[Oo]bject*/*.cs", "*[Pp]age[-_]?[Oo]bject*/*.ts", "*[Pp]age[-_]?[Oo]bject*/*.js",
+          "*/pom/*.cs", "*/pom/*.ts", "*/pom/*.js",
+          "*.page.ts", "*PageObject*"
+        ]
+      }
     },
     {
       "id": "verify-coding-standards",
@@ -121,7 +144,7 @@
       "severity": "quality",
       "section": "Best practices",
       "title": "Coding standards are written down and reachable from CLAUDE.md",
-      "why": "Standards that live in reviewers' heads cannot reach an agent. Written down but unreferenced is nearly as bad - nothing loads them.",
+      "why": "Standards that live in reviewers' heads cannot reach an agent. Written down but unreferenced is nearly as bad: nothing loads them.",
       "detect": {
         "any_file_contains": [
           { "glob": "CLAUDE.md", "pattern": "[Ss]tandard|[Cc]onvention|[Ss]tyle [Gg]uide" },
@@ -176,7 +199,8 @@
       "section": "Release management",
       "title": "The version lives in a known file",
       "why": "ops-release cut has to bump the version. If the version is spread across several files, or only exists as a tag someone types, cut cannot be written and a release goes out mislabelled.",
-      "detect": { "any_path": ["version.json", "Directory.Build.props", "Directory.Version.props", "package.json", "*.nuspec", "VERSION"] },
+      "signal": true,
+      "detect": { "any_path": ["version.json", "*/version.json", "Directory.Build.props", "Directory.Version.props", "package.json", "*.nuspec", "VERSION"] },
       "ask": "Which file holds the version this repo publishes under?"
     },
     {
@@ -186,10 +210,10 @@
       "severity": "blocking",
       "section": "Release management",
       "title": "Something already knows how to prepare a release",
-      "why": "Preparing a release - branch, bump, changelog, open the PR - is the half of ops-release nothing generic can guess. A script or skill that already does it is what cut should delegate to.",
+      "why": "Preparing a release (branch, bump, changelog, open the PR) is the half of ops-release nothing generic can guess. A script or skill that already does it is what cut should delegate to.",
       "signal": true,
       "detect": { "any_path": [".claude/skills/*release*/*", "scripts/*release*", "scripts/*version*"] },
-      "ask": "What prepares a release here today - a script, a skill, or a person following notes?"
+      "ask": "What prepares a release here today: a script, a skill, or a person following notes?"
     },
     {
       "id": "release-trigger",
@@ -200,8 +224,20 @@
       "title": "Something already knows how to publish a release",
       "why": "ops-release publish must leave nothing half-published on failure. Where a pipeline already publishes, the honest publish waits for it and reports; where nothing does, publish has to be written from scratch and that is the riskiest action in the engine.",
       "signal": true,
-      "detect": { "any_path": [".github/workflows/*release*", ".github/workflows/*publish*", "azure-pipelines*.yml", ".azuredevops/*"] },
-      "ask": "What publishes a release here - which pipeline, feed or command?"
+      "detect": {
+        "any_path": [
+          ".claude/skills/*release*/*",
+          ".claude/skills/*trigger*/*",
+          ".claude/skills/*publish*/*",
+          ".github/workflows/*release*",
+          ".github/workflows/*publish*",
+          "azure-pipelines*.yml",
+          ".azuredevops/*",
+          "pipelines/*.yml",
+          "build/*.yml"
+        ]
+      },
+      "ask": "What publishes a release here: which pipeline, feed or command?"
     },
     {
       "id": "release-cleanup",
@@ -211,6 +247,14 @@
       "section": "Release management",
       "title": "After a release, the branches get put back in step",
       "why": "This is the step manual releases most often forget, which is exactly why the engine has an action for it. If nobody does it today, the next change starts from something other than what shipped.",
+      "signal": true,
+      "detect": {
+        "any_path": [
+          ".claude/skills/*clean*/*",
+          ".claude/skills/*post-release*/*",
+          ".claude/skills/*release*sync*/*"
+        ]
+      },
       "ask": "After a release here, what merges it back and publishes the notes?"
     },
     {

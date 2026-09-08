@@ -117,7 +117,24 @@ the `unknown` count.
 
 Release management and Testing come first because they are what unlock the merge and release
 parts of the pipeline, and they are the two sections to do first if someone only has time for one.
-Within a section, a `blocking` check sorts above a `quality` one.
+
+**Within a section, severity is a sub-heading, printed once, not repeated per line.** A `blocking`
+check sorts above a `quality` one, under its own **Needed for the loops to work** or
+**Makes the loops better** heading:
+
+```
+Release management
+  Needed for the loops to work
+    [unknown] Something already knows how to prepare a release (ops-release cut)
+              why:   Preparing a release ...
+  Makes the loops better
+    [unknown] After a release, the branches get put back in step (ops-release sync)
+              why:   ...
+```
+
+Earlier this repeated the severity phrase on every row, comma-joined onto the title — "Needed for
+the loops to work, Title" — which read as one broken sentence, and got worse the more checks a
+section held. Printing it once per group instead is what keeps a 26-row report readable.
 
 **It never runs your build.** A preflight that compiles the product only works on a machine that
 can compile the product, which rules out CI, a routine, and anyone looking at a repo they do not

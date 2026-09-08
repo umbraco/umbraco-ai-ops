@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "prune": [
+    ".git",
+    ".claude/worktrees",
+    ".worktrees",
+    "node_modules",
+    "bin",
+    "obj",
+    "dist",
+    "out",
+    "packages",
+    "TestResults",
+    ".vs",
+    ".idea",
+    "artifacts",
+    "coverage"
+  ]
+}
