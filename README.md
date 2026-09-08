@@ -1,31 +1,34 @@
 # umbraco-ai-ops
 
-This engine is built toward three stages, in that order.
+An engine that turns a GitHub backlog into merged, released code. An agent does the work. A
+person keeps the gates.
 
-Here is where this is heading. Every stage connects to the next one. Problems flow backward too,
-not just forward. A fix that fails to land goes back to build, so it can be tried again. A
-finished change goes back into the build queue, ready for the next piece of work. A regression is
-something that used to work and now does not. When that happens, the code goes back to be undone,
-which is called a rollback. A production signal is the live site telling you something is wrong.
-That signal sends the problem back into the backlog. This is a system that fixes and improves
-itself. Every box in that graph is itself a loop underneath, and the graph is what ties all the
-boxes together. That is the end goal, not what this repo does this week.
+Three things, in this order.
 
-The reachable step, the one this repo targets now, is the everyday path a piece of work follows.
-Someone opens an issue. The code gets built. A pull request gets merged. A release goes out. In
-short, people call this the "SDLC spine." It comes first for three reasons. It has the most work
-and the least need for judgement calls. It is the easiest part to check. CI, the automatic build
-and test checks, is either green or it is not. And it is the part of the process tied to a
-person's job. Some things are deliberately left out at this stage. Loops do not yet coordinate
-with each other. Nothing runs on a schedule yet. An agent does not decide on its own to refactor
-code. Get one lane working end to end first. Then add more lanes. The full graph is what you get
-once enough lanes exist to connect.
+**Where this is heading.** Every step feeds the next one, and failures feed
+backwards. A build that fails goes back to be fixed. A release that breaks something goes back to
+be undone. A problem on the live site turns into a new item in the backlog. None of that waits
+for a person to notice. That is the end goal, not this week's work.
 
-Neither of those stages works until the loops underneath them actually work. A working loop needs
-a harness: the checks and structure built around it, on purpose, never just assumed. That is
-exactly what `ops-preflight` checks for, before anything else is trusted to run unattended.
+**What this repo does today.** The everyday path a piece of work follows. Someone
+opens an issue. The code gets built. A pull request gets merged. A release goes out. That path is
+all this repo targets today.
 
-The **generic engine** below is stage two. It turns a `ops/ready-for-ai` GitHub backlog into pull
+It comes first for three reasons. It is the most work and the least judgement. It is the easiest
+part to check, because a build is either green or it is not. And it is the part of the job
+somebody is currently paid to do by hand.
+
+Left out on purpose, for now: the loops do not talk to each other, nothing runs on a schedule,
+and no agent decides on its own to go and tidy up code.
+
+**What it takes to get there.** None of it runs until the loops underneath it
+work. A loop only works if something can tell pass from fail without you watching. That is what a
+harness is, and `ops-preflight` is how you find out whether you have one.
+
+Get one lane working end to end. Then add lanes. The full picture is what you get when enough
+lanes connect.
+
+The **generic engine** below is that everyday path. It turns a `ops/ready-for-ai` GitHub backlog into pull
 requests (PRs) that are CI-green, reviewed and merged. It does this for whatever product it is
 pointed at. It also feeds what it learns back into the repos it works on.
 
@@ -77,7 +80,7 @@ trust. Skip a layer and the whole thing is theatre. A "loop" running on a harnes
 checks its own work is really just a prompt with extra scaffolding. It gives a false sense of
 safety.
 
-`ops-preflight` is the check for that layer, the stage-three prerequisite. It is diagnostic: a
+`ops-preflight` is the check for that layer. It is diagnostic: a
 map of the gaps in a repo's readiness, not an entry exam. Run it against your own repo. Find what
 is missing. Treat the result as a to-do list, not a verdict. Nobody clears every check, including
 this repo.
@@ -121,8 +124,8 @@ where such a lesson *should* go on a single repo. That is a known small gap, not
 
 `ops-issue-loop`, `ops-merge-loop`, `ops-release-loop`, `ops-rework-loop`, `ops-port-loop` and
 `ops-triage-loop` are the shipped loops. Together they make up the SDLC spine described above:
-issue, build, merge, release. `ops-preflight` is the stage-three prerequisite. Run it before any
-of them are trusted to run unattended. It is diagnostic rather than a gate: a map of the gaps,
+issue, build, merge, release. Run `ops-preflight` before any of them are trusted to run
+unattended. It is diagnostic rather than a gate: a map of the gaps,
 not an entry exam.
 
 Installed from this marketplace (`.claude-plugin/marketplace.json`):
@@ -137,7 +140,7 @@ Installed from this marketplace (`.claude-plugin/marketplace.json`):
 | **loop-dispatch** | The event router, `route-event.sh`. One routine per repo. It can work in a different repo from the one that fired the event, which is what Forms needs. |
 | **ops-capabilities** | The six capability skills you **inherit**: `ops-integrate`, `ops-branching`, `ops-workspace`, `ops-repo-meta`, `ops-ci`, `ops-notify`. Override one by shipping your own skill of the same name. |
 | **ops-merge-loop** | Sweeps PRs labelled `ops/auto-merge` and hands each to `ops-integrate · land`. Scheduling only: every merge gate lives in the service. |
-| **ops-release-loop** | Issue-triggered, CI-gated release. Commands the repo's own `ops-release` through plan → cut → publish → sync, with an Opus pre-publish review as the second gate. |
+| **ops-release-loop** | Issue-triggered, CI-gated release. Commands the repo's own `ops-release` through plan -> cut -> publish -> sync, with an Opus pre-publish review as the second gate. |
 
 > **Not built yet, and not declared:** **dotnet-web-runtime** (cloud setup so a .NET product can
 > run as a web routine, fixing the NuGet feed 401). It used to be listed in `marketplace.json`
