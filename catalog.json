@@ -60,7 +60,7 @@
         },
         {
           "action": "close-issue",
-          "description": "Told that a PR has landed, work out which issue it was for and close that issue only once EVERY target line has landed — one logical change lands N times at N moments. The caller passes the PR, not the issue, because how a PR references its issue and which lines are targets are both repo facts. MUST close explicitly: a `Closes #N` keyword does not cross repos. MUST tolerate an already-closed issue, and MUST report `closed: false` with the lines still outstanding rather than closing early.",
+          "description": "Told that a PR has landed, work out which issue it was for and close that issue only once EVERY target line has landed. One logical change lands N times at N moments. The caller passes the PR, not the issue, because how a PR references its issue and which lines are targets are both repo facts. MUST close explicitly: a `Closes #N` keyword does not cross repos. MUST tolerate an already-closed issue, and MUST report `closed: false` with the lines still outstanding rather than closing early.",
           "input": {
             "landed": "object — the PR that just landed: repo, pr_number, and its line as reported by the merge. The caller does not derive the line; it passes on what `integrate`/`branching` returned.",
             "issue": "object — optional, when the caller already knows which issue it was"
@@ -311,7 +311,7 @@
         },
         {
           "action": "topology",
-          "description": "Say which repo fills each of the four roles — `code` (required), `issues`, `releases` and `learnings`. An unspecified role resolves to `code`, so a single-repo project returns only `code`. `learnings` is not automatically `issues`: where issues are public and code is not, learnings follow the code.",
+          "description": "Say which repo fills each of the four roles: `code` (required), `issues`, `releases` and `learnings`. An unspecified role resolves to `code`, so a single-repo project returns only `code`. `learnings` is not automatically `issues`: where issues are public and code is not, learnings follow the code.",
           "input": {},
           "output": {
             "repos": "object — role → owner/name"
