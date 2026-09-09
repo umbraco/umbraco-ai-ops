@@ -93,10 +93,15 @@ detection alone can only report `present` or leave a check `unknown`.
 
 Evidence strength decides how a `present` is reached. A strong match is named for, or dedicated
 to, the exact job the check asks about, and resolves straight to `present` with the evidence
-shown: a script literally named `build.sh` satisfies a build check on sight. A weak match only
-proves something exists, not that it does that job, and asks instead: a generic `package.json`
-proves a package exists, not where the published version lives, so the check prints `ASK` with
-what it found and counts as `unknown` until a person answers.
+shown: a script literally named `build.sh` satisfies a build check on sight.
+
+One exception: a few checks cover the whole product rather than one part of it. Those need
+strong evidence from every stack in the repo. A repo with a dotnet side and a node side that
+only proves one of them still asks, and the report names the side with nothing behind it.
+
+A weak match only proves something exists, not that it does that job, and asks instead: a
+generic `package.json` proves a package exists, not where the published version lives, so the
+check prints `ASK` with what it found and counts as `unknown` until a person answers.
 
 The report groups every check under one of nine fixed sections, always in this order: release
 management, testing, harness, environment, frontend, backend, best practices, utilities, misc.
