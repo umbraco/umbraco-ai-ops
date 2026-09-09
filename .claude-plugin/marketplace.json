@@ -14,7 +14,7 @@
       "name": "ops-install",
       "source": "./plugins/ops-install",
       "description": "Onboarding, and the proof that a repo is actually covered. `/ops-install` detects the repo's branching, CI and release setup, reports capability coverage against catalog.json (present / inherited / missing, by matching ops-<capability> skill names), scaffolds a stub for every missing capability GENERATED from its catalog entry, then interviews the human to fill that stub's TODOs rather than handing over a wall of them — carrying the do-not-select-me guard in the stub's description and never the disable-model-invocation flag, which blocks the Skill tool outright and would leave the capability uncallable by the very loop meant to command it, plus the reject-unknown-action rule and the per-action idempotency requirement — installs the caller workflow on every repo that emits routed events (both repos in a split topology), validates the routing overlay against the event vocabulary and checks every routed loop resolves to an installed skill, then lists the manual steps. Seven of its ten steps are deterministic scripts, starting with a check that the installer itself is up to date, because a coverage report a model produces by reading directories can be quietly wrong. Writes no central config: a capability is found by its name.",
-      "version": "0.12.0",
+      "version": "0.13.0",
       "category": "workflow",
       "keywords": [
         "onboarding",
@@ -29,7 +29,7 @@
       "name": "ops-preflight",
       "source": "./plugins/ops-preflight",
       "description": "Readiness, and the honest answer to whether the loops will do GOOD work here. `ops-install` proves a repo is wired up; this proves it is worth wiring, because coverage matches skill names and a repo with no test command, no isolated build and an undocumented branch model onboards green and wastes every run. Reads the repo against a merged check catalog — an engine base, every matching STACK profile (never a product profile), then the repo's own `.claude/ops-preflight-profile.json` — and reports each check under the capability that breaks without it, as blocking or quality. Three verdicts, never two: present, gap, and unknown for anything detection could not see, because silence is not a pass and a self-reported yes is printed differently from evidence. It never runs your build, so it works on a machine that cannot compile the product. Then it interviews the human on what the files could not answer, and offers to file one issue per real gap under a stable title a re-run will not duplicate. Advisory: it blocks nothing, and a repo may onboard with gaps and close them afterwards. Interactive, run before /ops-install.",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "category": "workflow",
       "keywords": [
         "readiness",
@@ -44,7 +44,7 @@
       "name": "ops-issue-loop",
       "source": "./plugins/ops-issue-loop",
       "description": "The orchestration loop: work a backlog of `ops/ready-for-ai` issues to CI-green PRs by commanding the repo's own `ops-change` (implement → verify) once per issue. It owns the loop only — the queue, the durable /goal, rolling cap-3 dispatch, model selection per issue, the 8-attempt CI-green cap and the backstops — and knows nothing about how to build any product. It stops at a green PR: it never merges and never applies the landing label, so there stays exactly one merge path behind one human gate. Bundles two label-triggered loops that share the same `ops-change` contract: `ops-rework-loop`, the review-response half, which pushes and hands the PR back rather than landing its own fix; and `ops-port-loop`, which lands an already-merged change on the repo's other live lines, taking the direction from the repo's declared line order rather than a branch name, treating each port as a real change with its own verify and CI, and never landing one. Repo-agnostic; requires ops-capabilities, github-ops, and the repo's `ops-change`.",
-      "version": "0.5.0",
+      "version": "0.6.0",
       "category": "workflow",
       "keywords": [
         "github-issues",
@@ -61,7 +61,7 @@
       "name": "ops-learnings",
       "source": "./plugins/ops-learnings",
       "description": "The self-learning machinery, and the reason the loops compound rather than repeating themselves. Read-only SubagentStop/SessionEnd hooks analyse each finished transcript OFF the critical path and file `ops/proto-learning` issues to the `learnings` repo when something non-obvious happened; the proto-learning schema is the contract they file against. `ops-triage-loop` then sweeps that inbox weekly — clustering by lesson, applying a promotion threshold, and routing each cluster to an issue on the repo that owns it, a drafted PR against shared skills, an `ops/loop-improvement` issue against the engine, or closed with a reason. It never hand-edits a product repo and nothing auto-merges; a routed item only re-enters the work loop when a human labels it. Capture is uniform framework machinery rather than a per-repo capability, so lessons compound across every repo. Requires github-ops.",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "category": "workflow",
       "keywords": [
         "self-learning",
@@ -76,7 +76,7 @@
       "name": "github-ops",
       "source": "./plugins/github-ops",
       "description": "Shared reference for doing GitHub work two ways — locally with the `gh` CLI + `git`, and on Claude web / in scheduled routines with the GitHub MCP server (`mcp__github__*`). One operation catalog, two reference files; the other loop plugins point here instead of each re-explaining the dual path.",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "category": "workflow",
       "keywords": [
         "github",
@@ -92,7 +92,7 @@
       "name": "loop-dispatch",
       "source": "./plugins/loop-dispatch",
       "description": "Single front door for a repo's automation loops so one routine per repo can handle every loop event instead of one routine per event. Deterministically routes each triggering GitHub event to the matching loop (via route-event.sh); a non-matching event is a quiet no-op. Router only; each loop owns its guardrails. Also bundles new-loop-routine — the single source of truth for standing up a standardised loop routine per repo (config + canonical prompts + UI wiring steps). Repo-agnostic; requires github-ops and the loop skills it routes to.",
-      "version": "0.2.0",
+      "version": "0.3.0",
       "category": "workflow",
       "keywords": [
         "umbraco",
@@ -110,7 +110,7 @@
       "name": "ops-capabilities",
       "source": "./plugins/ops-capabilities",
       "description": "The framework-default capability skills a consumer inherits: ops-integrate (land an approved PR — owns every merge gate and the release-base skip), ops-branching (the repo's branch model, with the integration branches, release base and merge strategy PRIVATE — callers ask for outcomes, never values), ops-ci (CI status + failing-build logs, read-only, provider internal), ops-repo-meta (ambient repo facts as data: identity, topology, live lines), and ops-notify (tell a human). Each is a skill named ops-<capability>, invoked by name with (action, context-json) per catalog.json; a repo overrides one by shipping its own skill of the same name. The two capabilities that are ALWAYS the repo's — ops-change and ops-release — are deliberately absent.",
-      "version": "0.5.0",
+      "version": "0.6.0",
       "category": "workflow",
       "keywords": [
         "capability",
@@ -126,7 +126,7 @@
       "name": "ops-merge-loop",
       "source": "./plugins/ops-merge-loop",
       "description": "The landing loop. Sweeps the PRs a maintainer has labelled `ops/auto-merge` — the deliberate go-signal that stands in for a review approval, since you cannot approve your own PR — and hands each to `ops-integrate · land`, then comments the outcome. It owns scheduling only: the sweep, the CI poll cadence and its 15-minute cap, the cap of 10 PRs per run, and the report. Every merge gate, the release-base skip and the merge itself belong to `ops-integrate`, so this loop never resolves a base branch or a merge strategy and never calls `ops-branching`. Uses /goal so a landing job is provably finished. Repo-agnostic; runs locally or as a scheduled cloud routine. Requires ops-capabilities and github-ops.",
-      "version": "0.3.0",
+      "version": "0.4.0",
       "category": "workflow",
       "keywords": [
         "pull-request",
@@ -142,7 +142,7 @@
       "name": "ops-release-loop",
       "source": "./plugins/ops-release-loop",
       "description": "The release loop: issue-triggered, CI-gated, no mid-flow human approval. Labelling a `release <version>` issue `ops/auto-release` makes it command the repo's `ops-release` through plan → cut → publish → sync, driving CI green in between and gating on an Opus pre-publish review against a repo-overridable checklist (a BLOCK files an issue, notifies, and de-labels rather than shipping). Every release mechanic — version files, changelog, tagging, publish target, back-merge — belongs to `ops-release`, which is ALWAYS repo-provided; this loop only orchestrates and gates, and never calls `ops-branching`. Bundles the release-reviewer agent, the default review checklist, and the `sync` contract. Requires ops-capabilities and github-ops.",
-      "version": "0.3.0",
+      "version": "0.4.0",
       "category": "workflow",
       "keywords": [
         "release",

@@ -1,8 +1,9 @@
 name: tests
 
-# Hermetic, deterministic gate — bash + jq only, no network, no gh, no claude.
-# Runs every *.test.sh in the repo (skill tests under plugins/, engine-wide ones
-# under scripts/) and validates every JSON file with jq. Runs on
+# Hermetic, deterministic gate — bash + jq (+ local git) only, no network calls of their
+# own, no gh, no claude. Runs every *.test.sh in the repo (skill tests under plugins/,
+# engine-wide ones under scripts/), validates every JSON file with jq, and checks that a
+# plugin whose files changed also bumped its plugin.json version. Runs on
 # every PR and every push to main (no paths filter — the tests are cheap, and a
 # paths filter only reliably matches the `opened` event, so a later push could
 # add untested changes and slip through ungated).
@@ -20,7 +21,13 @@ jobs:
   tests:
     runs-on: ubuntu-latest
     steps:
+      # check-plugin-versions.sh needs enough history to resolve a base to compare
+      # against (the merge base with main on a PR, the previous commit on a push) —
+      # fetch-depth: 0 gets the full history and every branch, not just the triggering
+      # ref, which the default fetch-depth: 1 shallow clone would not have.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       # The generators are jq and bash, so their versions are part of the output contract.
       # Recorded on every run because a drift gate that fails only on CI is otherwise
@@ -55,3 +62,9 @@ jobs:
             jq empty "$f" 2>/dev/null || { echo "::error file=$f::invalid JSON"; rc=1; }
           done < <(find . -path ./.git -prune -o -name '*.json' -print | sort)
           exit $rc
+
+      # Catches the failure mode where a plugin's content changes but plugin.json's
+      # version does not — invisible to everyone, because the plugin cache users
+      # install from is keyed by version and never refreshes on its own.
+      - name: Check every changed plugin bumped its version
+        run: bash scripts/check-plugin-versions.sh
