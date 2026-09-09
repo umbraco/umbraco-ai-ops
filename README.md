@@ -1,5 +1,7 @@
 # umbraco-ai-ops
 
+**DevOps for agents.**
+
 The **generic engine** for AI-driven issue automation across Umbraco products. It turns a
 `ops/ready-for-ai` GitHub backlog into CI-green, reviewed, merged PRs. It also feeds what it learns
 back into the repos it works on.
@@ -56,7 +58,7 @@ Installed from this marketplace (`.claude-plugin/marketplace.json`):
 | Plugin | What it is |
 |--------|------------|
 | **ops-install** | Onboarding, and the proof it worked. `/ops-install` first checks its own version is current, then detects the repo's setup, writes the few facts detection can't reach to `.claude/ops-repo-meta.json`, reports capability coverage, scaffolds a stub for anything missing, interviews you to fill that stub's TODOs, creates every `ops/` label on the repo its role implies, installs the caller workflows and validates the routing. Seven of its ten steps are scripts. Run it **second**. |
-| **ops-preflight** | Readiness. `ops-install` proves a repo is *wired up*; `/ops-preflight` proves it is worth wiring, because coverage matches skill names and a repo with no test command, no isolated build and an undocumented branch model onboards green and wastes every run. Reads the repo against an engine base plus every matching **stack** profile plus your own `.claude/ops-preflight-profile.json`, and groups each check under the capability that breaks without it. Three verdicts, never two: `present`, `gap`, and `unknown` for anything detection couldn't see, because silence is not a pass. It never runs your build, so it works anywhere. Then it interviews you and offers to file an issue per real gap. Advisory: it blocks nothing. Run it **first**. |
+| **ops-preflight** | Scores whether a repo is worth wiring up, before you run `/ops-install`. See [Checking readiness](#checking-readiness-before-onboarding-a-repo). Run it **first**. |
 | **ops-issue-loop** | The orchestrator: queue, dispatch up to three at once, stop at a green PR. It owns sequencing only and commands your `ops-change` for the work. Bundles `ops-rework-loop` (review feedback) and `ops-port-loop` (one merged change, a PR per other live line, none of them landed). |
 | **ops-learnings** | Self-learning. Read-only hooks file `ops/proto-learning` issues off the critical path; `ops-triage-loop` sweeps them weekly and routes each lesson to whoever owns it. |
 | **github-ops** | All GitHub work, in both environments: `gh`/`git` locally, `mcp__github__*` on web. Also wraps the CI provider, either `github-checks` or `azure-pipelines`. Every loop needs it. |
@@ -69,6 +71,47 @@ Installed from this marketplace (`.claude-plugin/marketplace.json`):
 > run as a web routine, fixing the NuGet feed 401). It used to be listed in `marketplace.json`
 > while pointing at a directory that did not exist, which would make `/plugin marketplace add`
 > fail on the whole marketplace. It is re-declared when it exists.
+
+## Checking readiness (before onboarding a repo)
+
+This runs before `/ops-install`, so it sits here first.
+
+`ops-preflight` answers a different question than `/ops-install`. Onboarding answers whether the
+loops will *run* here, because its coverage check matches skill names. This answers whether the
+loops will do **good** work here, which is a fact about the product, not about which skills exist.
+
+It reads three layers, merged in this order: an engine base of checks, a **stack** profile that
+matches the repo (`dotnet`, `node`, or both), and the repo's own
+`.claude/ops-preflight-profile.json` override.
+
+It never runs your build. That ceiling is deliberate: it keeps the check working on any machine,
+including one that cannot compile the product.
+
+Three verdicts, never two: `present`, `gap`, and `unknown`. Silence is never a pass: a check
+nobody could answer reports `unknown`, not a pass and not a fail. Only a human can set `gap`;
+detection alone can only report `present` or leave a check `unknown`.
+
+Evidence strength decides how a `present` is reached. A strong match is named for, or dedicated
+to, the exact job the check asks about, and resolves straight to `present` with the evidence
+shown: a script literally named `build.sh` satisfies a build check on sight. A weak match only
+proves something exists, not that it does that job, and asks instead: a generic `package.json`
+proves a package exists, not where the published version lives, so the check prints `ASK` with
+what it found and counts as `unknown` until a person answers.
+
+The report groups every check under one of nine fixed sections, always in this order: release
+management, testing, harness, environment, frontend, backend, best practices, utilities, misc.
+Release management and testing come first because they are what unlock the merge and release
+parts of the pipeline.
+
+Only a human can turn an `unknown` into a `gap`. The interview asks about everything the files
+could not answer, in that same section order.
+
+The score is a letter grade, weighted so a check needed for the loops to work counts more than
+one that only makes them better. It refuses to grade while any check is still `unknown`, because
+`unknown` means detection could not see something, not that it is missing.
+
+Run it with `/ops-preflight`. It blocks nothing: a repo can onboard with gaps open and close them
+afterwards.
 
 ## Getting started (onboarding a repo)
 
