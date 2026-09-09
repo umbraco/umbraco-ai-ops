@@ -496,10 +496,12 @@ d2="$(mkrepo realdual-node Product.sln vitest.config.js .eslintrc.json)"
 printf '%s' '{"scripts":{"build":"webpack"}}' > "$d2/package.json"
 r2="$(bash "$I" "$d2" --json 2>/dev/null)"
 check "verify-test-command: the node-only vitest.config.* pattern survives the union with dotnet" \
-  "present" "$(v "$r2" verify-test-command)"
-check "  a runner-specific config file is strong evidence, so it resolves without asking" \
-  "detected" "$(src "$r2" verify-test-command)"
-check "  with the node-exclusive file as evidence" "vitest.config.js" \
+  "unknown" "$(v "$r2" verify-test-command)"
+check "  but whole_product now needs strong evidence from EVERY active stack, so a node-only match still asks" \
+  "partial" "$(src "$r2" verify-test-command)"
+check "  dotnet is named as the stack with no strong evidence" "dotnet" \
+  "$(printf '%s' "$r2" | jq -r '.findings[] | select(.id=="verify-test-command") | .unaccounted[0]')"
+check "  the node-exclusive file still shows as strong evidence, not lost by the merge" "vitest.config.js" \
   "$(printf '%s' "$r2" | jq -r '.findings[] | select(.id=="verify-test-command") | .evidence[] | select(.=="vitest.config.js")')"
 check "verify-build-command: the node-only package.json content match survives the union too" \
   "unknown" "$(v "$r2" verify-build-command)"
@@ -507,6 +509,19 @@ check "  as weak: a bare \"build\" keyword in package.json does not itself prove
   "weak" "$(src "$r2" verify-build-command)"
 check "  with package.json as the content-match evidence" "package.json" \
   "$(printf '%s' "$r2" | jq -r '.findings[] | select(.id=="verify-build-command") | .evidence[] | select(.=="package.json")')"
+
+# Pinned from the other side too: give dotnet its own strong evidence in the SAME dual-stack shape
+# — a real root test.sh, the one pattern tagged to both origins at once (see the base-origin
+# exception above) — and verify-test-command resolves present instead of asking, proving
+# whole_product is a real gate and not just a permanent downgrade once two stacks are active.
+d2c="$(mkrepo realdual-node-bothstrong Product.sln vitest.config.js test.sh)"
+printf '{}' > "$d2c/package.json"
+r2c="$(bash "$I" "$d2c" --json 2>/dev/null)"
+check "verify-test-command: strong evidence from every active stack resolves present" \
+  "present" "$(v "$r2c" verify-test-command)"
+check "  detected, not partial, once nothing is unaccounted" "detected" "$(src "$r2c" verify-test-command)"
+check "  with an empty unaccounted list" 0 \
+  "$(printf '%s' "$r2c" | jq '.findings[] | select(.id=="verify-test-command") | .unaccounted | length')"
 # verify-lint-command is `quality`, and an eslintrc is config for the tool, not proof of a single
 # enforced command that fails on error, so a match here asks rather than passes too.
 check "verify-lint-command (quality, but a weak pattern) still asks rather than a silent PRESENT" \
@@ -800,8 +815,14 @@ check "  and the text report prints no \"(+N more)\" suffix at all" 0 \
 # the file was not detected. The fix is that strength, not alphabetical position, decides what can
 # ever be hidden: a check with 5 STRONG matches (verify-integration-tests: every one of its patterns
 # is strong) must show all 5, in JSON and in the text report, with no "(+N more)" attached to them.
+# Named IntegrationTestSuite, not IntegrationTests: a bare "Tests/" segment also matches
+# verify-test-command's own (weak) evidence globs, and that check's row prints its own "found:"
+# line off the same files — a second row with the identical capped text, so a plain grep across
+# the whole report counts it twice. "TestSuite" still satisfies verify-integration-tests's
+# *[Ii]ntegration*[Tt]est*/ pattern while missing every *[Tt]ests?/ pattern verify-test-command
+# looks for, so this fixture is unambiguous evidence for exactly one check.
 d="$(mkrepo manystrong \
-  IntegrationTests/A.cs IntegrationTests/B.cs IntegrationTests/C.cs IntegrationTests/D.cs IntegrationTests/E.cs)"
+  IntegrationTestSuite/A.cs IntegrationTestSuite/B.cs IntegrationTestSuite/C.cs IntegrationTestSuite/D.cs IntegrationTestSuite/E.cs)"
 r="$(bash "$I" "$d" --json 2>/dev/null)"
 check "5 strong matches all appear in JSON evidence_strong, uncapped" 5 \
   "$(printf '%s' "$r" | jq '.findings[] | select(.id=="verify-integration-tests") | .evidence_strong | length')"
@@ -809,9 +830,9 @@ check "  and the check resolves present, not capped into an ASK" "present" \
   "$(v "$r" verify-integration-tests)"
 out="$(bash "$I" "$d" 2>/dev/null)"
 check "  the text found: line shows exactly 3 of the 5 strong matches" 1 \
-  "$(printf '%s' "$out" | grep -c 'found: IntegrationTests/A.cs, IntegrationTests/B.cs, IntegrationTests/C.cs (+2 more)$')"
+  "$(printf '%s' "$out" | grep -c 'found: IntegrationTestSuite/A.cs, IntegrationTestSuite/B.cs, IntegrationTestSuite/C.cs (+2 more)$')"
 check "  a PRESENT check with capped strong matches still shows at least one strong match" 1 \
-  "$(printf '%s' "$out" | grep -c 'found: IntegrationTests')"
+  "$(printf '%s' "$out" | grep -c 'found: IntegrationTestSuite')"
 
 printf '\n%s: %d passed, %d failed\n' "$(basename "$0")" "$pass" "$fail"
 [ "$fail" -eq 0 ]
