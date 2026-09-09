@@ -28,11 +28,16 @@
       "consumer": "ops-change",
       "action": "verify",
       "severity": "blocking",
-      "section": "Backend",
+      "section": "Harness",
       "title": "One command builds the product",
       "why": "ops-change verify has to build before it can report pass or fail. Without a single command, verify becomes a prose recipe that drifts away from what CI actually does.",
-      "signal": true,
-      "detect": { "any_path": ["Makefile", "build.sh", "build.ps1", "build.cmd", "scripts/build.sh", "scripts/build.ps1", "*.sln", "*.slnx"] },
+      "whole_product": true,
+      "detect": {
+        "any_path": [
+          "Makefile", "build.sh", "build.ps1", "build.cmd", "scripts/build.sh", "scripts/build.ps1",
+          { "glob": "*.sln", "strength": "weak" }, { "glob": "*.slnx", "strength": "weak" }
+        ]
+      },
       "ask": "What single command builds this whole product?"
     },
     {
@@ -40,16 +45,18 @@
       "consumer": "ops-change",
       "action": "verify",
       "severity": "blocking",
-      "section": "Backend",
+      "section": "Harness",
       "title": "One command runs the tests",
       "why": "A verify that cannot run the tests reports a pass that means nothing. This is the check the whole engine leans on: the loops stop at a green PR and never re-derive whether the change was correct.",
-      "signal": true,
+      "whole_product": true,
       "detect": {
         "any_path": [
           "test.sh", "scripts/test.sh",
-          "*[Tt]ests/*.cs", "*[Tt]ests/*.csproj", "*[Tt]ests/*.ts", "*[Tt]ests/*.js",
-          "*[Tt]est/*.cs", "*[Tt]est/*.csproj", "*[Tt]est/*.ts", "*[Tt]est/*.js",
-          "*.test.*", "*.spec.*"
+          { "glob": "*[Tt]ests/*.cs", "strength": "weak" }, { "glob": "*[Tt]ests/*.csproj", "strength": "weak" },
+          { "glob": "*[Tt]ests/*.ts", "strength": "weak" }, { "glob": "*[Tt]ests/*.js", "strength": "weak" },
+          { "glob": "*[Tt]est/*.cs", "strength": "weak" }, { "glob": "*[Tt]est/*.csproj", "strength": "weak" },
+          { "glob": "*[Tt]est/*.ts", "strength": "weak" }, { "glob": "*[Tt]est/*.js", "strength": "weak" },
+          { "glob": "*.test.*", "strength": "weak" }, { "glob": "*.spec.*", "strength": "weak" }
         ]
       },
       "ask": "What single command runs this repo's tests?"
@@ -59,12 +66,16 @@
       "consumer": "ops-change",
       "action": "verify",
       "severity": "quality",
-      "section": "Frontend",
+      "section": "Harness",
       "title": "One command lints, and it fails on error",
       "why": "Lint is the cheapest signal an agent has that it wrote something unidiomatic. A linter that only warns is one an agent learns to ignore.",
-      "signal": true,
+      "whole_product": true,
       "detect": {
-        "any_path": [".editorconfig", "lint.sh", "scripts/lint*", ".eslintrc*", "eslint.config.*", ".stylelintrc*"]
+        "any_path": [
+          "lint.sh", "scripts/lint*",
+          { "glob": ".editorconfig", "strength": "weak" }, { "glob": ".eslintrc*", "strength": "weak" },
+          { "glob": "eslint.config.*", "strength": "weak" }, { "glob": ".stylelintrc*", "strength": "weak" }
+        ]
       },
       "ask": "What single command lints this repo, and does it exit non-zero on an error?"
     },
@@ -73,9 +84,10 @@
       "consumer": "ops-change",
       "action": "verify",
       "severity": "quality",
-      "section": "Backend",
+      "section": "Harness",
       "title": "The build is free of warnings today",
       "why": "An agent cannot tell the one warning it just introduced from the four hundred that were already there. A noisy baseline turns a real signal into wallpaper.",
+      "whole_product": true,
       "ask": "Does a full build of this repo finish with zero warnings today?"
     },
     {
@@ -147,8 +159,8 @@
       "why": "Standards that live in reviewers' heads cannot reach an agent. Written down but unreferenced is nearly as bad: nothing loads them.",
       "detect": {
         "any_file_contains": [
-          { "glob": "CLAUDE.md", "pattern": "[Ss]tandard|[Cc]onvention|[Ss]tyle [Gg]uide" },
-          { "glob": "AGENTS.md", "pattern": "[Ss]tandard|[Cc]onvention|[Ss]tyle [Gg]uide" }
+          { "glob": "CLAUDE.md", "pattern": "[Ss]tandard|[Cc]onvention|[Ss]tyle [Gg]uide", "strength": "weak" },
+          { "glob": "AGENTS.md", "pattern": "[Ss]tandard|[Cc]onvention|[Ss]tyle [Gg]uide", "strength": "weak" }
         ],
         "any_path": ["docs/*standard*", "docs/*convention*", "docs/*style*"]
       },
@@ -185,8 +197,8 @@
       "detect": {
         "any_path": ["docs/*branch*", "CONTRIBUTING*"],
         "any_file_contains": [
-          { "glob": "CLAUDE.md", "pattern": "[Bb]ranch" },
-          { "glob": "README.md", "pattern": "[Bb]ranching" }
+          { "glob": "CLAUDE.md", "pattern": "[Bb]ranch", "strength": "weak" },
+          { "glob": "README.md", "pattern": "[Bb]ranching", "strength": "weak" }
         ]
       },
       "ask": "Is this repo's branching strategy written down somewhere an agent can read?"
@@ -199,8 +211,14 @@
       "section": "Release management",
       "title": "The version lives in a known file",
       "why": "ops-release cut has to bump the version. If the version is spread across several files, or only exists as a tag someone types, cut cannot be written and a release goes out mislabelled.",
-      "signal": true,
-      "detect": { "any_path": ["version.json", "*/version.json", "Directory.Build.props", "Directory.Version.props", "package.json", "*.nuspec", "VERSION"] },
+      "detect": {
+        "any_path": [
+          "version.json", "*/version.json", "Directory.Version.props", "VERSION",
+          { "glob": "Directory.Build.props", "strength": "weak" },
+          { "glob": "package.json", "strength": "weak" },
+          { "glob": "*.nuspec", "strength": "weak" }
+        ]
+      },
       "ask": "Which file holds the version this repo publishes under?"
     },
     {
@@ -211,8 +229,12 @@
       "section": "Release management",
       "title": "Something already knows how to prepare a release",
       "why": "Preparing a release (branch, bump, changelog, open the PR) is the half of ops-release nothing generic can guess. A script or skill that already does it is what cut should delegate to.",
-      "signal": true,
-      "detect": { "any_path": [".claude/skills/*release*/*", "scripts/*release*", "scripts/*version*"] },
+      "detect": {
+        "any_path": [
+          ".claude/skills/*release*/*", "scripts/*release*",
+          { "glob": "scripts/*version*", "strength": "weak" }
+        ]
+      },
       "ask": "What prepares a release here today: a script, a skill, or a person following notes?"
     },
     {
@@ -223,18 +245,17 @@
       "section": "Release management",
       "title": "Something already knows how to publish a release",
       "why": "ops-release publish must leave nothing half-published on failure. Where a pipeline already publishes, the honest publish waits for it and reports; where nothing does, publish has to be written from scratch and that is the riskiest action in the engine.",
-      "signal": true,
       "detect": {
         "any_path": [
-          ".claude/skills/*release*/*",
           ".claude/skills/*trigger*/*",
           ".claude/skills/*publish*/*",
-          ".github/workflows/*release*",
-          ".github/workflows/*publish*",
-          "azure-pipelines*.yml",
-          ".azuredevops/*",
-          "pipelines/*.yml",
-          "build/*.yml"
+          { "glob": ".claude/skills/*release*/*", "strength": "weak" },
+          { "glob": ".github/workflows/*release*", "strength": "weak" },
+          { "glob": ".github/workflows/*publish*", "strength": "weak" },
+          { "glob": "azure-pipelines*.yml", "strength": "weak" },
+          { "glob": ".azuredevops/*", "strength": "weak" },
+          { "glob": "pipelines/*.yml", "strength": "weak" },
+          { "glob": "build/*.yml", "strength": "weak" }
         ]
       },
       "ask": "What publishes a release here: which pipeline, feed or command?"
@@ -247,12 +268,11 @@
       "section": "Release management",
       "title": "After a release, the branches get put back in step",
       "why": "This is the step manual releases most often forget, which is exactly why the engine has an action for it. If nobody does it today, the next change starts from something other than what shipped.",
-      "signal": true,
       "detect": {
         "any_path": [
-          ".claude/skills/*clean*/*",
           ".claude/skills/*post-release*/*",
-          ".claude/skills/*release*sync*/*"
+          ".claude/skills/*release*sync*/*",
+          { "glob": ".claude/skills/*clean*/*", "strength": "weak" }
         ]
       },
       "ask": "After a release here, what merges it back and publishes the notes?"

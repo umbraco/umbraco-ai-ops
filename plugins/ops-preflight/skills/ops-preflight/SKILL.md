@@ -47,11 +47,12 @@ must not do is let anyone believe there are none.
 
 | Verdict | Set by | Printed as |
 |---|---|---|
-| **present** | detection matched | `present` + the evidence that matched |
+| **present** | a STRONG pattern matched — see below | `present` + the evidence that matched |
 | **present** | a human confirmed it | `present (declared)` — never with evidence |
 | **gap** | a human said it is not there | `gap`. The only thing that becomes an issue |
 | **unknown** | detection found nothing and nobody has been asked | `unknown` |
-| **unknown** | a `signal` check matched — see below | `SIGNAL`, with what was found |
+| **unknown** | only a WEAK pattern matched — see below | `ASK`, with what was found |
+| **unknown** | a whole-product check found strong evidence for SOME active stacks, not all (see below) | `ASK`, naming the stack(s) with no strong evidence |
 
 **Silence is never a pass.** This is the same rule as *a gate that cannot run reports blocked*:
 a check nothing could answer reports `unknown`, not a pass. And a **self-reported yes is not
@@ -119,6 +120,17 @@ the `unknown` count.
 Release management and Testing come first because they are what unlock the merge and release
 parts of the pipeline, and they are the two sections to do first if someone only has time for one.
 
+**`verify-build-command`, `verify-test-command`, `verify-lint-command` and `verify-warnings-clean`
+live in Harness, not Backend or Frontend.** Each asks about the WHOLE product: "one command builds
+THIS repo", not "one command builds the dotnet half", and the source checklist's Harness item is
+"it runs all linting and tests to validate its own work", so the commands the harness runs belong
+there, next to `verify-self-check`. `dotnet-analyzers` stays in Backend and `node-component-tests` /
+`node-lockfile` stay in Frontend: those genuinely are stack-specific, so they stay where a
+stack-specific check belongs. On a repo with real backend AND frontend code, this leaves Backend and
+Frontend thin, and that is honest, not a bug: those sections were never about "how much backend or
+frontend code exists", they are about what is stack-specific ENOUGH that a whole-product answer
+would be the wrong shape for it.
+
 **Within a section, severity is a sub-heading, printed once, not repeated per line.** A `blocking`
 check sorts above a `quality` one, under its own **Needed for the loops to work** or
 **Makes the loops better** heading:
@@ -152,21 +164,99 @@ or plainly the wrong thing — a build check satisfied by an unrelated script th
 called `build-something.sh` — **treat it as unknown and ask anyway**. This costs one question and
 is the only defence against a confident wrong answer.
 
-### `SIGNAL` means the opposite of `present`
+### Evidence strength lives on the pattern, not on the whole check
 
-Some checks are marked `signal` in the catalog, and for those a **match is a reason to ask, never
-a pass**. A `NuGet.config` proves a private feed *might* need a credential; it proves nothing
-about whether a restore works without one. A `docker-compose.yml` says a build probably needs more
-than a bare worktree — which is the argument *against* the default, not for it.
+Every detection rule in the catalog carries a **strength**, `strong` by default: STRONG means the
+thing matched is named for, or dedicated to, the exact job the check is asking about — a script
+literally named `build.sh`, a skill directory named `release-management`, a canonical file like
+`version.json`. A strong match resolves the check straight to `present`, evidence shown, no
+question.
 
-They print as `SIGNAL` with the evidence attached, and they count as `unknown`. **Always ask
-these, and open with what was found:** *"There's a `NuGet.config` here — does a restore need a
-credential for a private feed?"* That is a much better question than the blind version, which is
-the entire reason the evidence is kept.
+WEAK means the match only proves something *exists*, not that it does *this* job — a `package.json`
+proves a package exists, not that the published version lives there; an `azure-pipelines.yml`
+proves CI exists, not that it publishes a release; a `NuGet.config` proves a private feed *might*
+need a credential, nothing about whether a restore works without one. A weak match prints as
+`ASK` with the evidence attached, and counts as `unknown`. **Always ask these, and open with what
+was found:** *"There's a `NuGet.config` here — does a restore need a credential for a private
+feed?"* That is a much better question than the blind version, which is the entire reason the
+evidence is kept.
 
-Before this existed, `dotnet-private-feed` found a `NuGet.config` and reported `present` for *"a
-restore needs no credential"* — a false pass on a **blocking** check, for precisely the repos most
-likely to fail. Found in a dry run against a synthetic repo, which is why there is one.
+One check can hold **both** kinds of pattern at once. `release-version-source` treats `version.json`
+as strong (it is the dedicated file) and `package.json` as weak (it is a generic manifest that
+happens to also exist) — a repo with only `package.json` still gets asked; a repo with `version.json`
+resolves straight to `present`. A check where **no** file could ever prove the positive fact — only
+ever hint that it might not hold — is still marked `signal: true` at the check level instead of
+tagging every pattern `weak` individually; `workspace-isolated-build` and `dotnet-private-feed` are
+the two that stay this way, because no detectable file proves a bare worktree suffices or that a
+restore needs no credential.
+
+Before pattern strength existed, `dotnet-private-feed` found a `NuGet.config` and reported `present`
+for *"a restore needs no credential"* — a false pass on a **blocking** check, for precisely the
+repos most likely to fail. Found in a dry run against a synthetic repo, which is why there is one.
+A second dry run, against a real repo with three genuine release skills, then surfaced the opposite
+problem: `signal: true` asked about all three in the same tone it would ask about a stray file that
+merely had "release" in its name — because a whole-check flag cannot tell strong evidence from
+weak. Pattern strength is the fix: `release-prepare` and `release-cleanup` now resolve straight to
+`present` when a skill directory is genuinely named for the job, and only ask when the evidence is
+generic.
+
+### Evidence: strong first, weak second, never the same file twice
+
+A row's evidence line shows what actually matched, split by strength rather than mixed together:
+a reader has to be able to tell which file earned a `present` without guessing.
+
+```
+    [PRESENT] The version lives in a known file (ops-release cut)
+              found: version.json
+              also seen (weak): Directory.Build.props, package.json
+```
+
+`found:` is always the STRONG matches: what earned the verdict, if the row is `present` at all.
+`also seen (weak):` only appears when there is ALSO weak evidence, so a reader can see the rest of
+what was found without mistaking it for what earned the pass. A row with no strong evidence at all
+(an `ASK`) still gets one plain `found:` line, the same as always. A file that happens to match
+both a strong pattern and a weak one on the same check (a `post-release-cleanup` skill matches both
+the strong `*post-release*` glob and the weak `*clean*` one) is shown only once, under `found:`,
+never repeated under `also seen (weak):` as if it were separate evidence.
+
+**JSON never hides a match, strong or weak. Text still caps, but only the weak list, never the
+strong one.** A real dry run found four `.claude/skills/...` entries (alphabetically first, and
+weak) filling every slot of a 3-item cap and pushing a genuinely strong `azure-pipelines.yml` match
+out of the report entirely: a false claim that the file was not detected. `evidence_strong` and
+`evidence_weak` in the JSON report are both complete, always; only the TEXT rendering of
+`evidence_weak` caps at 3 with a trailing `(+N more)`, because a weak match is supplementary
+evidence, never what a `present` rests on. A check can legitimately show dozens of strong matches
+in text (twenty-two integration test files is twenty-two lines of real evidence), and that is the
+correct trade: never hiding a strong match matters more than a short report.
+
+### Whole-product checks need EVERY active stack, not just one
+
+`verify-build-command`, `verify-test-command`, `verify-lint-command` and `verify-warnings-clean` are
+marked `whole_product: true` in the catalog (see `checks.schema.json`) because their QUESTION is
+about the whole repo, not one stack. On a repo with only one active stack profile this changes
+nothing. On a repo with **two or more** (a repo with both a `.sln` and a `package.json`, which
+loads both the `dotnet` and `node` stack profiles), a strong match tagged to only ONE of them can no
+longer resolve the check to `present`. This is the OR-union problem `signal: true` originally
+existed to prevent, coming back through pattern strength: a real `npm test` script is genuinely
+strong evidence that the front-end half is tested, and proves nothing about the dotnet half sitting
+right next to it. A repo reporting `present` on `verify-test-command` from front-end evidence alone,
+while an equivalent dotnet-only repo reports `ASK` for the identical check, was found in a real dry
+run, and this is the fix for it.
+
+```
+    [ASK    ] One command runs the tests (ops-change verify)
+              found: src/StaticAssets/package.json
+              also seen (weak): Tests/FooTests.cs (+383 more)
+              no strong evidence from: dotnet
+              why:   A verify that cannot run the tests reports a pass that means nothing. ...
+```
+
+`no strong evidence from: <stacks>` only appears on a `whole_product` check that found strong
+evidence for some active stacks but not all: that is `source: partial` in the JSON, a third
+`unknown` source alongside `weak` and `null`. A strong match with no stack tag at all (a literal
+root `build.sh`, `test.sh` or `lint.sh`) counts for every active stack at once, because a real
+repo-wide command genuinely answers the question regardless of how many stacks the repo has. It
+does not need to be repeated once per stack to satisfy this rule.
 
 ## Step 3 — ask about the rest
 

@@ -74,29 +74,59 @@ preflight_match_any_path() { # preflight_match_any_path <glob>... — true if an
 }
 
 preflight_detect() { # preflight_detect <repo-root> <detect-json> — prints evidence, 0 if any
-  local repo="$1" d="$2" found=1 g e pat row
+  # Thin wrapper over preflight_detect_ex for a caller that only cares whether ANYTHING matched
+  # (select-profile.sh's `when`, which has no notion of a check's `signal` and never needs one) —
+  # same contract as before this file learned about strength: one path per line, 0 if any matched.
+  local out
+  out="$(preflight_detect_ex "$1" "$2")" || true
+  [ -z "$out" ] && return 1
+  printf '%s\n' "$out" | cut -f3-
+  return 0
+}
+
+preflight_detect_ex() { # preflight_detect_ex <repo-root> <detect-json>: prints "<strength>\t<origin>\t<path>", 0 if any
+  # Same matching as preflight_detect used to do alone, plus which STRENGTH each match came in at,
+  # so a caller that cares (inspect.sh) can tell a match that names the job from a match that only
+  # hints at it. Each `any_path` entry is either a bare glob string (STRONG by default) or an
+  # object `{"glob": ..., "strength": "weak"|"strong"}` — inspect.sh resolves a `signal: true`
+  # check's bare strings down to `weak` BEFORE calling here, so by the time a detect block reaches
+  # this function every entry's effective strength is either explicit or a bare string genuinely
+  # meant as `strong`. `any_file_contains` entries carry their own optional `strength` the same way.
+  #
+  # ORIGIN is which stack profile contributed the pattern (a stack's own name, e.g. "dotnet" or
+  # "node"), or "base" for a pattern with no stack tag (the engine base, a repo override, or a
+  # single-active-stack repo where inspect.sh never needed to tag anything). inspect.sh's dual-stack
+  # union step is the only place that writes a real stack name onto a pattern's `origin`; every
+  # other path leaves it unset and this function defaults it to "base" so a whole-product check can
+  # tell "this proves the whole product" (base) from "this only proves ONE stack" (a named origin).
+  local repo="$1" d="$2" found=1 g e pat row strength origin
   [ -n "$d" ] && [ "$d" != "null" ] || return 1
 
-  while IFS= read -r g; do
+  while IFS=$'\t' read -r strength origin g; do
     [ -n "$g" ] || continue
     while IFS= read -r e; do
       [ -n "$e" ] || continue
-      printf '%s\n' "$e"; found=0
+      printf '%s\t%s\t%s\n' "$strength" "$origin" "$e"; found=0
     done < <(preflight_paths_matching "$g")
     # `tr -d '\r'`: jq on Windows writes CRLF, and a glob carrying a stray CR matches nothing —
     # which reads as "this repo does not have it" rather than as an error. Every jq -r read in
     # this engine strips it for the same reason.
-  done < <(printf '%s' "$d" | jq -r '(.any_path // [])[]' 2>/dev/null | tr -d '\r')
+  done < <(printf '%s' "$d" | jq -r '
+      (.any_path // [])[]
+      | if type=="string" then "strong\tbase\t\(.)" else "\(.strength)\t\(.origin // "base")\t\(.glob)" end
+    ' 2>/dev/null | tr -d '\r')
 
   while IFS= read -r row; do
     [ -n "$row" ] || continue
+    strength="${row%%$'\t'*}"; row="${row#*$'\t'}"
+    origin="${row%%$'\t'*}"; row="${row#*$'\t'}"
     g="${row%%$'\t'*}"; pat="${row#*$'\t'}"
     while IFS= read -r e; do
       [ -n "$e" ] || continue
       [ -f "$repo/$e" ] || continue
-      if grep -qE "$pat" "$repo/$e" 2>/dev/null; then printf '%s\n' "$e"; found=0; fi
+      if grep -qE "$pat" "$repo/$e" 2>/dev/null; then printf '%s\t%s\t%s\n' "$strength" "$origin" "$e"; found=0; fi
     done < <(preflight_paths_matching "$g")
-  done < <(printf '%s' "$d" | jq -r '(.any_file_contains // [])[] | "\(.glob)\t\(.pattern)"' 2>/dev/null | tr -d '\r')
+  done < <(printf '%s' "$d" | jq -r '(.any_file_contains // [])[] | "\(.strength // "strong")\t\(.origin // "base")\t\(.glob)\t\(.pattern)"' 2>/dev/null | tr -d '\r')
 
   return $found
 }

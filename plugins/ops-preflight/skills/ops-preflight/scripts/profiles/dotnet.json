@@ -5,17 +5,23 @@
   "checks": [
     {
       "id": "verify-build-command",
-      "section": "Backend",
-      "detect": { "any_path": ["*.sln", "*.slnx", "*.csproj", "Makefile", "build.sh", "build.ps1", "build.cmd", "scripts/build*"] }
+      "section": "Harness",
+      "detect": {
+        "any_path": [
+          "Makefile", "build.sh", "build.ps1", "build.cmd", "scripts/build*",
+          { "glob": "*.sln", "strength": "weak" }, { "glob": "*.slnx", "strength": "weak" },
+          { "glob": "*.csproj", "strength": "weak" }
+        ]
+      }
     },
     {
       "id": "verify-test-command",
-      "section": "Backend",
+      "section": "Harness",
       "detect": {
         "any_path": [
-          "*[Tt]ests*.csproj", "*[Tt]ests/*.cs",
-          "*[Tt]est/*.csproj", "*[Tt]est/*.cs",
-          "test.sh", "scripts/test.sh"
+          "test.sh", "scripts/test.sh",
+          { "glob": "*[Tt]ests*.csproj", "strength": "weak" }, { "glob": "*[Tt]ests/*.cs", "strength": "weak" },
+          { "glob": "*[Tt]est/*.csproj", "strength": "weak" }, { "glob": "*[Tt]est/*.cs", "strength": "weak" }
         ]
       }
     },
@@ -30,8 +36,8 @@
       "detect": {
         "any_path": ["stylecop.json", "*.ruleset", ".globalconfig"],
         "any_file_contains": [
-          { "glob": "Directory.Build.props", "pattern": "Analyzer|StyleCop|TreatWarningsAsErrors|EnforceCodeStyleInBuild" },
-          { "glob": ".editorconfig", "pattern": "dotnet_diagnostic|dotnet_analyzer" }
+          { "glob": "Directory.Build.props", "pattern": "Analyzer|StyleCop|TreatWarningsAsErrors|EnforceCodeStyleInBuild", "strength": "weak" },
+          { "glob": ".editorconfig", "pattern": "dotnet_diagnostic|dotnet_analyzer", "strength": "weak" }
         ]
       },
       "ask": "Are analyzers enforced by the build here, and does one command run them?"
@@ -44,9 +50,11 @@
       "section": "Environment",
       "title": "A script stands up a running instance with this project installed",
       "why": "An agent that cannot start the product cannot check its change by hand or run anything end to end. This is the single biggest difference between a repo the loops do good work in and one they do not.",
-      "signal": true,
       "detect": {
-        "any_path": ["scripts/*demo*", "scripts/*install*", "scripts/*run*", "docker-compose*.yml", "compose*.yml", "Dockerfile"]
+        "any_path": [
+          "scripts/*demo*", "docker-compose*.yml", "compose*.yml", "Dockerfile",
+          { "glob": "scripts/*install*", "strength": "weak" }, { "glob": "scripts/*run*", "strength": "weak" }
+        ]
       },
       "ask": "What stands up a running instance of the product with this project installed?"
     },

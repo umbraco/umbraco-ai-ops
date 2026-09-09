@@ -5,32 +5,38 @@
   "checks": [
     {
       "id": "verify-build-command",
-      "section": "Backend",
+      "section": "Harness",
       "detect": {
-        "any_file_contains": [{ "glob": "*package.json", "pattern": "\"build\"" }],
+        "any_file_contains": [{ "glob": "*package.json", "pattern": "\"build\"", "strength": "weak" }],
         "any_path": ["Makefile", "build.sh", "build.ps1", "build.cmd", "scripts/build*"]
       }
     },
     {
       "id": "verify-test-command",
-      "section": "Backend",
+      "section": "Harness",
       "detect": {
         "any_file_contains": [
           { "glob": "*package.json", "pattern": "\"test\": *\"[^\"]*(vitest|jest|mocha|ava|tape|jasmine|karma|qunit|playwright|cypress|wdio|c8|nyc|node (--test|test)|tsc|\\./|npm run|pnpm |yarn )" }
         ],
         "any_path": [
-          "test.sh", "scripts/test.sh",
-          "*[Tt]ests/*.ts", "*[Tt]ests/*.js", "*[Tt]est/*.ts", "*[Tt]est/*.js",
-          "*.test.*", "*.spec.*", "vitest.config.*", "jest.config.*", "karma.conf.*", "web-test-runner.config.*"
+          "test.sh", "scripts/test.sh", "vitest.config.*", "jest.config.*", "karma.conf.*", "web-test-runner.config.*",
+          { "glob": "*[Tt]ests/*.ts", "strength": "weak" }, { "glob": "*[Tt]ests/*.js", "strength": "weak" },
+          { "glob": "*[Tt]est/*.ts", "strength": "weak" }, { "glob": "*[Tt]est/*.js", "strength": "weak" },
+          { "glob": "*.test.*", "strength": "weak" }, { "glob": "*.spec.*", "strength": "weak" }
         ]
       }
     },
     {
       "id": "verify-lint-command",
-      "section": "Frontend",
+      "section": "Harness",
       "detect": {
-        "any_file_contains": [{ "glob": "*package.json", "pattern": "\"lint\"" }],
-        "any_path": [".editorconfig", "lint.sh", "scripts/lint*", ".eslintrc*", "eslint.config.*", ".stylelintrc*", "biome.json"]
+        "any_file_contains": [{ "glob": "*package.json", "pattern": "\"lint\"", "strength": "weak" }],
+        "any_path": [
+          "lint.sh", "scripts/lint*",
+          { "glob": ".editorconfig", "strength": "weak" }, { "glob": ".eslintrc*", "strength": "weak" },
+          { "glob": "eslint.config.*", "strength": "weak" }, { "glob": ".stylelintrc*", "strength": "weak" },
+          { "glob": "biome.json", "strength": "weak" }
+        ]
       }
     },
     {

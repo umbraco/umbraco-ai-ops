@@ -60,9 +60,13 @@
           "$ref": "#/$defs/detect",
           "description": "Optional. Absent means no file can answer this and only a human can."
         },
+        "whole_product": {
+          "type": "boolean",
+          "description": "Optional, defaults false. Marks a check whose QUESTION is about the whole product, not one stack (verify-build-command, verify-test-command, verify-lint-command, verify-warnings-clean). It changes nothing when zero or one stack profile is active for a repo. When TWO OR MORE stack profiles are active, inspect.sh requires a STRONG match tagged to EVERY active stack before resolving `present`: a strong match from only one active stack (a real npm test script, with the dotnet side offering only weak *.csproj evidence) is exactly the false pass this flag exists to stop, because it proves the check for one stack, never the whole product. A strong match with no stack tag at all (a literal root `build.sh`, `test.sh` or `lint.sh`) counts for every active stack at once, since a real repo-wide command genuinely answers the question regardless of how many stacks exist. Falling short downgrades the check to `unknown` (source `partial`) and the report names which active stack has no strong evidence, rather than staying silent about which half of a dual-stack repo was never actually checked."
+        },
         "signal": {
           "type": "boolean",
-          "description": "Optional, defaults false. `true` INVERTS what a match means: finding the file is a reason to ASK, never a pass. A NuGet.config proves a private feed might need a credential; it proves nothing about whether a restore works without one. The check reports `unknown` with `source: signal` and keeps its evidence, so the interview can open with what was found. A signal check MUST carry an `ask` — without one nothing could ever resolve it, and inspect.sh rejects it."
+          "description": "Optional, defaults false. Sets the DEFAULT strength of every pattern in this check's `detect` block to `weak` instead of the normal default of `strong`, without writing `strength: weak` on each one. Use it only for a check where NO evidence could ever be strong — no file can prove the positive fact, it can only hint that the fact might not hold (a NuGet.config hints a restore might need a credential; nothing detectable proves it does not). Where a check's patterns are a genuine MIX — some name the job directly, some are only generic or keyword evidence — prefer marking the individual patterns' own `strength` instead of this flag, so evidence quality is a property of the pattern a reader can see on the pattern, not a check-wide switch. A `strength: strong` on an individual pattern always overrides this flag's `weak` default for that one pattern. A signal check MUST carry an `ask` — without one nothing could ever resolve it, and inspect.sh rejects it."
         },
         "ask": {
           "type": "string",
@@ -79,8 +83,8 @@
         "any_path": {
           "type": "array",
           "minItems": 1,
-          "items": { "type": "string" },
-          "description": "Globs matched against the whole repo-relative path. `*` matches any characters INCLUDING `/`, so `*.sln` finds one at any depth and `scripts/build*` is anchored at the root. There is no `**`."
+          "items": { "$ref": "#/$defs/path_pattern" },
+          "description": "Globs matched against the whole repo-relative path. `*` matches any characters INCLUDING `/`, so `*.sln` finds one at any depth and `scripts/build*` is anchored at the root. There is no `**`. A bare string carries the default strength (see `path_pattern`); write the object form only to set a glob's strength explicitly."
         },
         "any_file_contains": {
           "type": "array",
@@ -91,11 +95,32 @@
             "required": ["glob", "pattern"],
             "properties": {
               "glob": { "type": "string", "description": "Same glob rules as any_path." },
-              "pattern": { "type": "string", "description": "An extended regular expression, as grep -E reads it." }
+              "pattern": { "type": "string", "description": "An extended regular expression, as grep -E reads it." },
+              "strength": { "$ref": "#/$defs/strength" }
             }
           }
         }
       }
+    },
+    "strength": {
+      "type": "string",
+      "enum": ["weak", "strong"],
+      "description": "How much a MATCHED pattern proves. STRONG means the matched thing is named for, or dedicated to, the exact job this check is asking about (a script literally named for the job, a skill directory named for it, a canonical single-purpose file) — a match resolves the check straight to `present`, evidence shown, no question. WEAK means the match is only generic or keyword evidence: it proves something exists without proving it does THIS job (a broad-purpose manifest that happens to hold the fact among many others, a keyword found inside a file whose whole purpose is something else, a CI config file that proves CI exists but not that IT publishes) — a match stays `unknown` and still asks, exactly as a `signal` check does today, but keeps the evidence so the question opens with what was found. Optional on an `any_path` object entry and on an `any_file_contains` entry; defaults to `strong`, or to `weak` if the check itself is `signal: true` (see `signal`)."
+    },
+    "path_pattern": {
+      "description": "One entry in `any_path`. A bare string is a glob at the default strength (`strong`, or `weak` under a `signal: true` check). Use the object form only to set a glob's strength explicitly — most commonly to mark a generically-named or keyword-only glob `weak` inside a check that is otherwise not `signal`.",
+      "oneOf": [
+        { "type": "string" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["glob", "strength"],
+          "properties": {
+            "glob": { "type": "string", "description": "Same glob rules as a bare any_path string." },
+            "strength": { "$ref": "#/$defs/strength" }
+          }
+        }
+      ]
     }
   }
 }

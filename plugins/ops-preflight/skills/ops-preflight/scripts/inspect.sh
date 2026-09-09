@@ -15,12 +15,21 @@
 # `unknown` and stays there until a human resolves it. This is the same rule as "a gate that
 # cannot run reports blocked": an unrunnable check reports unknown, not a pass.
 #
-# A check marked `signal: true` INVERTS what a match means: finding the file is a reason to ASK,
-# never a pass. A NuGet.config proves a private feed might need a credential; it proves nothing
-# about whether a restore works without one. Such a check reports `unknown` with `source: signal`
-# and keeps its evidence, so the interview can open with what was found. Without this the check
-# reads PRESENT for exactly the repos most likely to fail — found in a dry run, and it is the same
-# false-confidence shape as `ops-install`'s "a signal is a hint, not a verdict".
+# EVIDENCE STRENGTH LIVES ON THE PATTERN, NOT ON THE CHECK. Every `any_path` glob and
+# `any_file_contains` rule carries a `strength`, `strong` by default: STRONG means the thing
+# matched is named for, or dedicated to, the exact job the check is asking about, and a match
+# there resolves the check straight to `present` (source: detected), evidence shown, no question.
+# WEAK means the match is only generic or keyword evidence — it proves something exists without
+# proving it does THIS job (a `package.json` proves a package exists, not that the published
+# version lives there; an `azure-pipelines.yml` proves CI exists, not that it publishes a release).
+# A weak match reports `unknown` with `source: weak` and keeps its evidence, so the interview can
+# open with what was found — the same shape `signal: true` gave a whole check before this existed.
+# A check with NO evidence that could ever be strong (a NuGet.config only ever HINTS a restore
+# might need a credential; nothing detectable proves it does not) still sets `signal: true` at the
+# check level, as shorthand for "every pattern here defaults to weak" rather than writing `weak` on
+# each one. Without either of these the check reads PRESENT for exactly the repo most likely to
+# fail — found in a dry run, and it is the same false-confidence shape as `ops-install`'s "a signal
+# is a hint, not a verdict".
 #
 # Usage:
 #   inspect.sh <repo-root> [--json] [--checks <file>]...
@@ -47,6 +56,22 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "$HERE/detect-lib.sh"
 repo="$(cd "$repo" && pwd)"
 
+# One shared cleanup point for every temp file this script creates. A check's evidence is no
+# longer capped (see the per-check loop below), and a real repo can hand jq an evidence array of
+# several hundred paths. Passing that as a `--argjson` LITERAL blows the OS argv limit (hit against
+# a real repo: "Argument list too long"), so evidence is written to a file instead and read back
+# with `--slurpfile`, which only ever puts a short file PATH on the command line. `ev_strong_file`
+# and `ev_weak_file` below are two of these, reused (overwritten) once per check rather than one
+# temp file per check, so a 26-check run still creates a handful of files, not dozens.
+TMPFILES=()
+trap 'rm -f "${TMPFILES[@]}"' EXIT
+
+# The stack names ACTIVE for this repo, used only by a `whole_product` check (see checks.schema.json)
+# once two or more are active. With zero or one, the whole-product rule is a no-op and this stays
+# `[]` unread. Empty under `--checks` (test mode: select-profile.sh never runs, so there is no
+# notion of "which stacks are active"; a whole-product check behaves exactly like an ordinary one).
+active_stacks_json='[]'
+
 merge_files=()
 if [ "${#files[@]}" -eq 0 ]; then
   sel_json="$(bash "$HERE/select-profile.sh" "$repo" --json)" \
@@ -55,6 +80,7 @@ if [ "${#files[@]}" -eq 0 ]; then
   mapfile -t stack_files < <(printf '%s' "$sel_json" | jq -r '.sources[] | select(.layer=="stack") | .path' | tr -d '\r')
   repo_file="$(printf '%s' "$sel_json" | jq -r '.sources[] | select(.layer=="repo") | .path' | tr -d '\r')"
   [ -n "$base_file" ] || { echo "ERROR: select-profile.sh returned no base layer" >&2; exit 2; }
+  active_stacks_json="$(printf '%s' "$sel_json" | jq -c '.summary.stacks')"
 
   # `files` stays the REAL shipped paths — every matching profile individually — so validation
   # errors and the printed "Checks from:" list still name the file a human can go look at.
@@ -72,8 +98,22 @@ if [ "${#files[@]}" -eq 0 ]; then
     # before it ever reaches the sequential merge, so that merge still only ever sees one entry
     # per layer and its existing base<-override replace contract (tested below) is untouched.
     stack_overlay="$(mktemp)"
-    trap 'rm -f "$stack_overlay"' EXIT
+    TMPFILES+=("$stack_overlay")
     jq -s '
+      # A pattern earns an `origin` the moment it is read off ITS OWN profile file, before it ever
+      # joins the union below: this is the ONLY place a stack name is ever written onto a pattern.
+      # A `whole_product` check (see checks.schema.json) reads it back out later, in inspect.sh
+      # proper, to tell "this proves the dotnet half" from "this proves the node half" once the
+      # union below has already merged both stacks patterns into one array and thrown that
+      # distinction away otherwise.
+      def tag_origin(det; origin):
+        if det == null then null else
+          det
+          | .any_path = ((.any_path // []) | map(
+              if type == "object" then (. + {origin: origin}) else {glob: ., origin: origin} end
+            ))
+          | .any_file_contains = ((.any_file_contains // []) | map(. + {origin: origin}))
+        end;
       def union_detect(a; b):
         if a == null then b
         elif b == null then a
@@ -86,9 +126,10 @@ if [ "${#files[@]}" -eq 0 ]; then
       { version: 1,
         checks: (
           reduce .[] as $f ({};
-            reduce ($f.checks[]) as $c (.;
+            ($f.profile // "unknown") as $origin
+            | reduce ($f.checks[]) as $c (.;
               (.[$c.id] // {}) as $prev
-              | .[$c.id] = (($prev * $c) | .detect = union_detect($prev.detect; $c.detect))
+              | .[$c.id] = (($prev * $c) | .detect = union_detect($prev.detect; tag_origin($c.detect; $origin)))
             )
           ) | to_entries | map(.value)
         ) }
@@ -143,37 +184,102 @@ nosig="$(printf '%s' "$merged" | jq -r '[ .[] | select((.signal // false) and ((
 # --- evaluate --------------------------------------------------------------------------------
 preflight_scan "$repo"
 
+# Reused every iteration (see the TMPFILES comment above) rather than one pair per check.
+ev_strong_file="$(mktemp)"; TMPFILES+=("$ev_strong_file")
+ev_weak_file="$(mktemp)"; TMPFILES+=("$ev_weak_file")
+
 verdicts='{}'
 while IFS= read -r id; do
   [ -n "$id" ] || continue
-  d="$(printf '%s' "$merged" | jq -c --arg id "$id" 'map(select(.id==$id))[0].detect // null')"
-  ev=(); ev_total=0
+  # Resolve THIS check's `signal` into an explicit strength on every pattern before detect-lib.sh
+  # ever sees it: a bare any_path string stays `strong` unless the check is `signal: true`, in
+  # which case it defaults to `weak` instead — the shorthand the schema documents. An any_path
+  # object, or an any_file_contains entry, that already names its own `strength` keeps it either
+  # way, so one pattern can still be `strong` inside an otherwise-`signal` check.
+  d="$(printf '%s' "$merged" | jq -c --arg id "$id" '
+    (map(select(.id==$id))[0]) as $c
+    | ($c.signal // false) as $sig
+    | ($c.detect // null) as $det
+    | if $det == null then null else
+        $det
+        # An any_path entry may already be an object here: the dual-stack union above tags every
+        # pattern with its `origin` BEFORE strength is ever resolved, so "already an object" can no
+        # longer be read as "already has its strength decided". Default strength on ANY object
+        # missing it, the same way any_file_contains already does below, instead of assuming a bare
+        # string is the only case that still needs one.
+        | .any_path = ((.any_path // []) | map(
+            if type == "object" then (. + { strength: (.strength // (if $sig then "weak" else "strong" end)) })
+            else { glob: ., strength: (if $sig then "weak" else "strong" end) } end
+          ))
+        | .any_file_contains = ((.any_file_contains // []) | map(
+            . + { strength: (.strength // (if $sig then "weak" else "strong" end)) }
+          ))
+      end
+  ')"
+  # Every matched path now carries the STRENGTH it matched at (as before) and the ORIGIN it matched
+  # from (new: a stack name when the dual-stack union above tagged it, "base" otherwise). Evidence
+  # is split into two lists here, both kept in FULL (no cap), because a `whole_product` check needs
+  # to know exactly which origins earned a strong match, and the text report is the only place that
+  # ever shortens either list (see the findings build below).
+  ev_strong=(); ev_weak=(); has_strong=1; strong_origins=""
   if [ "$d" != "null" ]; then
-    all_ev="$(preflight_detect "$repo" "$d" | tr -d '\r' | sort -u)"
-    if [ -n "$all_ev" ]; then
-      ev_total="$(printf '%s\n' "$all_ev" | grep -c .)"
-      while IFS= read -r line; do [ -n "$line" ] && ev+=("$line"); done \
-        < <(printf '%s\n' "$all_ev" | head -3)
+    raw="$(preflight_detect_ex "$repo" "$d" 2>/dev/null | tr -d '\r')"
+    if [ -n "$raw" ]; then
+      printf '%s\n' "$raw" | cut -f1 | grep -qx strong && has_strong=0
+      strong_paths="$(printf '%s\n' "$raw" | awk -F'\t' '$1=="strong"{print $3}' | sort -u)"
+      # The SAME file can legitimately match a strong pattern under one glob and a weak pattern
+      # under another on the same check (a post-release-cleanup skill matches both the strong
+      # `*post-release*` glob and the weak `*clean*` one). `comm -23` drops it from the weak list
+      # once it is already strong evidence, so a row never shows one file twice as if it were two.
+      weak_paths="$(comm -23 \
+        <(printf '%s\n' "$raw" | awk -F'\t' '$1=="weak"{print $3}' | sort -u) \
+        <(printf '%s\n' "$strong_paths" | sort -u) 2>/dev/null)"
+      while IFS= read -r line; do [ -n "$line" ] && ev_strong+=("$line"); done <<< "$strong_paths"
+      while IFS= read -r line; do [ -n "$line" ] && ev_weak+=("$line"); done <<< "$weak_paths"
+      strong_origins="$(printf '%s\n' "$raw" | awk -F'\t' '$1=="strong"{print $2}' | sort -u)"
     fi
   fi
-  # Evidence is capped at 3 paths in the report — plenty to answer "is this real", too many buries
-  # the row on a check that legitimately matches dozens of files. The count beyond the cap still
-  # matters (three package artifacts and three real test files both print as three), so it rides
-  # along as `evidence_more` and the text report renders it as "(+N more)" rather than dropping it
-  # silently, which read as "that's everything" when it was not.
-  ev_more=$(( ev_total > 3 ? ev_total - 3 : 0 ))
-  sig="$(printf '%s' "$merged" | jq -r --arg id "$id" 'map(select(.id==$id))[0].signal // false')"
-  if [ "${#ev[@]}" -eq 0 ]; then
-    verdict="unknown"; source="null"
-  elif [ "$sig" = "true" ]; then
-    verdict="unknown"; source="signal"      # a match here means ASK, never pass
-  else
-    verdict="present"; source="detected"
+
+  # THE FIX: a `whole_product` check (verify-build/test/lint-command, verify-warnings-clean, see
+  # checks.schema.json) asks about the WHOLE product, so a strong match tagged to only ONE of two-or-
+  # more ACTIVE stacks must never resolve it. That is the OR-union `signal: true` was built to stop,
+  # returning through pattern strength: a real npm test script is genuinely strong evidence for the
+  # node half, and proves nothing about the dotnet half sitting right next to it. A strong match
+  # tagged "base" (a literal root build.sh/test.sh/lint.sh) is the one exception: a real repo-wide
+  # command genuinely answers the question regardless of how many stacks exist, so it counts for
+  # every active stack at once rather than needing to be repeated once per stack.
+  whole_product="$(printf '%s' "$merged" | jq -r --arg id "$id" \
+    '(map(select(.id==$id))[0].whole_product // false)')"
+  active_stack_count="$(printf '%s' "$active_stacks_json" | jq 'length')"
+  unaccounted_json='[]'
+  if [ "$whole_product" = "true" ] && [ "$has_strong" -eq 0 ] && [ "$active_stack_count" -ge 2 ]; then
+    strong_origins_json="$(printf '%s\n' "$strong_origins" | jq -R . | jq -sc 'map(select(length>0))')"
+    unaccounted_json="$(jq -nc --argjson active "$active_stacks_json" --argjson strong "$strong_origins_json" '
+      if ($strong | index("base")) then [] else ($active - $strong) end
+    ')"
   fi
-  evjson="$(printf '%s\n' "${ev[@]+"${ev[@]}"}" | jq -R . | jq -sc 'map(select(length>0))')"
+  unaccounted_count="$(printf '%s' "$unaccounted_json" | jq 'length')"
+
+  total_ev=$(( ${#ev_strong[@]} + ${#ev_weak[@]} ))
+  if [ "$total_ev" -eq 0 ]; then
+    verdict="unknown"; source="null"
+  elif [ "$has_strong" -eq 0 ] && [ "$unaccounted_count" -eq 0 ]; then
+    verdict="present"; source="detected"    # at least one match named the job directly
+  elif [ "$has_strong" -eq 0 ] && [ "$unaccounted_count" -gt 0 ]; then
+    verdict="unknown"; source="partial"     # strong for SOME active stacks, not all: not a pass
+  else
+    verdict="unknown"; source="weak"        # every match was only generic or keyword evidence
+  fi
+  # Written to a FILE and read back with `--slurpfile`, not handed to jq as a `--argjson` literal:
+  # an evidence array is uncapped now, and a real repo's real match count is easily large enough to
+  # overflow the OS argv limit as an inline argument (see the TMPFILES comment above).
+  printf '%s\n' "${ev_strong[@]+"${ev_strong[@]}"}" | jq -R . | jq -sc 'map(select(length>0))' > "$ev_strong_file"
+  printf '%s\n' "${ev_weak[@]+"${ev_weak[@]}"}"   | jq -R . | jq -sc 'map(select(length>0))' > "$ev_weak_file"
   verdicts="$(printf '%s' "$verdicts" | jq -c \
-    --arg id "$id" --arg v "$verdict" --arg s "$source" --argjson e "$evjson" --argjson m "$ev_more" \
-    '.[$id] = {verdict:$v, source:(if $s=="null" then null else $s end), evidence:$e, evidence_more:$m}')"
+    --arg id "$id" --arg v "$verdict" --arg s "$source" --argjson u "$unaccounted_json" \
+    --slurpfile es "$ev_strong_file" --slurpfile ew "$ev_weak_file" \
+    '.[$id] = {verdict:$v, source:(if $s=="null" then null else $s end),
+               evidence_strong:$es[0], evidence_weak:$ew[0], unaccounted:$u}')"
 done < <(printf '%s' "$merged" | jq -r '.[].id' | tr -d '\r')
 
 # The report groups on `section` — the nine headings on the source checklist (AI Ops — Preparing
@@ -181,15 +287,35 @@ done < <(printf '%s' "$merged" | jq -r '.[].id' | tr -d '\r')
 # management and Testing come first because they are what unlock the merge and release parts of
 # the pipeline; Misc comes last. Within a section, blocking sorts above quality. A `section` this
 # map does not recognise sorts after Misc rather than erroring or vanishing from the report.
-findings="$(printf '%s' "$merged" | jq -c --argjson v "$verdicts" '
-  def sorder: {"Release management":0,"Testing":1,"Harness":2,"Environment":3,"Frontend":4,
+#
+# `evidence` stays a flat, uncapped array for anything still reading it: STRONG matches first, then
+# WEAK, each internally sorted. `evidence_more` is purely informational here: it is what the
+# TEXT report below hides (weak entries past its own cap), never applied to `evidence` itself. JSON
+# never hides a match, strong or weak.
+#
+# `verdicts` is written to a file and read back with `--slurpfile`, same reason as every other
+# per-check write above: by now it holds every check's full evidence, easily large enough to
+# overflow the OS argv limit as a `--argjson` literal on a real repo.
+verdicts_file="$(mktemp)"; TMPFILES+=("$verdicts_file")
+printf '%s' "$verdicts" > "$verdicts_file"
+findings="$(printf '%s' "$merged" | jq -c --slurpfile v "$verdicts_file" '
+  ($v[0]) as $v
+  | def sorder: {"Release management":0,"Testing":1,"Harness":2,"Environment":3,"Frontend":4,
                "Backend":5,"Best practices":6,"Utilities":7,"Misc":8};
-  [ .[] | . + ($v[.id] // {verdict:"unknown", source:null, evidence:[], evidence_more:0}) ]
+  [ .[] | . + ($v[.id] // {verdict:"unknown", source:null, evidence_strong:[], evidence_weak:[], unaccounted:[]})
+        | .evidence = (.evidence_strong + .evidence_weak)
+        | .evidence_more = (if (.evidence_weak|length) > 3 then (.evidence_weak|length) - 3 else 0 end)
+  ]
   | sort_by([ (sorder[.section] // 9), (if .severity=="blocking" then 0 else 1 end), .id ])
 ')"
 
-report="$(jq -nc --argjson f "$findings" --arg repo "$repo" --args '
-  { repo: $repo,
+# `findings` is read back with `--slurpfile`, same reason as everywhere above: evidence is uncapped
+# now, and this is every check's evidence at once.
+findings_file="$(mktemp)"; TMPFILES+=("$findings_file")
+printf '%s' "$findings" > "$findings_file"
+report="$(jq -nc --slurpfile f "$findings_file" --arg repo "$repo" --args '
+  ($f[0]) as $f
+  | { repo: $repo,
     sources: $ARGS.positional,
     findings: $f,
     summary: {
@@ -211,7 +337,7 @@ printf 'Checks from:\n'
 for f in "${files[@]}"; do printf '  %s\n' "$f"; done
 printf '\n'
 
-# Severity used to be glued onto every row with a comma — "[SIGNAL ] Needed for the loops to
+# Severity used to be glued onto every row with a comma — "[WEAK   ] Needed for the loops to
 # work, Title (consumer)" — which reads as one broken sentence, and repeating the same long label
 # on every one of 26 rows was the actual problem, not just the comma. It is printed ONCE per
 # section as a sub-heading instead, so it reads as a label over a group rather than a clause welded
@@ -227,13 +353,31 @@ while IFS= read -r group; do
     if [ "$sev" = blocking ]; then printf '  Needed for the loops to work\n'
     else                            printf '  Makes the loops better\n'
     fi
+    # Strong evidence prints first, on its own `found:` line, capped at 3 to stay readable: the whole
+    # point is that a reader can see what earned a PRESENT, and 3 examples always suffice. Weak evidence,
+    # if any, prints second on its own `also seen (weak):` line so it is never mistaken for what earned
+    # the pass, and it is also capped at 3 for readability. A row with no strong evidence at all (an ASK)
+    # still gets one plain `found:` line so the interview opens with what was seen. `unaccounted`, when
+    # non-empty, names the active stack(s) a `whole_product` check found no strong evidence for: the
+    # reason a row that DID match strongly still reads ASK rather than PRESENT.
     printf '%s' "$findings" | jq -r --arg g "$group" --arg s "$sev" '
       .[] | select(.section==$g and .severity==$s)
-      | "    [\(if .verdict=="present" then "PRESENT" elif .source=="signal" then "SIGNAL " else "unknown" end)] " +
+      | "    [\(if .verdict=="present" then "PRESENT" elif (.source=="weak" or .source=="partial") then "ASK    " else "unknown" end)] " +
         "\(.title) (\(.consumer)\(if (.action // "") != "" then " " + .action else "" end))"
-        + (if (.evidence|length) > 0 then "\n              found: " + (.evidence | join(", "))
-             + (if (.evidence_more // 0) > 0 then " (+\(.evidence_more) more)" else "" end)
-           else "" end)
+        + ( if (.evidence_strong|length) > 0 then
+              "\n              found: " + (.evidence_strong[0:3] | join(", "))
+                + (if (.evidence_strong|length) > 3 then " (+\((.evidence_strong|length)-3) more)" else "" end)
+            elif (.evidence_weak|length) > 0 then
+              "\n              found: " + (.evidence_weak[0:3] | join(", "))
+                + (if (.evidence_weak|length) > 3 then " (+\((.evidence_weak|length)-3) more)" else "" end)
+            else "" end )
+        + ( if (.evidence_strong|length) > 0 and (.evidence_weak|length) > 0 then
+              "\n              also seen (weak): " + (.evidence_weak[0:3] | join(", "))
+                + (if (.evidence_weak|length) > 3 then " (+\((.evidence_weak|length)-3) more)" else "" end)
+            else "" end )
+        + ( if (.unaccounted // [] | length) > 0 then
+              "\n              no strong evidence from: " + (.unaccounted | join(", "))
+            else "" end )
         + (if .verdict=="unknown" then "\n              why:   " + .why else "" end)' | tr -d '\r'
   done
   printf '\n'
