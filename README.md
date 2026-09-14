@@ -61,6 +61,17 @@ install one and not another.
 
 Do not add a fourth without naming someone who would install the other three without it.
 
+**What is inside `ops-engine`.** One install gives you all of this, as `/ops-engine:<name>`:
+
+| | |
+|---|---|
+| **Onboarding** | `ops-install` sets a repo up. `new-loop-routine` stands up the routine that fires the loops. |
+| **Routing** | `loop-dispatch` reads a GitHub event and picks the loop that handles it. |
+| **The loops** | `ops-issue-loop` works the backlog. `ops-merge-loop` lands approved PRs. `ops-release-loop` cuts and publishes. `ops-rework-loop` acts on review comments. `ops-port-loop` carries a merged change to the other live lines. |
+| **The six defaults** | `ops-integrate`, `ops-branching`, `ops-workspace`, `ops-repo-meta`, `ops-ci`, `ops-notify`. Replace any by writing a skill of the same name in your repo. |
+| **Shared** | `github-ops` holds every GitHub and CI operation, so no other skill runs a raw `gh`. |
+| **The reviewer** | `release-reviewer`, an agent, is the gate before anything is published. |
+
 > **Not built yet:** a cloud setup so a .NET product can run as a web routine, which would fix the
 > NuGet feed 401 error. It is not listed in `marketplace.json`. A listed plugin whose folder does
 > not exist breaks `/plugin marketplace add` for the whole marketplace, not just that one entry.

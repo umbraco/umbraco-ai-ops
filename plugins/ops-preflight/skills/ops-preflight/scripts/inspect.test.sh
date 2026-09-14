@@ -700,6 +700,20 @@ viaev="$(bash "$I" "$d" --json --checks "$PLANBASE" --evidence "$ev" 2>/dev/null
 check "a path that does not match the pattern is dropped" '["a/b/Product.sln"]' \
   "$(printf '%s' "$viaev" | jq -c '.findings[] | select(.id=="p-glob") | .evidence_strong')"
 
+# THE PRUNE LIST IS THE SECOND GATE, and it was missing. The Glob tool knows nothing about
+# prune.json, so it returns `node_modules/`, `obj/` and `.claude/worktrees/` quite happily, and
+# those paths match the pattern perfectly well. A live run against a real repo came back with
+# evidence pointing into a throwaway worktree: the exact bug prune.json was written to stop,
+# arriving by a route that went around it. The script prunes while it scans; this path has to
+# prune while it accepts.
+printf '%s' "$plan" | jq -c '
+  [ .lookups[] | {(.id): (if .glob=="**/*.sln"
+      then ["a/b/Product.sln","node_modules/dep/Fake.sln",".claude/worktrees/x/Fake.sln","obj/Debug/Fake.sln"]
+      else [] end)} ] | add' > "$ev"
+viaev="$(bash "$I" "$d" --json --checks "$PLANBASE" --evidence "$ev" 2>/dev/null)"
+check "a pruned directory is dropped even when the pattern matches" '["a/b/Product.sln"]' \
+  "$(printf '%s' "$viaev" | jq -c '.findings[] | select(.id=="p-glob") | .evidence_strong')"
+
 bash "$I" "$d" --json --checks "$PLANBASE" --evidence "$TMP/no-such-file.json" >/dev/null 2>&1
 check "a missing evidence file exits 2" 2 $?
 printf '{ not json' > "$TMP/bad-ev.json"

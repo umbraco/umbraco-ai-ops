@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "The generic engine for AI-driven issue automation across Umbraco products — orchestration, GitHub/CI ops, gated merge, cross-repo dispatch, and the self-learning loop. Product-agnostic: each consumer supplies two skills it owns, ops-change and ops-release, found by name. Extracted from the umbraco-mcp-ops prototype.",
-    "version": "1.0.0",
+    "version": "0.14.0",
     "homepage": "https://github.com/umbraco/umbraco-ai-ops"
   },
   "plugins": [
@@ -14,7 +14,7 @@
       "name": "ops-engine",
       "source": "./plugins/ops-engine",
       "description": "The engine: everything needed to onboard a repo and run its loops. The installer (`ops-install`), the edge router (`loop-dispatch`) and the routine scaffolder, the six framework-default capabilities a repo inherits until it ships its own (`ops-branching`, `ops-ci`, `ops-integrate`, `ops-notify`, `ops-repo-meta`, `ops-workspace`), the shared GitHub and CI reference (`github-ops`), and the five loops that turn a labelled backlog into merged, released code (`ops-issue-loop`, `ops-port-loop`, `ops-rework-loop`, `ops-merge-loop`, `ops-release-loop`) plus the independent reviewer that gates a publish. Product-agnostic: a consumer supplies its own `ops-change` and `ops-release` as skills in its repo, and overrides any default by shipping a skill of the same name. These ship together because nobody runs a loop without the installer, the router and the defaults underneath it.",
-      "version": "1.0.0",
+      "version": "0.14.0",
       "category": "workflow",
       "keywords": [
         "automation",
@@ -32,7 +32,7 @@
       "name": "ops-preflight",
       "source": "./plugins/ops-preflight",
       "description": "Readiness, and the honest answer to whether the loops will do GOOD work here. `ops-install` proves a repo is wired up; this proves it is worth wiring, because coverage matches skill names and a repo with no test command, no isolated build and an undocumented branch model onboards green and wastes every run. Reads the repo against a merged check catalog — an engine base, every matching STACK profile (never a product profile), then the repo's own `.claude/ops-preflight-profile.json` — and reports each check under the capability that breaks without it, as blocking or quality. Three verdicts, never two: present, gap, and unknown for anything detection could not see, because silence is not a pass and a self-reported yes is printed differently from evidence. It never runs your build, so it works on a machine that cannot compile the product. Then it interviews the human on what the files could not answer, and offers to file one issue per real gap under a stable title a re-run will not duplicate. Advisory: it blocks nothing, and a repo may onboard with gaps and close them afterwards. Interactive, run before /ops-install.",
-      "version": "1.0.0",
+      "version": "0.7.0",
       "category": "workflow",
       "keywords": [
         "readiness",
@@ -47,7 +47,7 @@
       "name": "ops-learnings",
       "source": "./plugins/ops-learnings",
       "description": "The self-learning machinery, and the reason the loops compound rather than repeating themselves. Read-only SubagentStop/SessionEnd hooks analyse each finished transcript OFF the critical path and file `ops/proto-learning` issues to the `learnings` repo when something non-obvious happened; the proto-learning schema is the contract they file against. `ops-triage-loop` then sweeps that inbox weekly — clustering by lesson, applying a promotion threshold, and routing each cluster to an issue on the repo that owns it, a drafted PR against shared skills, an `ops/loop-improvement` issue against the engine, or closed with a reason. It never hand-edits a product repo and nothing auto-merges; a routed item only re-enters the work loop when a human labels it. Capture is uniform framework machinery rather than a per-repo capability, so lessons compound across every repo. Requires github-ops.",
-      "version": "1.0.0",
+      "version": "0.3.0",
       "category": "workflow",
       "keywords": [
         "self-learning",

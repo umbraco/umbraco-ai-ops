@@ -252,17 +252,32 @@ if [ "$plan_mode" = true ]; then build_plan; exit 0; fi
 # looking itself, which is slower but needs nothing but bash, jq and a shell, and is what the
 # hermetic tests exercise.
 if [ -n "$evidence_file" ]; then
-  # One TSV of every accepted match, keyed by check, built in a single pass. A path is accepted
-  # only if it satisfies the exact `match` expression, so the superset the Glob tool returned is
-  # narrowed back to what the catalog actually asked for.
+  # One TSV of every accepted match, keyed by check, built in a single pass. A path has to clear
+  # TWO gates, and the second was missing on the first version of this.
+  #
+  #   The pattern. The path must satisfy the check's own `match` expression.
+  #
+  #   The prune list. The Glob tool does not know about `prune.json` and happily returns
+  #   `node_modules/`, `obj/` and `.claude/worktrees/`. Those paths match the pattern perfectly
+  #   well, so the first gate lets them through. A live run against a real repo found evidence
+  #   pointing into a throwaway worktree, which is the exact bug prune.json was written for,
+  #   arriving by a route that bypassed it. The script path prunes while it scans; this path has
+  #   to prune while it accepts.
   all_raw="$(mktemp)"; TMPFILES+=("$all_raw")
   [ -f "$evidence_file" ] || { echo "ERROR: no such evidence file: $evidence_file" >&2; exit 2; }
   jq empty "$evidence_file" 2>/dev/null || { echo "ERROR: $evidence_file is not valid JSON" >&2; exit 2; }
-  build_plan | jq -r --slurpfile e "$evidence_file" '
+  preflight_load_prune
+  prune_json="$(printf '%s\n' "${PREFLIGHT_PRUNE[@]}" | jq -Rsc 'split("\n") | map(select(length>0))')"
+  build_plan | jq -r --slurpfile e "$evidence_file" --argjson prune "$prune_json" '
+    # A path is pruned when any entry in the list is one of its directory components, or when a
+    # compound entry like `.claude/worktrees` is its prefix. Same meaning as find -prune.
+    def pruned($p): ($p | split("/")) as $seg
+      | ($prune | any(. as $d | ($seg | index($d)) != null or ($p | startswith($d + "/"))));
     ($e[0] // {}) as $found
     | .lookups[] as $l
     | ($found[$l.id] // [])[] as $path
     | select($path | test($l.match))
+    | select(pruned($path) | not)
     | $l.uses[] as $u
     | [$u.check, $u.strength, $u.origin, $path] | @tsv' 2>/dev/null | tr -d '\r' > "$all_raw"
 else

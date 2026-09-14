@@ -147,6 +147,16 @@ Repo-wide shared scripts (not tied to one skill) live in the top-level `scripts/
 
 ## Manifests
 
+**Stay on `0.y.z`. `1.0.0` is for a real release**, meaning a consumer repo actually running the
+loops in anger, not the engine looking finished. Bump the minor for a change, the patch for a fix,
+and do not reach for a major to mark that something felt significant. The plugin reshuffle was
+briefly tagged `1.0.0` for exactly that reason and was put back.
+
+Nothing enforces this and nothing should: a guard that refuses `1.x` would have to be deleted on
+the day it finally matters. Neither version check compares numbers as bigger or smaller anyway.
+`check-plugin-versions.sh` only asks whether the version changed when files did, and
+`check-installed-versions.sh` only asks whether your string matches the marketplace's.
+
 **A plugin is a unit of CHOICE, not a unit of code.** Split only where a person might sensibly
 install one part and not another. There are three:
 

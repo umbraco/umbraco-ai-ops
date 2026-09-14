@@ -97,8 +97,33 @@ exists for exactly that, and putting a product fact in the engine breaks the gol
 
 ## Step 2 — read the repo
 
-**Use the harness's own Glob and Grep to do the looking.** Three calls to this script, and the
-searching in between is done by the tools you already have.
+```
+scripts/inspect.sh <repo-root>          # the report
+scripts/inspect.sh <repo-root> --json   # keep this; step 4 needs it
+```
+
+**This is the path to use.** It does the looking itself and it is what the tests cover. It is slow
+on Windows, around half a minute on a real repo, because it starts about 1,400 programs at roughly
+26ms each. That is a local annoyance, not a wrong answer.
+
+> ### The Glob and Grep path, and why it is not the default
+>
+> `--plan` and `--evidence` below let the harness do the searching with its own tools. It is faster
+> and you can watch it work. **It is also wrong on any repo big enough to care**, and a live run
+> found both reasons:
+>
+> - **The Glob tool stops at 100 results and cannot be asked for more.** `**/*.cs` on a real repo
+>   is 12,157 files. A check that only asks "does anything match" survives that. A check that needs
+>   strong evidence from every stack does not: the one match that proves the .NET side can fall off
+>   the end of a list of 100, and the report then says a stack has nothing behind it when it does.
+> - **Glob does not know about `prune.json`.** It returns `node_modules/`, `obj/` and
+>   `.claude/worktrees/`. `--evidence` now drops those on the way in, so this one is fixed, but it
+>   was evidence pointing into a throwaway worktree, which is the exact bug the prune list exists
+>   to stop.
+>
+> **If you use it, abandon it the moment any lookup says it truncated**, and run the script. Do not
+> report a result built on a truncated list. A session that hit this worked it out and switched on
+> its own; the next one might not.
 
 ### 2a. Ask what to look for
 
@@ -137,14 +162,11 @@ scripts/inspect.sh <repo-root> --evidence evidence.json          # the report
 scripts/inspect.sh <repo-root> --evidence evidence.json --json   # keep this; step 4 needs it
 ```
 
-Every path is checked against the pattern that asked for it before it counts, so a stray result
-changes nothing, and the verdict rules are the same ones that have always applied.
+Every path has to clear two gates before it counts. It must match the pattern that asked for it,
+and it must not be under a pruned directory. Then the same verdict rules apply as always.
 
-> **`inspect.sh <repo-root>` on its own still works and needs no harness at all.** It does the
-> looking itself with `rg` and `grep`. That is what the tests exercise, and what to fall back on
-> when something here misbehaves. It is slower: on Windows it starts around 1,400 programs, which
-> costs about 26ms each, so a real repo takes half a minute. The two paths are asserted to produce
-> identical findings, and if they ever disagree, the script is right and this step has a bug.
+> The two paths are asserted to produce identical findings **when the tool returned everything**.
+> If they ever disagree, the script is right and this step has a bug.
 
 **Show the report verbatim.** It is the honest answer, and a summary of it is not — particularly
 the `unknown` count.
