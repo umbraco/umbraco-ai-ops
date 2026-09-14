@@ -63,28 +63,24 @@ preflight_scan() { # preflight_scan <repo-root> — fills PREFLIGHT_ENTRIES
       args+=(-name "$d" -prune -o)
     fi
   done
-  # RIPGREP WHEN IT IS THERE, `find` WHEN IT IS NOT, and the difference is not only speed.
+  # ONE WAY OF LISTING FILES, AND IT IS `find`. A ripgrep branch was added here and then removed,
+  # and the reasons are worth keeping because they are easy to re-invent:
   #
-  # `rg --files` respects `.gitignore`, and that is the semantics this tool actually wants: a
-  # gitignored file is not part of the repo. Nobody else on the team has it, no CI runner sees it,
-  # and the loops cannot rely on it, so it has no business being evidence. It is the
-  # `.claude/worktrees` bug generalised, and the prune list was only ever an approximation of it.
-  # On a live repo that is 38,925 entries down to 2,389: sixteen times less to match against, and
-  # every one of the ones dropped was build output, a log directory or a local scratch file.
+  #   It never ran. `rg` is a shell function in some environments rather than a command on PATH, so
+  #   `command -v rg` inside a script says no. Every measurement that was credited to it was
+  #   actually this `find` call.
   #
-  # `--hidden` because most of what this tool reads is a dotfile (`.worktreeinclude`, `.editorconfig`,
-  # `.claude/skills/*`, `.mcp.json`), and rg skips those by default. `.git` is excluded by hand
-  # because `--hidden` would otherwise walk it.
+  #   On Windows `rg --files` prints `src\Real.sln`. Every pattern here uses `/`, so the whole
+  #   catalog would have matched nothing, silently, and reported a repo with no evidence at all.
   #
-  # The `find` fallback keeps the prune list, so nothing breaks where rg is absent. rg ships with
-  # Claude Code, so in practice the fast path is the one that runs.
-  if command -v rg >/dev/null 2>&1; then
-    mapfile -t PREFLIGHT_ENTRIES < <(
-      cd "$repo" && rg --files --hidden --glob '!.git' 2>/dev/null | tr -d '\r' | sed 's|^\./||'
-    )
-  else
-    mapfile -t PREFLIGHT_ENTRIES < <(cd "$repo" && find . "${args[@]}" -print 2>/dev/null | sed 's|^\./||')
-  fi
+  #   It respects `.gitignore`, which sounds right and is right, but only where rg exists. The same
+  #   repo would then read differently on a machine with rg and one without, and a readiness report
+  #   that depends on what is installed locally is worse than one that over-reads a build folder.
+  #
+  # The prune list below does the same job deterministically everywhere. If `.gitignore` semantics
+  # are wanted later, `git ls-files` is the way to get them: it needs nothing extra, it is exact,
+  # and it says the same thing on every machine.
+  mapfile -t PREFLIGHT_ENTRIES < <(cd "$repo" && find . "${args[@]}" -print 2>/dev/null | sed 's|^\./||')
 
   # The entry list is also written once to a file, because matching reads it about a hundred and
   # seventy times (see preflight_paths_matching) and grep wants a file, not an array.

@@ -663,8 +663,17 @@ check "  and carries its strength" "weak" \
 # `tsc|\\./|npm run`, which matches a literal backslash and so matches nothing at all. It silently
 # cost the node test-command check every package.json it should have found. Patterns travel
 # base64-encoded now, and this is the assertion that says so.
-check "a backslash in a content pattern is not doubled" 'tsc|\./|npm run' \
+#
+# BOTH SIDES ARE READ WITH jq, never written as an escaped literal here. A first version hard-coded
+# the expected string, which made the test a quiz about how many backslashes survive a shell single
+# quote on this machine: it passed on Windows and failed on the Linux runner, for reasons that had
+# nothing to do with the thing being tested. Comparing the catalog's own value with the plan's own
+# value tests the property directly and cannot be fooled by either shell.
+check "a backslash in a content pattern survives the round trip" \
+  "$(jq -r '.checks[] | select(.id=="p-grep") | .detect.any_file_contains[0].pattern' "$PLANBASE")" \
   "$(printf '%s' "$plan" | jq -r '.lookups[] | select(.tool=="grep") | .pattern')"
+check "  and that value really does contain a backslash" 1 \
+  "$(jq -r '.checks[] | select(.id=="p-grep") | .detect.any_file_contains[0].pattern' "$PLANBASE" | grep -c '\\\\')"
 
 # --- --evidence: the same rules, applied to what the harness found ------------------------------
 # The point of the split is that BOTH paths end in the same place. This runs the same repo both

@@ -22,7 +22,7 @@ cat > "$FIX/checks.json" <<'JSON'
 {"version":1,"checks":[{"id":"base-one","consumer":"general","severity":"quality","title":"t","why":"w"}]}
 JSON
 cat > "$FIX/profiles/alpha.json" <<'JSON'
-{"version":1,"profile":"alpha","when":{"any_path":["*.sln"]},"checks":[{"id":"a-one","consumer":"general","severity":"quality","title":"t","why":"w"}]}
+{"version":1,"profile":"alpha","when":{"any_path":["**/*.sln"]},"checks":[{"id":"a-one","consumer":"general","severity":"quality","title":"t","why":"w"}]}
 JSON
 cat > "$FIX/profiles/beta.json" <<'JSON'
 {"version":1,"profile":"beta","when":{"any_path":["package.json"]},"checks":[{"id":"b-one","consumer":"general","severity":"quality","title":"t","why":"w"}]}
@@ -51,10 +51,13 @@ r="$(sel "$(mkrepo sln Product.sln)")"
 check "a solution loads the alpha stack"  '["alpha"]'        "$(stacks "$r")"
 check "  base first, stack second"        '["base","stack"]' "$(layers "$r")"
 
-# A glob crosses `/`, so a solution nested three deep still counts. This is the semantics the
-# schema documents and the one bash does NOT give you by default.
+# `**` reaches into folders, so a solution nested three deep still counts. A single `*` would not,
+# and that difference has to hold HERE as well as in inspect.sh: a profile that matched under one
+# and not the other would load a stack whose checks then found nothing, which reads as a repo
+# lacking a toolchain it actually has. Both read the same matcher in detect-lib.sh for exactly
+# this reason.
 r="$(sel "$(mkrepo deep src/dir/sub/Product.sln)")"
-check "a nested solution matches too"     '["alpha"]' "$(stacks "$r")"
+check "a nested solution matches **/*.sln" '["alpha"]' "$(stacks "$r")"
 
 # --- a `when` is a full detect object, not just any_path --------------------
 # The schema says `when` accepts the same shape a check's own `detect` does — any_path AND

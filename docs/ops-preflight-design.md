@@ -178,10 +178,17 @@ answer overrides what detection saw and a check nobody answered keeps whatever v
   and `--evidence` applies the same verdict rules to what came back. Every path is checked against
   the pattern that asked for it first, so a stray result changes nothing.
   - **Why:** the script's own path restarts a program per pattern, about 1,400 of them, at roughly
-    26ms each on Windows. That is the whole of its half-minute runtime; replacing the match loop
-    with grep, cutting jq calls, and shrinking the file list sixteenfold each changed nothing
-    measurable, which is what proves it. It also makes the step visible, because tool calls appear
+    26ms each on Windows. That is the whole of its half-minute runtime. Replacing the match loop
+    with grep and cutting jq calls each changed nothing measurable, which is what proves it: the
+    work is trivial, the starting is not. It also makes the step visible, because tool calls appear
     as they happen where a shell command is silent until it ends.
+  - **A ripgrep branch was tried here and removed.** It listed files far faster and respected
+    `.gitignore`, which is the right meaning for "what is in this repo". It also never ran: `rg` is
+    a shell function rather than a command on PATH in some environments, so `command -v rg` inside
+    a script says no, and every measurement credited to it was really `find`. On Windows it prints
+    `src\Real.sln`, which no pattern here would match. And it made a repo read differently depending
+    on whether ripgrep happened to be installed. `git ls-files` is the way to get those semantics
+    if they are wanted: exact, already present, and the same answer on every machine.
   - **`inspect.sh <repo>` alone still works and is the reference.** It needs no harness, it is what
     the hermetic tests exercise, and the two paths are asserted to produce identical findings. If
     they ever disagree, the script is right.
