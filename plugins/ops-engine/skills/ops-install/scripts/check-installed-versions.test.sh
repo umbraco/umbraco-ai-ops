@@ -17,8 +17,8 @@ check() { if [ "$2" = "$3" ]; then pass=$((pass+1)); else fail=$((fail+1)); echo
 cat > "$TMP/marketplace.json" <<'JSON'
 { "name": "umbraco-ai-ops",
   "plugins": [
-    { "name": "ops-install", "version": "0.11.0" },
-    { "name": "github-ops",  "version": "0.1.0" } ] }
+    { "name": "ops-engine", "version": "0.11.0" },
+    { "name": "ops-preflight",  "version": "0.1.0" } ] }
 JSON
 
 mkcache() { # mkcache <name> <plugin:version>...
@@ -30,7 +30,7 @@ run() { MARKETPLACE_FILE="$TMP/marketplace.json" OPS_CACHE_DIR="$1" bash "$C" "$
 rc()  { MARKETPLACE_FILE="$TMP/marketplace.json" OPS_CACHE_DIR="$1" bash "$C" >/dev/null 2>&1; echo $?; }
 
 # --- everything current ---------------------------------------------------
-cur="$(mkcache cur ops-install:0.11.0 github-ops:0.1.0)"
+cur="$(mkcache cur ops-engine:0.11.0 ops-preflight:0.1.0)"
 check "current install exits 0" 0 "$(rc "$cur")"
 check "  and says so" 1 "$(run "$cur" | grep -c 'all 2 installed plugin(s) match the marketplace')"
 check "  --quiet prints nothing when current" 0 "$(run "$cur" --quiet | grep -c .)"
@@ -55,10 +55,10 @@ check "  --quiet still says nothing"                  0 \
 check "a non-git source still exits 0" 0 "$(rc "$cur")"
 
 # --- one behind -----------------------------------------------------------
-old="$(mkcache old ops-install:0.9.0 github-ops:0.1.0)"
+old="$(mkcache old ops-engine:0.9.0 ops-preflight:0.1.0)"
 check "a stale plugin exits 1" 1 "$(rc "$old")"
-check "  it names the plugin"   1 "$(run "$old" | grep -c 'ops-install  *0.9.0  *0.11.0')"
-check "  and not the current one" 0 "$(run "$old" | grep -c '^  github-ops')"
+check "  it names the plugin"   1 "$(run "$old" | grep -c 'ops-engine  *0.9.0  *0.11.0')"
+check "  and not the current one" 0 "$(run "$old" | grep -c '^  ops-preflight')"
 check "  it prints the install command" 1 \
   "$(run "$old" | grep -c '/plugin install ops-engine@umbraco-ai-ops')"
 check "  and the marketplace update" 1 "$(run "$old" | grep -c '/plugin marketplace update')"
@@ -68,12 +68,12 @@ check "  and mentions the cloud rebuild bump" 1 "$(run "$old" | grep -c '# rebui
 # --- old versions lying around must not count as current -------------------
 # The cache never cleans up, so several versions coexist. Only the newest matters — an earlier
 # version of this check would have passed on any directory existing.
-both="$(mkcache both ops-install:0.9.0 ops-install:0.11.0 github-ops:0.1.0)"
+both="$(mkcache both ops-engine:0.9.0 ops-engine:0.11.0 ops-preflight:0.1.0)"
 check "the newest cached version wins" 0 "$(rc "$both")"
-messy="$(mkcache messy ops-install:0.9.0 ops-install:0.10.0 github-ops:0.1.0)"
+messy="$(mkcache messy ops-engine:0.9.0 ops-engine:0.10.0 ops-preflight:0.1.0)"
 check "  and an older newest is still behind" 1 "$(rc "$messy")"
 check "  reporting the highest installed, not the first" 1 \
-  "$(run "$messy" | grep -c 'ops-install  *0.10.0')"
+  "$(run "$messy" | grep -c 'ops-engine  *0.10.0')"
 
 # double-digit minors must not sort as strings — 0.9.0 vs 0.11.0 is the case that breaks
 check "versions sort numerically, not lexically" 1 \
@@ -83,9 +83,9 @@ check "versions sort numerically, not lexically" 1 \
 # Onboarding installs three plugins and adds the loops later, so "not installed" is the normal
 # state at Step 0. Failing on it made the documented install path stop at its own first check.
 # Only BEHIND is the invisible failure this script exists to catch.
-none="$(mkcache none github-ops:0.1.0)"
+none="$(mkcache none ops-preflight:0.1.0)"
 check "a not-installed plugin exits 0" 0 "$(rc "$none")"
-check "  and is listed anyway"          1 "$(run "$none" | grep -c 'Not installed (not a problem yet): ops-install')"
+check "  and is listed anyway"          1 "$(run "$none" | grep -c 'Not installed (not a problem yet): ops-engine')"
 check "  with the command to install it" 1 \
   "$(run "$none" | grep -c '/plugin install ops-engine@umbraco-ai-ops')"
 check "  and is not called out of date" 0 "$(run "$none" | grep -ci 'out of date')"
@@ -93,9 +93,9 @@ check "  --quiet still reports it, because it is actionable" 1 \
   "$(run "$none" --quiet | grep -c 'Not installed')"
 
 # Behind AND missing together: it fails on the behind, and says the missing is a separate matter.
-mixed="$(mkcache mixed ops-install:0.9.0)"
+mixed="$(mkcache mixed ops-engine:0.9.0)"
 check "behind plus missing exits 1"        1 "$(rc "$mixed")"
-check "  naming the stale one"             1 "$(run "$mixed" | grep -c 'ops-install  *0.9.0  *0.11.0')"
+check "  naming the stale one"             1 "$(run "$mixed" | grep -c 'ops-engine  *0.9.0  *0.11.0')"
 check "  and separating the missing one"   1 "$(run "$mixed" | grep -c 'separate matter')"
 
 # --- an empty cache is 'nothing installed', not a crash --------------------
@@ -104,7 +104,7 @@ check "an empty cache exits 0" 0 "$(rc "$empty")"
 check "  without erroring" 0 "$(run "$empty" | grep -ci 'no such file')"
 
 # --- junk in the cache is ignored -----------------------------------------
-junk="$(mkcache junk ops-install:0.11.0 github-ops:0.1.0)"; mkdir -p "$junk/ops-install/not-a-version"
+junk="$(mkcache junk ops-engine:0.11.0 ops-preflight:0.1.0)"; mkdir -p "$junk/ops-engine/not-a-version"
 check "a non-version directory is ignored" 0 "$(rc "$junk")"
 
 # --- bad input ------------------------------------------------------------
