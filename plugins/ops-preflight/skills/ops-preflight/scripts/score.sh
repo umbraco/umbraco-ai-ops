@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
-# Turn a repo's post-interview preflight findings into a grade, but only once there is nothing
+# Turn a repo's post-interview preflight findings into a score, but only once there is nothing
 # left to guess at.
 #
 # THE ONE RULE THIS FILE EXISTS TO ENFORCE: a score is only honest AFTER the interview. A raw
 # inspect.sh scan of a live repo can come back mostly `unknown`, detection could not see it, which
-# is not a pass and not a fail either. Scoring that scan would hand a well-prepared repo an F for
-# having files this tool cannot read. So:
+# is not a pass and not a fail either. Scoring that scan would hand a well-prepared repo a low
+# number for having files this tool cannot read. So:
 #
-#   ANY check still `unknown` -> no grade, no percentage. Print what is known, and say how many
+#   ANY check still `unknown` -> no score, no percentage. Print what is known, and say how many
 #   checks are still unanswered. Refuse, do not guess.
 #
-#   EVERY check `present` or `gap` -> grade it.
+#   EVERY check `present` or `gap` -> score it.
 #
 # Same input convention as plan-issues.sh, which this sits next to: it reads the findings.json
 # inspect.sh --json produced and the answers.json the interview wrote (a flat map of check id to
@@ -19,9 +19,13 @@
 #
 # WEIGHTED, because a blocking check and a quality check are not worth the same thing: blocking
 # carries weight 3, quality weight 1. The score is the weight of the PRESENT checks over the
-# weight of every check. A hard cap sits on top of that: if any blocking check is a `gap`, the
-# grade cannot read better than C, however good the rest of the repo looks. Something the loops
-# need is missing, and no amount of quality polish should paper over that.
+# weight of every check.
+#
+# NO LETTER GRADE. There was one here, an A* to F band table with a hard cap at C. It is gone on
+# purpose: a letter reads as a verdict on the people who built the repo, which is the one thing
+# this report must never be. What replaces the cap is a plain sentence printed next to the number
+# whenever a blocking check is a `gap`, so quality polish still cannot paper over something the
+# loops actually need.
 #
 # Usage:
 #   score.sh <findings.json> [answers.json] [--json]
@@ -73,7 +77,7 @@ unknown_n="$(printf '%s' "$resolved" | jq '[.[] | select(.resolved=="unknown")] 
 ready="$([ "$unknown_n" -eq 0 ] && echo true || echo false)"
 
 # --- counts per severity, then per section, in inspect.sh's fixed section order ---------------
-# This is computed the same way whether or not a grade can be printed: "7 of 10 present" is true
+# This is computed the same way whether or not a score can be printed: "7 of 10 present" is true
 # on its own, unknowns included in the denominator, and is exactly the "counts that are known"
 # the refusal message has to show.
 counts="$(printf '%s' "$resolved" | jq -c '
@@ -99,48 +103,37 @@ counts="$(printf '%s' "$resolved" | jq -c '
 ' )"
 
 # --- can the loops start at all -----------------------------------------------------------
-# Independent of whether a grade can be printed: a blocking check that is not PRESENT, whether
+# Independent of whether a score can be printed: a blocking check that is not PRESENT, whether
 # that is a gap or still unknown, is one the loops cannot rely on yet.
 blockers="$(printf '%s' "$resolved" | jq -c '[ .[] | select(.severity=="blocking" and .resolved!="present") | {id: .id, title: .title} ]')"
 blockers_n="$(printf '%s' "$blockers" | jq 'length')"
 loops_can_start="$([ "$blockers_n" -eq 0 ] && echo true || echo false)"
 
-# --- the grade itself, only when nothing is left unknown --------------------------------------
+# --- the score itself, only when nothing is left unknown --------------------------------------
 # blocking weighs 3, quality weighs 1, a must-have outweighs a nice-to-have. The score is the
-# weight of what is PRESENT over the weight of everything. The hard cap comes after: any blocking
-# `gap` pulls a better-than-C grade down to C, never the other way round.
-grade='null'
+# weight of what is PRESENT over the weight of everything. `blocking_gap` rides along so the text
+# report can say, right next to the number, that the number reads higher than the repo is ready.
+score='null'
 if [ "$ready" = true ]; then
-  grade="$(printf '%s' "$resolved" | jq -c '
+  score="$(printf '%s' "$resolved" | jq -c '
     def weight(sev): if sev=="blocking" then 3 else 1 end;
-    def band(pct):
-      if pct >= 95 then "A*"
-      elif pct >= 85 then "A"
-      elif pct >= 75 then "B"
-      elif pct >= 65 then "C"
-      elif pct >= 55 then "D"
-      elif pct >= 45 then "E"
-      else "F" end;
-    def rank(g): {"A*":0,"A":1,"B":2,"C":3,"D":4,"E":5,"F":6}[g];
     ( [ .[] | weight(.severity) ] | add // 0 ) as $tw
     | ( [ .[] | select(.resolved=="present") | weight(.severity) ] | add // 0 ) as $pw
     | ( if $tw > 0 then ($pw / $tw * 100) else 0 end ) as $pct
-    | band($pct) as $g
-    | ( [ .[] | select(.severity=="blocking" and .resolved=="gap") ] | length > 0 ) as $blocking_gap
-    | ( if $blocking_gap and (rank($g) < rank("C")) then "C" else $g end ) as $final
-    | { letter: $final, percent: ($pct | round), capped: ($final != $g) }
+    | { percent: ($pct | round),
+        blocking_gap: ( [ .[] | select(.severity=="blocking" and .resolved=="gap") ] | length > 0 ) }
   ')"
 fi
 
 if [ "$fmt" = "json" ]; then
   jq -nc --arg repo "$repo" --argjson total "$total" --argjson unknown "$unknown_n" \
-    --argjson ready "$ready" --argjson grade "$grade" --argjson counts "$counts" \
+    --argjson ready "$ready" --argjson score "$score" --argjson counts "$counts" \
     --argjson loops_can_start "$loops_can_start" --argjson blockers "$blockers" '
     { repo: $repo,
       total_checks: $total,
       unknown_count: $unknown,
-      ready_to_grade: $ready,
-      grade: $grade,
+      ready_to_score: $ready,
+      score: $score,
       counts: $counts,
       loops_can_start: $loops_can_start,
       blocking_not_present: $blockers }'
@@ -149,21 +142,18 @@ fi
 
 # --- text report --------------------------------------------------------------------------
 printf 'ops-preflight score: %s\n\n' "$repo"
-printf 'This is a map, not an entry exam, and nobody clears every box. The grade below is a\n'
+printf 'This is a map, not an entry exam, and nobody clears every box. The score below is a\n'
 printf 'snapshot of the repo as it stands, never a judgement on the people who built it.\n\n'
 
 if [ "$ready" = false ]; then
-  printf 'No grade yet.\n\n'
+  printf 'No score yet.\n\n'
 else
-  letter="$(printf '%s' "$grade" | jq -r '.letter')"
-  percent="$(printf '%s' "$grade" | jq -r '.percent')"
-  capped="$(printf '%s' "$grade" | jq -r '.capped')"
-  if [ "$capped" = true ]; then
-    printf 'Grade: %s (capped). Weighted score %s%%.\n' "$letter" "$percent"
-    printf 'A check needed for the loops to work is a gap, so the grade cannot read better than\n'
-    printf 'C, however good the rest of the repo looks.\n'
-  else
-    printf 'Grade: %s (%s%%)\n' "$letter" "$percent"
+  percent="$(printf '%s' "$score" | jq -r '.percent')"
+  blocking_gap="$(printf '%s' "$score" | jq -r '.blocking_gap')"
+  printf 'Readiness score: %s%%\n' "$percent"
+  if [ "$blocking_gap" = true ]; then
+    printf 'A check needed for the loops to work is a gap, so that number reads higher than the\n'
+    printf 'repo is ready. The checks named at the bottom are the ones to close first.\n'
   fi
   printf '\n'
 fi
@@ -188,7 +178,7 @@ if [ "$ready" = false ]; then
   else
     printf '%s checks are still unknown. Finish the interview (step 3 in the ops-preflight\n' "$unknown_n"
   fi
-  printf 'skill), then run this again for a grade.\n\n'
+  printf 'skill), then run this again for a score.\n\n'
 fi
 
 if [ "$loops_can_start" = true ]; then

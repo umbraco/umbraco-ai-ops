@@ -320,12 +320,12 @@ Same two inputs as Step 4, and the same resolution: an answer overrides what `in
 and a check nobody answered keeps whatever verdict it already had.
 
 **A score is only honest after the interview.** If even one check still reads `unknown`, this
-prints **no grade and no percentage**, only the counts that are known, and how many questions are
-still open. Guessing at the rest would let a well-prepared repo take an F for having files this
-tool cannot read, which is exactly the failure mode the rest of this skill exists to avoid:
+prints **no score and no percentage**, only the counts that are known, and how many questions are
+still open. Guessing at the rest would let a well-prepared repo take a low number for having files
+this tool cannot read, which is exactly the failure mode the rest of this skill exists to avoid:
 
 ```
-No grade yet.
+No score yet.
 
 Needed for the loops to work: 1 of 2 present
 Makes the loops better: 1 of 2 present
@@ -335,23 +335,25 @@ Release management
 ...
 
 2 checks are still unknown. Finish the interview (step 3 in the ops-preflight
-skill), then run this again for a grade.
+skill), then run this again for a score.
 
 Loops can start: no. 1 check needed for the loops to work is not present yet: ...
 ```
 
-Once every check reads `present` or `gap`, it grades. `blocking` weighs 3, `quality` weighs 1, a
+Once every check reads `present` or `gap`, it scores. `blocking` weighs 3, `quality` weighs 1, a
 must-have outweighs a nice-to-have, and the score is the weight of what is `present` over the
-weight of everything. Bands run `A*` at 95% and above, then `A` at 85, `B` at 75, `C` at 65, `D` at
-55, `E` at 45, and `F` below that.
+weight of everything.
 
-**One hard cap sits on top:** any blocking check that is a `gap` pulls the grade down to `C` at
-best, however good the rest of the repo looks:
+**There is no letter grade.** There was one, an `A*` to `F` band table with a hard cap at `C`, and
+it is gone on purpose: a letter reads as a verdict on the people who built the repo, which is the
+one thing this report must never be. What the cap used to do is now a plain sentence printed next
+to the number whenever a must-have is a gap, so quality polish still cannot paper over something
+the loops actually need:
 
 ```
-Grade: C (capped). Weighted score 85%.
-A check needed for the loops to work is a gap, so the grade cannot read better than
-C, however good the rest of the repo looks.
+Readiness score: 85%
+A check needed for the loops to work is a gap, so that number reads higher than the
+repo is ready. The checks named at the bottom are the ones to close first.
 
 Needed for the loops to work: 4 of 5 present
 Makes the loops better: 5 of 5 present
@@ -360,7 +362,13 @@ Makes the loops better: 5 of 5 present
 Loops can start: no. 1 check needed for the loops to work is not present yet: ...
 ```
 
-The grade is a snapshot of the repo as it stands, never a judgement on the people who built it,
+With nothing blocking, the number stands on its own:
+
+```
+Readiness score: 83%
+```
+
+The score is a snapshot of the repo as it stands, never a judgement on the people who built it,
 the same stance the rest of this report takes. It never persists either: run `score.sh` again next
 time, the same as everything else here.
 
@@ -404,10 +412,12 @@ find the same gaps again the first time a loop runs, at a much worse moment.
 - **Never put a product fact in `checks.json` or in a stack profile.** A product name, a product's
   tool, a product's command — all of it belongs in the repo's own
   `.claude/ops-preflight-profile.json`.
-- **Never grade while any check is still `unknown`.** `score.sh` refuses and prints the known
-  counts instead. A raw scan is mostly `unknown`; scoring it would hand a well-prepared repo an F
-  for having files this tool cannot read.
-- **Never let a good score hide a missing must-have.** Any blocking `gap` caps the grade at `C`,
-  whatever the rest of the repo looks like.
+- **Never score while any check is still `unknown`.** `score.sh` refuses and prints the known
+  counts instead. A raw scan is mostly `unknown`; scoring it would hand a well-prepared repo a low
+  number for having files this tool cannot read.
+- **Never hand out a letter grade.** A percentage and the counts, nothing that reads as a verdict
+  on the people who built the repo.
+- **Never let a good score hide a missing must-have.** Any blocking `gap` is named in words right
+  beside the number, whatever the rest of the repo looks like.
 - **Never persist the run.** No report file, no flag, no stored score. Ask again next time; score
   again next time, freshly, from whatever the interview says then.

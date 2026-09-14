@@ -111,9 +111,10 @@ parts of the pipeline.
 Only a human can turn an `unknown` into a `gap`. The interview asks about everything the files
 could not answer, in that same section order.
 
-The score is a letter grade, weighted so a check needed for the loops to work counts more than
-one that only makes them better. It refuses to grade while any check is still `unknown`, because
-`unknown` means detection could not see something, not that it is missing.
+The score is a percentage, weighted so a check needed for the loops to work counts more than one
+that only makes them better. There is no letter grade: this is a map of a repo, not a school
+report. It refuses to score at all while any check is still `unknown`, because `unknown` means
+detection could not see something, not that it is missing.
 
 Run it with `/ops-preflight`. It blocks nothing: a repo can onboard with gaps open and close them
 afterwards.

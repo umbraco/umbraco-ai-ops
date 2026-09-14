@@ -3,9 +3,12 @@
 #
 # THE WHOLE DESIGN IS ONE RULE: a score is only honest AFTER the interview. So the tests that
 # matter most here are the refusal ones: any check still `unknown` and score.sh must print no
-# grade and no percentage, however many checks it does already know about. Only once every check
-# is `present` or `gap` does a letter appear, and even then a hard cap holds: a blocking `gap`
-# never lets the grade read better than C.
+# score and no percentage, however many checks it does already know about. Only once every check
+# is `present` or `gap` does a percentage appear.
+#
+# There is NO letter grade, and a test at the bottom holds that: no A* to F band, no `Grade:`
+# line, in either output mode. A blocking `gap` is reported as a sentence next to the number
+# instead of as a cap on a letter.
 set -uo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -33,23 +36,23 @@ RAW="$(w raw '{
 
 score() { bash "$S" "$RAW" ${1:+"$1"} --json 2>/dev/null; }
 
-# --- the one rule: any unknown means no grade, ever ---------------------------
+# --- the one rule: any unknown means no score, ever ---------------------------
 r="$(score)"
-check "not ready to grade while anything is unknown"  "false" "$(printf '%s' "$r" | jq -r '.ready_to_grade')"
-check "grade is null, not a guess"                    "null"  "$(printf '%s' "$r" | jq -c '.grade')"
+check "not ready to score while anything is unknown"  "false" "$(printf '%s' "$r" | jq -r '.ready_to_score')"
+check "score is null, not a guess"                    "null"  "$(printf '%s' "$r" | jq -c '.score')"
 check "unknown count is reported"                     2       "$(printf '%s' "$r" | jq '.unknown_count')"
 check "the known counts are still reported"           1       "$(printf '%s' "$r" | jq '.counts.severity.blocking.present')"
 check "  out of the real total, unknowns included"    2       "$(printf '%s' "$r" | jq '.counts.severity.blocking.total')"
 
 out="$(bash "$S" "$RAW" 2>/dev/null)"
-check "text mode prints no grade line while unknown remains" 0 "$(printf '%s' "$out" | grep -c '^Grade:')"
-check "text mode says no grade yet"                           1 "$(printf '%s' "$out" | grep -c 'No grade yet')"
+check "text mode prints no score line while unknown remains" 0 "$(printf '%s' "$out" | grep -c '^Readiness score:')"
+check "text mode says no score yet"                           1 "$(printf '%s' "$out" | grep -c 'No score yet')"
 check "text mode names how many checks are still unknown"     1 "$(printf '%s' "$out" | grep -c '2 checks are still unknown')"
 check "text mode still shows the known counts"                1 "$(printf '%s' "$out" | grep -c 'Needed for the loops to work: 1 of 2 present')"
 
-# --- answering everything, but with a blocking gap: the hard cap -----------------
-# Four blocking checks present, one blocking gap, five quality present. Unweighted that scores
-# 85%, comfortably an A on the band table, but the cap must still pull it down to C.
+# --- answering everything, but with a blocking gap ------------------------------
+# Four blocking checks present, one blocking gap, five quality present. That weighs out at 85%, a
+# high-looking number the report must qualify in words rather than by capping a letter.
 CAPFIND="$(w capfind '{
   "repo":"/y","sources":[],
   "findings":[
@@ -68,22 +71,22 @@ CAPFIND="$(w capfind '{
 CAPANS="$(w capans '{"b5":"gap"}')"
 
 r="$(bash "$S" "$CAPFIND" "$CAPANS" --json 2>/dev/null)"
-check "answering the last unknown makes it ready"    "true" "$(printf '%s' "$r" | jq -r '.ready_to_grade')"
-check "the raw weighted score is 85 percent"         85     "$(printf '%s' "$r" | jq -r '.grade.percent')"
-check "a blocking gap caps the letter at C"           "C"   "$(printf '%s' "$r" | jq -r '.grade.letter')"
-check "the cap is flagged"                           "true" "$(printf '%s' "$r" | jq -r '.grade.capped')"
+check "answering the last unknown makes it ready"    "true" "$(printf '%s' "$r" | jq -r '.ready_to_score')"
+check "the raw weighted score is 85 percent"         85     "$(printf '%s' "$r" | jq -r '.score.percent')"
+check "there is no letter anywhere in the score"     "null" "$(printf '%s' "$r" | jq -r '.score.letter')"
+check "the blocking gap is flagged"                  "true" "$(printf '%s' "$r" | jq -r '.score.blocking_gap')"
 check "loops cannot start"                           "false" "$(printf '%s' "$r" | jq -r '.loops_can_start')"
 check "the missing blocking check is named"          '["b5"]' "$(printf '%s' "$r" | jq -c '[.blocking_not_present[].id]')"
 
 out="$(bash "$S" "$CAPFIND" "$CAPANS" 2>/dev/null)"
-check "text mode prints the capped grade"        1 "$(printf '%s' "$out" | grep -c '^Grade: C (capped). Weighted score 85%')"
-check "text mode explains the cap in plain words" 1 "$(printf '%s' "$out" | tr '\n' ' ' | grep -ci 'cannot read better than C')"
-check "the cap explanation has no em dash"        0 "$(printf '%s' "$out" | grep -c $'\xe2\x80\x94')"
+check "text mode prints the bare percentage"     1 "$(printf '%s' "$out" | grep -c '^Readiness score: 85%$')"
+check "text mode qualifies it in plain words"    1 "$(printf '%s' "$out" | tr '\n' ' ' | grep -ci 'reads higher than the repo is ready')"
+check "that explanation has no em dash"           0 "$(printf '%s' "$out" | grep -c $'\xe2\x80\x94')"
 check "no tone word 'fail' anywhere in the report" 0 "$(printf '%s' "$out" | grep -ci 'fail')"
 check "no tone word 'bad' anywhere in the report"  0 "$(printf '%s' "$out" | grep -ci '\bbad\b')"
 check "no tone word 'poor' anywhere in the report" 0 "$(printf '%s' "$out" | grep -ci 'poor')"
 
-# --- fully resolved and clean: no cap, a plain band lookup -----------------------
+# --- fully resolved and clean: a plain percentage, nothing to qualify ------------
 CLEAN="$(w clean '{
   "repo":"/z","sources":[],
   "findings":[
@@ -102,23 +105,22 @@ CLEAN="$(w clean '{
 CLEANANS="$(w cleanans '{"q2":"gap","q4":"gap","q5":"gap"}')"
 
 r="$(bash "$S" "$CLEAN" "$CLEANANS" --json 2>/dev/null)"
-check "ready once every unknown is answered"  "true" "$(printf '%s' "$r" | jq -r '.ready_to_grade')"
-check "no cap when there is no blocking gap"  "false" "$(printf '%s' "$r" | jq -r '.grade.capped')"
-check "the grade is B at 83 percent"          "B"    "$(printf '%s' "$r" | jq -r '.grade.letter')"
-check "  at the expected percentage"          83     "$(printf '%s' "$r" | jq -r '.grade.percent')"
+check "ready once every unknown is answered"  "true" "$(printf '%s' "$r" | jq -r '.ready_to_score')"
+check "no blocking gap flag when every must-have is present" "false" "$(printf '%s' "$r" | jq -r '.score.blocking_gap')"
+check "the score is 83 percent"               83     "$(printf '%s' "$r" | jq -r '.score.percent')"
 check "loops can start: every blocking check is present" "true" "$(printf '%s' "$r" | jq -r '.loops_can_start')"
 check "nothing named as a blocker"            "[]"   "$(printf '%s' "$r" | jq -c '.blocking_not_present')"
 
 out="$(bash "$S" "$CLEAN" "$CLEANANS" 2>/dev/null)"
-check "text mode prints an uncapped grade line" 1 "$(printf '%s' "$out" | grep -c '^Grade: B (83%)$')"
-check "text mode does not print a cap note"     0 "$(printf '%s' "$out" | grep -c 'Capped')"
+check "text mode prints a plain score line"     1 "$(printf '%s' "$out" | grep -c '^Readiness score: 83%$')"
+check "text mode adds no qualifier when nothing blocks" 0 "$(printf '%s' "$out" | grep -c 'reads higher')"
 check "text mode says the loops can start"      1 "$(printf '%s' "$out" | grep -c 'Loops can start: yes')"
 
-# --- band edges -----------------------------------------------------------------
-band() {
+# --- the percentage itself -------------------------------------------------------
+pct() {
   # One blocking check, always present, weighted 3. Plus $1 of $2 quality checks present, each
   # weighted 1. The rest of the quality checks come back unknown from detection and are then
-  # answered gap, so the report is always fully resolved and ready to grade. That lets one call
+  # answered gap, so the report is always fully resolved and ready to score. That lets one call
   # dial the weighted percentage precisely: pct = (3 + present) / (3 + total) * 100.
   local present="$1" total="$2"
   local findings='{"repo":"/band","sources":[],"findings":[{"id":"b1","consumer":"c","severity":"blocking","section":"Backend","title":"t","why":"w","verdict":"present","source":"detected","evidence":["x"]}'
@@ -137,29 +139,38 @@ band() {
     a="$(printf '%s' "$a" | jq -c --arg k "q$j" '. + {($k): "gap"}')"
   done
   local af; af="$(w "bandans_${present}_${total}" "$a")"
-  bash "$S" "$f" "$af" --json 2>/dev/null | jq -r '.grade.letter'
+  bash "$S" "$f" "$af" --json 2>/dev/null | jq -r '.score.percent'
 }
 
-# Every case sits comfortably inside its band (never on a boundary value), so floating-point
-# rounding on the threshold comparison itself can never be the reason a test passes or fails.
-check "100 percent bands to A*"  "A*" "$(band 1 1)"     # (3+1)/(3+1)   = 100%
-check "90 percent bands to A"    "A"  "$(band 15 17)"   # (3+15)/(3+17) = 90%
-check "80 percent bands to B"    "B"  "$(band 13 17)"   # (3+13)/(3+17) = 80%
-check "70 percent bands to C"    "C"  "$(band 11 17)"   # (3+11)/(3+17) = 70%
-check "60 percent bands to D"    "D"  "$(band 9 17)"    # (3+9)/(3+17)  = 60%
-check "50 percent bands to E"    "E"  "$(band 7 17)"    # (3+7)/(3+17)  = 50%
-check "under 45 percent bands to F" "F" "$(band 0 20)"  # (3+0)/(3+20)  = 13%
+check "everything present scores 100"       100 "$(pct 1 1)"     # (3+1)/(3+1)   = 100%
+check "a mostly-ready repo scores 90"        90 "$(pct 15 17)"   # (3+15)/(3+17) = 90%
+check "a half-ready repo scores 50"          50 "$(pct 7 17)"    # (3+7)/(3+17)  = 50%
+check "a bare repo still scores, and low"    13 "$(pct 0 20)"    # (3+0)/(3+20)  = 13%
+
+# The weighting itself: one blocking check present against three quality gaps is 50%, not 25%,
+# because blocking weighs 3. If this reads 25 the weights have been flattened.
+check "a must-have outweighs a nice-to-have" 50 "$(pct 0 3)"     # 3/(3+3)       = 50%
+
+# --- and no letter grade, in either mode -----------------------------------------
+# This is the point of the change, so it is asserted rather than assumed: no `Grade:` line and no
+# `letter` key, on a repo with a blocking gap and on a clean one alike.
+for pair in "$CAPFIND|$CAPANS" "$CLEAN|$CLEANANS"; do
+  check "no grade line in the text report" 0 \
+    "$(bash "$S" "${pair%|*}" "${pair#*|}" 2>/dev/null | grep -ci 'grade')"
+  check "no letter key in the JSON"        0 \
+    "$(bash "$S" "${pair%|*}" "${pair#*|}" --json 2>/dev/null | grep -c '"letter"')"
+done
 
 # --- a plain-text call never prints a bare percentage while anything is unknown ---------------
-check "text mode never prints a percent sign while ungraded" 0 \
+check "text mode never prints a percent sign while unscored" 0 \
   "$(bash "$S" "$RAW" 2>/dev/null | grep -c '%')"
 
 # --- an answer can resolve one unknown while another is left open ------------------------------
 # Answering b-unknown does not make the report ready: q-unknown is still open, and one open
-# question is enough to withhold the grade.
+# question is enough to withhold the score.
 r="$(bash "$S" "$RAW" "$(w partial '{"b-unknown":"present"}')" --json 2>/dev/null)"
 check "one answered unknown updates the known counts" 2 "$(printf '%s' "$r" | jq -r '.counts.severity.blocking.present')"
-check "  but a second still-unknown check keeps it ungraded" "false" "$(printf '%s' "$r" | jq -r '.ready_to_grade')"
+check "  but a second still-unknown check keeps it unscored" "false" "$(printf '%s' "$r" | jq -r '.ready_to_score')"
 
 # --- failure modes -----------------------------------------------------------
 bash "$S" >/dev/null 2>&1;                     check "no argument exits 2" 2 $?

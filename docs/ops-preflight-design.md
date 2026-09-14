@@ -143,7 +143,7 @@ inspect.sh <repo> --json            → findings.json (present / unknown)
         ↓
 plan-issues.sh findings answers     → one issue plan per gap
         ↓
-score.sh findings answers           → a grade, once nothing is left unknown
+score.sh findings answers           → a score, once nothing is left unknown
         ↓
    github-ops · create-issue        → only on a yes
 ```
@@ -155,13 +155,16 @@ score.sh findings answers           → a grade, once nothing is left unknown
   already answered is never asked.
 - **Issue titles are stable** (`ops-preflight: <title>`), so a re-run finds the existing issue and
   files nothing. Gaps are labelled `ops/preflight`, created idempotently before the first file.
-- **`score.sh` refuses to grade while any check is still `unknown`.** Unknown means detection could
-  not see it, not that it is missing; grading a raw scan would hand a well-prepared repo an F for
-  having files this tool cannot read. It grades only once every check reads `present` or `gap`:
-  `blocking` weighs 3, `quality` weighs 1, and the score is the weight of what is `present` over the
-  weight of everything. Bands run `A*` at 95% and above, then `A` 85, `B` 75, `C` 65, `D` 55, `E` 45,
-  `F` below that. One hard cap sits on top: any blocking check that is a `gap` pulls the grade down
-  to `C` at best, however good the rest of the repo looks.
+- **`score.sh` refuses to score while any check is still `unknown`.** Unknown means detection could
+  not see it, not that it is missing; scoring a raw scan would hand a well-prepared repo a low
+  number for having files this tool cannot read. It scores only once every check reads `present` or
+  `gap`: `blocking` weighs 3, `quality` weighs 1, and the score is the weight of what is `present`
+  over the weight of everything.
+- **No letter grade.** There was one, an `A*` to `F` band table with a hard cap at `C`, and it was
+  removed on purpose: a letter reads as a verdict on the people who built the repo, which is the one
+  thing this report must never be. The cap is now a plain sentence printed beside the number
+  whenever a blocking check is a `gap`, so a high percentage still cannot let quality polish paper
+  over something the loops actually need.
 
 ## What it does not do
 
@@ -171,10 +174,11 @@ score.sh findings answers           → a grade, once nothing is left unknown
 - **Does not commit a report file.** It would be stale the moment somebody fixed something.
 - **Does not block `ops-install`.** Advisory only; `ops-install` gains one pointer line. A repo is
   allowed to onboard with gaps and close them afterwards.
-- **Does not grade a raw scan.** `score.sh` refuses to turn a repo's `present` / `gap` / `unknown`
+- **Does not score a raw scan.** `score.sh` refuses to turn a repo's `present` / `gap` / `unknown`
   mix into a percentage until the interview has resolved every `unknown`, and even then a blocking
-  `gap` caps the grade at `C`: a percentage is never allowed to let quality polish paper over
-  something the loops actually need.
+  `gap` is called out in words beside the number: a percentage is never allowed to let quality
+  polish paper over something the loops actually need.
+- **Does not hand out a letter grade.** Removed after it shipped, for the reason above.
 
 ## Knock-ons
 
