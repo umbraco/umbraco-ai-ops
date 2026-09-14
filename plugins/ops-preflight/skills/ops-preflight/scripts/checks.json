@@ -321,6 +321,32 @@
       "ask": "When a change alters the UI, who approves the look of it, and how does the loop reach them?"
     },
     {
+      "id": "ci-status-readable",
+      "consumer": "ops-ci",
+      "action": "status",
+      "severity": "blocking",
+      "section": "Harness",
+      "title": "An agent can read whether a build passed",
+      "why": "Landing a change waits for CI to go green, so an agent that cannot read the build result never lands anything and never says why. The repo fact is WHERE CI runs. On GitHub checks the same access that reads the pull request reads the build, and this costs nothing. Anywhere else it is a second system with its own access, and that is work this repo has to account for before the loops are any use.",
+      "signal": true,
+      "detect": {
+        "any_path": [
+          ".github/workflows/**/*",
+          "azure-pipelines*.yml",
+          ".azuredevops/**/*",
+          ".azure-pipelines/**/*",
+          "build/**/*.yml",
+          "pipelines/**/*.yml",
+          ".gitlab-ci.yml",
+          "Jenkinsfile",
+          "appveyor.yml",
+          ".circleci/config.yml",
+          "teamcity-settings.kts"
+        ]
+      },
+      "ask": "Where does CI run, and can an agent read a build result there without a person fetching it?"
+    },
+    {
       "id": "verify-self-check",
       "consumer": "ops-change",
       "action": "verify",

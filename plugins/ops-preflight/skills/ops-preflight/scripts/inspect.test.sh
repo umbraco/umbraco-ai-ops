@@ -384,7 +384,7 @@ check "  ids are unique"                  0 \
 check "  ids are kebab-case slugs"        0 \
   "$(jq '[.checks[].id | select(test("^[a-z][a-z0-9-]*$") | not)] | length' "$SHIPPED")"
 check "  every consumer is a real capability or plugin" "" \
-  "$(jq -r '[.checks[].consumer | select((. | IN("ops-workspace","ops-change","ops-branching","ops-release","ops-learnings","general")) | not)] | unique | join(", ")' "$SHIPPED")"
+  "$(jq -r '[.checks[].consumer | select((. | IN("ops-workspace","ops-change","ops-branching","ops-release","ops-ci","ops-learnings","general")) | not)] | unique | join(", ")' "$SHIPPED")"
 # A blocking check nobody can be asked about is a dead end: detection may miss it and then there
 # is no way to resolve it at all.
 check "  every blocking check is either detectable or askable" "" \
@@ -629,6 +629,27 @@ r="$(run "$d" "$SHIPPED")"
 check "architecture docs feed the pattern-mining question" "weak" "$(src "$r" general-pattern-mining)"
 check "  and never answer it outright"                     "unknown" "$(v "$r" general-pattern-mining)"
 check "  they feed the coding-standards question too"      "weak" "$(src "$r" verify-coding-standards)"
+
+# --- can an agent read a build result -----------------------------------------------------------
+# Landing a change waits for CI to go green, so an agent that cannot read the build never lands
+# anything and never says why. Nothing asked about it: no check had `ops-ci` as its capability at
+# all, and the README already lists "the CI credentials if CI is not GitHub checks" as a thing a
+# person has to do by hand.
+#
+# IT IS A SIGNAL CHECK, so any match asks. Finding a pipeline file proves CI exists. It proves
+# nothing about whether an agent has been handed a way to read it, and on the two repos that
+# prompted this the answer lives in Azure DevOps behind a token.
+r="$(run "$(mkrepo ciazure azure-pipelines.yml)" "$SHIPPED")"
+check "a pipeline file is seen"                "unknown" "$(v "$r" ci-status-readable)"
+check "  and asks rather than passing"         "weak"    "$(src "$r" ci-status-readable)"
+check "  naming the file, to answer with"      "azure-pipelines.yml" \
+  "$(printf '%s' "$r" | jq -r '.findings[] | select(.id=="ci-status-readable") | .evidence[0]')"
+r="$(run "$(mkrepo cigh .github/workflows/build.yml)" "$SHIPPED")"
+check "GitHub Actions is seen the same way"    "unknown" "$(v "$r" ci-status-readable)"
+check "it is a must-have, because nothing lands without it" "blocking" \
+  "$(printf '%s' "$r" | jq -r '.findings[] | select(.id=="ci-status-readable") | .severity')"
+r="$(run "$(mkrepo cinone README.md)" "$SHIPPED")"
+check "a repo with no CI at all still asks"    "unknown" "$(v "$r" ci-status-readable)"
 
 # --- the issue is the brief, and it may not live in this repo -----------------------------------
 # Every loop starts by reading an issue, and nothing asked whether those issues are worth reading.
