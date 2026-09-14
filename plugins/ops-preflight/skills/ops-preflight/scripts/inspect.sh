@@ -32,24 +32,25 @@
 # is a hint, not a verdict".
 #
 # Usage:
-#   inspect.sh <repo-root> [--json] [--checks <file>]...
+#   inspect.sh <repo-root> [--json] [--out <file>] [--checks <file>]...
 #
 # --checks replaces layer selection entirely and is for tests; normally select-profile.sh decides.
 set -uo pipefail
 
-repo="" fmt="text"; files=(); plan_mode=false; evidence_file=""
+repo="" fmt="text"; files=(); plan_mode=false; evidence_file=""; out_file=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --json)   fmt="json"; shift ;;
     --plan)     plan_mode=true; shift ;;
     --evidence) evidence_file="${2:-}"; shift 2 ;;
+    --out)      out_file="${2:-}"; shift 2 ;;
     --checks) files+=("${2:-}"); shift 2 ;;
-    -h|--help) echo "usage: $(basename "$0") <repo-root> [--json] [--checks <file>]..."; exit 0 ;;
+    -h|--help) echo "usage: $(basename "$0") <repo-root> [--json] [--out <file>] [--checks <file>]..."; exit 0 ;;
     *) [ -z "$repo" ] && repo="$1"; shift ;;
   esac
 done
 
-[ -n "$repo" ] || { echo "usage: $(basename "$0") <repo-root> [--json] [--checks <file>]..." >&2; exit 2; }
+[ -n "$repo" ] || { echo "usage: $(basename "$0") <repo-root> [--json] [--out <file>] [--checks <file>]..." >&2; exit 2; }
 [ -d "$repo" ] || { echo "ERROR: no such directory: $repo" >&2; exit 2; }
 command -v jq >/dev/null 2>&1 || { echo "ERROR: jq required" >&2; exit 2; }
 
@@ -432,6 +433,12 @@ report="$(jq -nc --slurpfile f "$findings_file" --arg repo "$repo" --args '
       blocking_unknown: ([$f[] | select(.verdict=="unknown" and .severity=="blocking")] | length),
       interview:        ([$f[] | select(.verdict=="unknown" and (.ask // "") != "")] | length)
     } }' "${files[@]}")"
+
+# ONE SCAN, BOTH OUTPUTS. The skill needs the text report to show you and the JSON for the steps
+# after it, and running this twice means scanning the repo twice. On a large repo that was 65
+# seconds each. `--out` writes the JSON to a file and still prints the report, so one scan does it.
+[ -z "$out_file" ] || printf '%s\n' "$report" > "$out_file" \
+  || { echo "ERROR: could not write $out_file" >&2; exit 2; }
 
 if [ "$fmt" = "json" ]; then printf '%s\n' "$report"; exit 0; fi
 

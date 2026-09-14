@@ -165,6 +165,63 @@ check "a repo with no capability skills links nothing" 0 \
 check "  and says so plainly" 1 \
   "$(bash "$S" "$TMP/one" --for "$FIND" 2>/dev/null | grep -c 'normal case before onboarding')"
 
+# --- --draft: a first pass at who already does what -------------------------------
+# Onboarding asks a repo to write `ops-change` and `ops-release`. Most repos have done some of that
+# work under their own names. This prints the two lists a person needs to draft the table: the
+# actions still to write, and the skills already there.
+#
+# IT IS DELIBERATELY NOT A MAPPING FILE. A map holds one skill against one action, and every real
+# case checked was a skill doing PART of one. On one repo `umb-bump-version` is the version bump
+# inside `cut` and none of the branch, changelog or PR; `umb-review` is the review inside `verify`
+# and runs no build and no tests. `verify: umb-review` would claim a build that skill has never
+# done. So the script prints the lists and the coverage column is written by a person.
+d2() { bash "$S" "$TMP/$1" --draft "$FIND" --json 2>/dev/null; }
+
+check "an action the repo has not written is listed" 1 \
+  "$(d2 one | jq '[.actions_to_write[] | select(. == "ops-change · verify")] | length')"
+check "  and so is the workspace one"                1 \
+  "$(d2 one | jq '[.actions_to_write[] | select(. == "ops-workspace · prepare")] | length')"
+check "a check owned by no capability is not an action" 0 \
+  "$(d2 one | jq '[.actions_to_write[] | select(startswith("ops-") | not)] | length')"
+check "the repo's own skills come with it"           "repo-setup" \
+  "$(d2 one | jq -r '.skills_it_already_has[0].name')"
+check "  with the description, which is what it is judged on" 1 \
+  "$(d2 one | jq '[.skills_it_already_has[] | select(.description | test("git hooks"))] | length')"
+
+# A capability the repo already ships is not something it still has to write.
+check "a capability already shipped drops off the list" 0 \
+  "$(d2 mixed | jq '[.actions_to_write[] | select(startswith("ops-change"))] | length')"
+check "  while one it has not written stays"          1 \
+  "$(d2 mixed | jq '[.actions_to_write[] | select(. == "ops-workspace · prepare")] | length')"
+check "an ops- skill is never offered as a thing to build on" 0 \
+  "$(d2 mixed | jq '[.skills_it_already_has[] | select(.name | startswith("ops-"))] | length')"
+
+out="$(bash "$S" "$TMP/one" --draft "$FIND" 2>/dev/null)"
+check "text mode asks for a coverage column"  1 "$(printf '%s' "$out" | tr '\n' ' ' | grep -c 'HOW MUCH of the action it covers')"
+check "  and says part is the usual answer"   1 "$(printf '%s' "$out" | tr '\n' ' ' | grep -c '"part" is the usual answer')"
+check "  and that nothing reads it"           1 "$(printf '%s' "$out" | tr '\n' ' ' | grep -c 'Nothing reads it')"
+check "  no em dash"                          0 "$(printf '%s' "$out" | grep -c $'\xe2\x80\x94')"
+
+# Nothing to draft is a real state, not an error: the repo has written them all.
+skill full ops-change '---
+name: ops-change
+description: x
+---'
+skill full ops-workspace '---
+name: ops-workspace
+description: x
+---'
+skill full ops-release '---
+name: ops-release
+description: x
+---'
+check "a repo that ships them all has nothing to draft" 0 "$(d2 full | jq '.actions_to_write | length')"
+check "  and says so rather than erroring"              1 \
+  "$(bash "$S" "$TMP/full" --draft "$FIND" 2>/dev/null | grep -c 'Nothing to draft')"
+
+bash "$S" "$TMP/one" --draft "$TMP/nope.json" >/dev/null 2>&1
+check "a missing findings file exits 2" 2 $?
+
 # --- failure modes ---------------------------------------------------------------
 bash "$S" >/dev/null 2>&1;                      check "no argument exits 2" 2 $?
 bash "$S" "$TMP/does-not-exist" >/dev/null 2>&1; check "a missing directory exits 2" 2 $?

@@ -101,9 +101,18 @@
       "detect": {
         "any_path": [
           "scripts/*demo*",
-          "**/docker-compose*.yml",
-          "**/compose*.yml",
-          "**/Dockerfile",
+          {
+            "glob": "**/docker-compose*.yml",
+            "strength": "weak"
+          },
+          {
+            "glob": "**/compose*.yml",
+            "strength": "weak"
+          },
+          {
+            "glob": "**/Dockerfile",
+            "strength": "weak"
+          },
           {
             "glob": "scripts/*install*",
             "strength": "weak"

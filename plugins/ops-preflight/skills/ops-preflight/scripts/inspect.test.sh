@@ -630,6 +630,52 @@ check "architecture docs feed the pattern-mining question" "weak" "$(src "$r" ge
 check "  and never answer it outright"                     "unknown" "$(v "$r" general-pattern-mining)"
 check "  they feed the coding-standards question too"      "weak" "$(src "$r" verify-coding-standards)"
 
+# --- git hooks: what they prove, and the one they must NOT prove --------------------------------
+# Nothing looked at `.githooks/` at all, and both live repos have one. A hook is the branch model
+# written down AND enforced, which is better evidence than a document on its own.
+d="$(mkrepo hookbranch README.md)"
+mkdir -p "$d/.githooks"
+printf '#!/bin/sh\n# reject a branch whose name is wrong\ncase "$b" in v[0-9]*/*) ;; *) exit 1 ;; esac\n' \
+  > "$d/.githooks/pre-push"
+r="$(run "$d" "$SHIPPED")"
+check "a git hook feeds the branch-model question" "weak" "$(src "$r" branching-documented)"
+check "  and is named as the evidence" 1 \
+  "$(printf '%s' "$r" | jq '[.findings[] | select(.id=="branching-documented") | .evidence[] | select(test("githooks"))] | length')"
+
+# THE FALSE LEAD, ASSERTED SO IT STAYS SHUT. A pre-push hook is the obvious candidate for "the
+# harness validates its own work", and on both live repos it validates BRANCH NAMES and nothing
+# else. Counting any hook would have turned two repos that check nothing before pushing into two
+# repos that do. The content match is what keeps them apart.
+check "a branch-name hook does NOT answer the self-check question" "unknown" "$(v "$r" verify-self-check)"
+check "  and offers it no evidence at all" 0 \
+  "$(printf '%s' "$r" | jq '[.findings[] | select(.id=="verify-self-check") | .evidence[]] | length')"
+
+d="$(mkrepo hooktest README.md)"
+mkdir -p "$d/.githooks"
+printf '#!/bin/sh\ndotnet test Product.slnx || exit 1\n' > "$d/.githooks/pre-push"
+r="$(run "$d" "$SHIPPED")"
+check "a hook that actually runs the tests does feed it" "weak" "$(src "$r" verify-self-check)"
+
+# --- commit format, because the version bump is read off the commits ----------------------------
+# A release plan works out the next version by reading the commits since the last one. Where the
+# format is enforced, that is reliable; where it is convention only, the few commits that ignore it
+# are the ones that get the version wrong. A hook enforcing it is strong; a config file on its own
+# only says someone installed the tool.
+d="$(mkrepo commitenforced README.md)"
+mkdir -p "$d/.githooks"
+printf '#!/bin/sh\nnpx --no-install commitlint --edit $1\n' > "$d/.githooks/commit-msg"
+r="$(run "$d" "$SHIPPED")"
+check "a hook running commitlint answers the commit-format check" "present" "$(v "$r" release-commit-convention)"
+
+d="$(mkrepo commitconfigonly README.md)"
+printf 'module.exports = {}\n' > "$d/commitlint.config.js"
+r="$(run "$d" "$SHIPPED")"
+check "a config with nothing enforcing it only asks" "unknown" "$(v "$r" release-commit-convention)"
+check "  and says the match was weak"                "weak"    "$(src "$r" release-commit-convention)"
+check "the check never blocks, it only makes the loops better" "quality" \
+  "$(printf '%s' "$r" | jq -r '.findings[] | select(.id=="release-commit-convention") | .severity')"
+
+
 # --- --plan: the lookups, for the harness to run with its own Glob and Grep ---------------------
 # `--plan` stops after merging the layers and says what to look for. The skill runs those with the
 # built-in tools, which is one ripgrep call each rather than this script restarting a program per

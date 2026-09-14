@@ -120,8 +120,14 @@
         "any_path": [
           "**/*.test.ts",
           "**/*.test.js",
-          "**/*.spec.ts",
-          "**/*.spec.js"
+          {
+            "glob": "**/*.spec.ts",
+            "strength": "weak"
+          },
+          {
+            "glob": "**/*.spec.js",
+            "strength": "weak"
+          }
         ]
       },
       "ask": "Do the front-end components here have unit or component tests?"

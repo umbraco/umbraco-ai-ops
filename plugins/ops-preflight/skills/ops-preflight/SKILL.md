@@ -38,7 +38,7 @@ must not do is let anyone believe there are none.
 |---|---|
 | 1. Work out which check files apply | `scripts/select-profile.sh` |
 | 2. Read the repo against them | `scripts/inspect.sh` |
-| 3. **Ask about everything the files could not answer** | you, by interview |
+| 3. **Ask about everything the files could not answer** | the list is `scripts/questions.sh`; the asking is you |
 | 4. Plan an issue per real gap | `scripts/plan-issues.sh` |
 | 5. Score the repo, once every check is answered | `scripts/score.sh` |
 | 6. File the planned issues, on a yes | you, with `github-ops` |
@@ -98,9 +98,11 @@ exists for exactly that, and putting a product fact in the engine breaks the gol
 ## Step 2 — read the repo
 
 ```
-scripts/inspect.sh <repo-root>          # the report
-scripts/inspect.sh <repo-root> --json   # keep this; step 4 needs it
+scripts/inspect.sh <repo-root> --out findings.json
 ```
+
+**One run, both outputs.** The report goes to the screen and the JSON to the file, which steps 3,
+4 and 5 all need. Running it twice scans the repo twice: on a large repo that was 65 seconds each.
 
 **This is the path to use.** It does the looking itself and it is what the tests cover. It is slow
 on Windows, around half a minute on a real repo, because it starts about 1,400 programs at roughly
@@ -376,8 +378,60 @@ description.
 
 On a repo that has not started onboarding this prints nothing, which is the normal case.
 
+**When nothing links, read the list anyway.** The join only works on the `ops-*` names, because a
+check records the capability it is about and matches a skill of that name. A repo that has not
+onboarded names its skills its own way: one had `umb-release-notes`, `umb-bump-version` and
+`umb-review`, which speak to the release and review questions and link to nothing. Scan the plain
+list for anything that sounds like the question you are about to ask, and read it. The worst case
+is that you read a file that turns out to be irrelevant.
+
 **It is still a claim.** A skill says what someone decided, and the repo may have moved since. The
 person still answers.
+
+### Draft who already does what
+
+```
+scripts/list-skills.sh <repo> --draft findings.json
+```
+
+Onboarding will ask this repo for `ops-change` and `ops-release`. Most repos have done some of that
+work already, under their own names. This prints the two lists: the actions still to write, and the
+skills already there.
+
+**Write the table with three columns: the action, the skill, and how much of it that skill
+covers.** The third column is the one that matters, and `part` is the usual answer:
+
+| Action | Skill | Covers |
+|---|---|---|
+| `ops-release · cut` | `umb-bump-version` | the version bump only. Not the branch, changelog or PR |
+| `ops-release · publish` | `umb-release-notes` | tidies the notes. Does not publish |
+| `ops-change · verify` | `umb-review` | the review only. No build, no tests |
+
+**This is why there is no mapping file, and why the old one is not coming back.** A map holds one
+skill against one action. `verify: umb-review` would claim a build and a test run that skill has
+never done. Prose carries the partial; a key and a value cannot.
+
+**Nobody has to rename anything.** The engine looks for a skill named `ops-release`. It does not
+ask that the work move there. A short skill of that name saying which of the repo's own skills to
+run for each action is the whole job, and `/ops-install` writes the outline for it. Say that when
+you hand the table over.
+
+Hand the table to whoever fills in the stub. Nothing reads it and no loop will call a skill by any
+name but its own.
+
+### Get the list of what is still open
+
+```
+scripts/questions.sh findings.json [answers.json]
+```
+
+It prints only what is left to ask, already in the order below: must-haves first, then the
+report's section order, then by id. It leaves out anything detection settled, anything with no
+question, and anything already answered, so a second pass shows only the remainder instead of
+starting again. Each one carries what was already found, which is what to open with.
+
+**Do not work this out by hand.** A live run wrote a throwaway script three times to get at it and
+had the JSON key wrong twice. Every neighbouring step has a tested script; this one does now too.
 
 **Four questions per call is the tool's limit, not a choice made here.** `AskUserQuestion` accepts
 at most four, and the human tabs through them. So ask four at a time: do not make four calls with

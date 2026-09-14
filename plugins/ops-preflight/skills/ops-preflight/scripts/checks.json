@@ -323,6 +323,14 @@
       "section": "Harness",
       "title": "The harness validates its own work before reporting pass",
       "why": "A check that reports pass without having run the lint and the tests is the failure this engine is built to prevent: it looks exactly like the working path.",
+      "detect": {
+        "any_file_contains": [
+          { "glob": ".githooks/**/*", "pattern": "dotnet test|dotnet format|npm test|npm run test|npm run lint|yarn test|yarn lint|pnpm test|pnpm lint|pytest|eslint|stylelint", "strength": "weak" },
+          { "glob": ".husky/**/*", "pattern": "dotnet test|dotnet format|npm test|npm run test|npm run lint|yarn test|yarn lint|pnpm test|pnpm lint|pytest|eslint|stylelint", "strength": "weak" },
+          { "glob": "lefthook.yml", "pattern": "dotnet test|dotnet format|npm test|npm run test|npm run lint|yarn test|yarn lint|pnpm test|pnpm lint|pytest|eslint|stylelint", "strength": "weak" },
+          { "glob": ".pre-commit-config.yaml", "pattern": "repos:", "strength": "weak" }
+        ]
+      },
       "ask": "Before a change is pushed, should the agent run the lint and the full test command itself rather than leaving it to CI?"
     },
     {
@@ -336,7 +344,12 @@
       "detect": {
         "any_path": [
           "docs/**/*branch*",
-          "CONTRIBUTING*"
+          "CONTRIBUTING*",
+          { "glob": ".githooks/**/*", "strength": "weak" },
+          { "glob": ".husky/**/*", "strength": "weak" },
+          { "glob": "lefthook.yml", "strength": "weak" },
+          { "glob": "lefthook.yaml", "strength": "weak" },
+          { "glob": ".pre-commit-config.yaml", "strength": "weak" }
         ],
         "any_file_contains": [
           {
@@ -465,6 +478,29 @@
         ]
       },
       "ask": "After a release here, what merges it back and publishes the notes?"
+    },
+    {
+      "id": "release-commit-convention",
+      "consumer": "ops-release",
+      "action": "plan",
+      "severity": "quality",
+      "section": "Release management",
+      "title": "Commit messages follow a convention a machine can read",
+      "why": "Working out the next version usually means reading the commits since the last one, so a fix and a breaking change have to be tellable apart without a person reading each one. Where nothing enforces the format, most commits follow it and the few that do not are the ones that decide the version wrongly.",
+      "detect": {
+        "any_file_contains": [
+          { "glob": ".githooks/**/*", "pattern": "commitlint|conventional" },
+          { "glob": ".husky/**/*", "pattern": "commitlint|conventional" },
+          { "glob": "package.json", "pattern": "commitlint|commitizen", "strength": "weak" }
+        ],
+        "any_path": [
+          { "glob": "commitlint.config.*", "strength": "weak" },
+          { "glob": ".commitlintrc*", "strength": "weak" },
+          { "glob": ".versionrc*", "strength": "weak" },
+          { "glob": ".czrc", "strength": "weak" }
+        ]
+      },
+      "ask": "Do commit messages here follow a set convention, and does anything enforce it?"
     },
     {
       "id": "learnings-failure-capture",

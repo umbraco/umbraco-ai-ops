@@ -25,17 +25,18 @@
 #   list-skills.sh <repo-root> [--json]
 set -uo pipefail
 
-repo="" fmt="text" for_findings=""
+repo="" fmt="text" for_findings="" draft_findings=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --json) fmt="json"; shift ;;
-    --for)  for_findings="${2:-}"; shift 2 ;;
-    -h|--help) echo "usage: $(basename "$0") <repo-root> [--json] [--for <findings.json>]"; exit 0 ;;
+    --for)   for_findings="${2:-}"; shift 2 ;;
+    --draft) draft_findings="${2:-}"; shift 2 ;;
+    -h|--help) echo "usage: $(basename "$0") <repo-root> [--json] [--for <findings.json>] [--draft <findings.json>]"; exit 0 ;;
     *) [ -n "$repo" ] || repo="$1"; shift ;;
   esac
 done
 
-[ -n "$repo" ] || { echo "usage: $(basename "$0") <repo-root> [--json] [--for <findings.json>]" >&2; exit 2; }
+[ -n "$repo" ] || { echo "usage: $(basename "$0") <repo-root> [--json] [--for <findings.json>] [--draft <findings.json>]" >&2; exit 2; }
 [ -d "$repo" ] || { echo "ERROR: no such directory: $repo" >&2; exit 2; }
 command -v jq >/dev/null 2>&1 || { echo "ERROR: jq required" >&2; exit 2; }
 
@@ -155,6 +156,74 @@ if [ -n "$for_findings" ]; then
   printf '%s\n' "$rows" | awk -F'\t' '{ printf "  %-26s %-26s %s\n", $1, $2, $3 }'
   printf '\nRead the file before asking, find the part about that action, and lead the question\n'
   printf 'with what it says. A skill is still a claim, not proof, so the person still answers.\n'
+  exit 0
+fi
+
+# --- --draft: a first pass at who already does what ---------------------------------------------
+# Onboarding will ask this repo to write `ops-change` and `ops-release`. Most repos have already
+# done some of that work under their own names, and a person filling in a stub has to remember what
+# they have. This prints the two lists so the table can be drafted from them: the actions the repo
+# will need, and the skills it already has.
+#
+# WHY A TABLE AND NOT A MAPPING FILE. A map holds one skill against one action. Every real case
+# looked at was a skill doing PART of an action. On one repo `umb-bump-version` does the version
+# bump inside `cut` and none of the branch, changelog or PR; `umb-review` is the review inside
+# `verify` and runs no build and no tests. A map saying `verify: umb-review` claims a build and a
+# test run that skill has never done. The stub `ops-install` scaffolds can say "for the review part
+# of verify, run umb-review", because prose carries the partial. A key and a value cannot. That is
+# also why the config file this engine deleted is not coming back: it could only express the case
+# that does not occur.
+#
+# The script prints the two lists, which is the part that comes from data. Judging how much of an
+# action a skill covers is a reading job, and the skill does that.
+if [ -n "$draft_findings" ]; then
+  [ -f "$draft_findings" ] || { echo "ERROR: no such file: $draft_findings" >&2; exit 2; }
+  jq -e '.findings | type == "array"' "$draft_findings" >/dev/null 2>&1 \
+    || { echo "ERROR: $draft_findings is not an inspect.sh report (no findings array)" >&2; exit 2; }
+
+  # Actions this repo will need, taken from the checks. A capability the repo already ships is
+  # dropped: it has written that one, and the draft is for what is still to write.
+  actions="$(jq -r --argjson skills "$skills_json" '
+    ($skills | map(select(.engine) | .name)) as $shipped
+    | [ .findings[] | select(.consumer != null)
+        | select(.consumer | startswith("ops-"))
+        # An ACTION is required. A check with a consumer and no action is not a capability action
+        # a repo writes: `learnings-failure-capture` names `ops-learnings`, which is engine
+        # machinery, and listing it told a repo to write something nobody writes.
+        | select(.action != null)
+        | select(.consumer as $c | $shipped | index($c) | not)
+        | .consumer + " · " + .action ]
+    | unique | .[]' "$draft_findings")"
+  own="$(printf '%s' "$skills_json" | jq -r '.[] | select(.engine | not) | [.name, .description] | @tsv')"
+
+  if [ "$fmt" = "json" ]; then
+    jq -nc --argjson actions "$(printf '%s\n' "$actions" | jq -Rsc 'split("\n")|map(select(length>0))')" \
+           --argjson skills "$(printf '%s\n' "$own" | jq -Rsc 'split("\n")|map(select(length>0)|split("\t")|{name:.[0],description:(.[1]//"")})')" \
+      '{ actions_to_write: $actions, skills_it_already_has: $skills }'
+    exit 0
+  fi
+
+  printf 'A first pass at who already does what\n\n'
+  if [ -z "$actions" ]; then
+    printf 'This repo already ships every capability the checks are about. Nothing to draft.\n'
+    exit 0
+  fi
+  printf 'Onboarding will ask for these:\n'
+  printf '%s\n' "$actions" | sed 's/^/  /'
+  printf '\n'
+  if [ -z "$own" ]; then
+    printf 'It has no skills of its own to build on, so each one starts from the stub.\n'
+    exit 0
+  fi
+  printf 'It already has these, under its own names:\n'
+  printf '%s\n' "$own" | awk -F'\t' '{ printf "  %-38s %s\n", $1, substr($2,1,110) }'
+  printf '\n'
+  printf 'Draft the table with three columns: the action, the skill, and HOW MUCH of the action it\n'
+  printf 'covers. "part" is the usual answer and it is the column that matters, because a skill that\n'
+  printf 'does the version bump inside a release cut has not done the branch, the changelog or the\n'
+  printf 'PR. Say which part, and say what is left.\n\n'
+  printf 'This is a note for whoever fills in the stub. Nothing reads it, and no loop will call a\n'
+  printf 'skill by any name but its own.\n'
   exit 0
 fi
 
