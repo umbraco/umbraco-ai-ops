@@ -151,8 +151,8 @@ check "  and each is overridable"      "mine" \
 # `labels.port` off a table that did not list it. A purpose missing from `identity` is invisible,
 # because a loop asking for a key that is not there reads as a repo with no override.
 ENGINE="$(cd "$HERE/../../../../.." && pwd)"
-SCHEMA="$ENGINE/plugins/ops-capabilities/skills/ops-repo-meta/scripts/ops-repo-meta.schema.json"
-IDENTITY="$ENGINE/plugins/ops-capabilities/skills/ops-repo-meta/SKILL.md"
+SCHEMA="$ENGINE/plugins/ops-engine/skills/ops-repo-meta/scripts/ops-repo-meta.schema.json"
+IDENTITY="$ENGINE/plugins/ops-engine/skills/ops-repo-meta/SKILL.md"
 if [ -f "$SCHEMA" ] && [ -f "$IDENTITY" ]; then
   # `tr -d '\r'` on both: jq on Windows writes CRLF, so without it every purpose but the last
   # carries a stray CR and matches nothing. Same reason the scripts themselves all strip it.

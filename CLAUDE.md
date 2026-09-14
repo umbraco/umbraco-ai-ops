@@ -95,13 +95,22 @@ ships the default data; a consumer overrides by shipping its own file of the sam
 | **Capability catalog** (which capabilities exist, their actions, `visibility`) | `catalog.json` | `catalog.schema.json` |
 | Event → loop routing, framework **base** | `loop-dispatch/.../scripts/route-map.json` | `route-map.schema.json` |
 | Event → loop routing, **per-repo overlay** (merged over the base at the edge) | `<consumer>/.github/ops-routing.json` | `loop-dispatch/.../scripts/ops-routing.schema.json` |
-| **Declared repo facts** (topology, live lines, label overrides) | `<consumer>/.claude/ops-repo-meta.json` | `ops-capabilities/.../ops-repo-meta.schema.json` |
+| **Declared repo facts** (topology, live lines, label overrides) | `<consumer>/.claude/ops-repo-meta.json` | `ops-repo-meta/.../ops-repo-meta.schema.json` |
 | GitHub/CI provider interface | `github-ops/.../operation-catalog.json` | `operation-catalog.schema.json` |
 | **Readiness checks**, engine base + **stack** profiles | `ops-preflight/.../scripts/checks.json`, `.../scripts/profiles/<stack>.json` | `checks.schema.json` |
 | **Readiness checks**, per-repo overlay (merged last, so it wins) | `<consumer>/.claude/ops-preflight-profile.json` | the same `checks.schema.json` |
+| **What a person told the preflight** (written by `ops-preflight`, offered back by `ops-install`) | `<consumer>/.claude/ops-preflight-answers.json` | `ops-preflight/.../scripts/ops-preflight-answers.schema.json` |
 
 When you add a seam, follow the same pattern (data file + schema alongside the code that
 reads it) and document it here.
+
+> **`ops-preflight-answers.json` is the one file `ops-preflight` writes, and it is not a flag.** It
+> records what a person said and the date they said it, so `/ops-install` can offer the build
+> command back instead of asking for it a second time. **Nothing routes on it.** `ops-install` runs
+> identically whether it exists or not, and it must show an answer with its date and get a yes
+> before writing anything from it. The moment something branches on this file, it has become the
+> central config this design deleted. The report and the score still persist nowhere: a stale
+> report read as current is worse than no report.
 
 > **The preflight profiles are named for a STACK, never a product** — `dotnet`, `node`. That is
 > what keeps them on the right side of the golden rule: a `.sln` or a `package.json` is a stack
@@ -137,6 +146,25 @@ plugins/<plugin>/
 Repo-wide shared scripts (not tied to one skill) live in the top-level `scripts/`.
 
 ## Manifests
+
+**A plugin is a unit of CHOICE, not a unit of code.** Split only where a person might sensibly
+install one part and not another. There are three:
+
+| Plugin | Why it is its own thing |
+|---|---|
+| `ops-engine` | Everything needed to onboard a repo and run its loops. Nobody runs a loop without the installer, the router and the defaults under it, so they ship together |
+| `ops-preflight` | Runs **once, before** onboarding, and blocks nothing. A repo already onboarded has no use for it |
+| `ops-learnings` | An opt-in habit, with hooks that fire on every session. Plenty of repos will not want that |
+
+This started as nine plugins, one per loop or unit of code, for 17 skills. The README then told
+everyone to install eight of the nine, which is the tell: the split was costing nine version bumps
+and buying nobody a choice. `umbraco-backoffice-marketplace` gets this right with 73 skills in two
+plugins, split into building and testing. **Do not add a fourth plugin unless you can name someone
+who would install the others without it.**
+
+A consequence worth knowing: a skill shows in the UI as `plugin:skill`, so a plugin holding one
+skill of the same name reads as `ops-preflight:ops-preflight`. That is cosmetic, and not a reason
+to split or to rename anything.
 
 - Every plugin has `.claude-plugin/plugin.json`; it must be declared in
   `.claude-plugin/marketplace.json` with a matching `name`, `version`, and description.
@@ -238,7 +266,7 @@ keep it that way; never commit CRLF scripts.
   `scripts/build-evals.sh` (regenerates `evals/`). Never hand-edit the generated table or a
   suite — CI fails on drift in either.
 - **If you touched the declared-facts schema:** run
-  `plugins/ops-capabilities/skills/ops-repo-meta/scripts/validate-repo-meta.sh` against the
+  `plugins/ops-engine/skills/ops-repo-meta/scripts/validate-repo-meta.sh` against the
   example beside it. The schema is the readable contract; that script is the enforced one, and
   it also holds the rule JSON Schema cannot express (`primary` must be in `live`).
 - **If you added, renamed or removed a plugin:** run `scripts/validate-manifests.sh`. A

@@ -273,9 +273,31 @@ A scaffold is not an implementation, and leaving the human to face a wall of `TO
 them the hardest part with the least context. You have just detected the stack, the CI provider,
 the release tooling and every skill the repo already ships. Use it.
 
+**Check whether they already told the preflight.** If `.claude/ops-preflight-answers.json` exists,
+someone has answered some of this before:
+
+```
+jq -r --arg c ops-change '.answers[] | select(.consumer == $c)
+  | "\(.answered)  \(.question)\n              \(.said // "(no detail given)")"' \
+  .claude/ops-preflight-answers.json
+```
+
+`consumer` and `action` come straight from the check, so filtering by the capability you are
+filling in needs no mapping table. The build command, the test command and how to get a clean place
+to build are all in there, which is most of `ops-change`.
+
+**Offer it back, do not use it.** Put the answer in front of the person with the date they gave it,
+and let them confirm or correct it:
+
+> On 14-09-2026 you said the build command is `dotnet build Product.slnx`. Still right?
+
+An answer is what someone said on a day, not a fact about the repo today. A build command from
+three months ago is a good guess and a bad assumption. **Nothing routes on that file**: if it is
+missing, absent a value, or out of date, this step runs exactly as it would have anyway.
+
 **Interview once per capability**, batching four questions per `AskUserQuestion` call, then
-write the answers into the stub as real steps. Seed every option from Step 1 and from a look at
-the repo.
+write the answers into the stub as real steps. Seed every option from Step 1, from what preflight
+was told, and from a look at the repo.
 
 **For `ops-change`:**
 
@@ -303,6 +325,8 @@ for this version, a tag that exists, a branch already pushed. "Check if it ran" 
 
 - **Do not invent a build command you have not seen.** If nothing in the repo shows one, ask,
   and if the human does not know, leave that one `TODO` with a note saying so.
+- **Do not fill anything in from `ops-preflight-answers.json` without asking.** It is a record of
+  what someone said, with a date on it. Show it, get a yes, then write it.
 - **Do not silently leave a `TODO`.** Every one you cannot fill gets named in Step 9, with why.
 - **Do not delegate to a skill you have not confirmed exists.** Check the path.
 - **Do not touch the action names or the frontmatter.** Those come from the catalog.

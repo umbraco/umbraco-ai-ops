@@ -27,7 +27,7 @@ real="$(find "$search_root" -type f -path '*/ops-repo-meta/scripts/validate-repo
 if [ -z "$real" ]; then
   echo "ERROR: cannot find the real validate-repo-meta.sh." >&2
   echo "  It ships in the ops-capabilities plugin, alongside the schema it enforces." >&2
-  echo "  Install it:  /plugin install ops-capabilities@umbraco-ai-ops" >&2
+  echo "  Install it:  /plugin install ops-engine@umbraco-ai-ops" >&2
   echo "  Searched under: $search_root" >&2
   exit 2
 fi

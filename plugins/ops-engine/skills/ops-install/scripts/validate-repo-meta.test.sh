@@ -51,10 +51,10 @@ check "a repo with no file passes" 0 $?
 
 # --- when ops-capabilities is absent, say so instead of failing opaquely ---
 # ENGINE_ROOT points somewhere with a catalog but no ops-capabilities plugin.
-fake="$TMP/fake"; mkdir -p "$fake/plugins/ops-install"; : > "$fake/catalog.json"
+fake="$TMP/fake"; mkdir -p "$fake/plugins/ops-engine"; : > "$fake/catalog.json"
 out="$(ENGINE_ROOT="$fake" bash "$W" "$good" 2>&1)"; rc=$?
 check "a missing ops-capabilities exits 2" 2 $rc
-check "  and names the plugin to install" 1 "$(printf '%s' "$out" | grep -c 'ops-capabilities@umbraco-ai-ops')"
+check "  and names the plugin to install" 1 "$(printf '%s' "$out" | grep -c 'ops-engine@umbraco-ai-ops')"
 
 printf '\n%s: %d passed, %d failed\n' "$(basename "$0")" "$pass" "$fail"
 [ "$fail" -eq 0 ]

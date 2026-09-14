@@ -4,7 +4,7 @@
 # Why this exists: the engine runs from two very different layouts, and no fixed depth works
 # for both.
 #
-#   git checkout      <engine>/plugins/ops-install/skills/ops-install/scripts/
+#   git checkout      <engine>/plugins/ops-engine/skills/ops-install/scripts/
 #                     catalog.json is 5 levels up. Every plugin is a sibling under plugins/.
 #
 #   installed plugin  ~/.claude/plugins/cache/<marketplace>/ops-install/<version>/skills/...

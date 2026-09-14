@@ -380,6 +380,36 @@ has one, and a test fails if a new one arrives without it, because a check nobod
 what a similar repo did. Showing someone what you found is not the same as deciding for them:
 every value in that file came from a person saying so, or it is `unknown`.
 
+**Keep what they actually said, not only the verdict.** "What single command builds this whole
+product?" has the answer `dotnet build Product.slnx`; `present` is just the box it went in. Write a
+second flat map of check id to their words, and pass it to the next step.
+
+### Then offer to save it
+
+```
+scripts/save-answers.sh <repo-root> <findings.json> <answers.json> [said.json]
+```
+
+**Ask first.** This is the only thing preflight ever writes into someone's repo, and it writes one
+file: `.claude/ops-preflight-answers.json`.
+
+It exists because the same questions get asked twice. `/ops-install` scaffolds an `ops-change` stub
+and interviews for the build command, the test command and how to get a clean place to build. You
+just asked all three. Saving them means the person answers once.
+
+Three things it is not, and they matter more than what it is:
+
+- **Not a "preflight passed" flag.** Nothing routes on it. No loop reads it. `ops-install` behaves
+  the same whether it exists or not; it only offers the answers back. A flag something later
+  branches on is the central config this design deleted, arriving by the back door.
+- **Not a fact.** It records what someone said, on a date, and the schema makes you carry the date.
+  `ops-install` shows it back with that date and a person confirms before anything is written.
+- **Not the report and not the score.** Those still persist nowhere. A stale report read as current
+  is worse than no report.
+
+A re-run merges: an answer given today replaces the one with the same id, and every other answer
+keeps its own older date.
+
 ## Step 4 — plan the issues
 
 ```

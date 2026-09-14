@@ -100,8 +100,8 @@ if [ "$n_behind" -eq 0 ]; then
     staleness_note
     if [ "$n_missing" -gt 0 ]; then
       printf '\n  Not installed (not a problem yet): %s\n' "$(printf '%s' "$missing" | tr '\n' ' ')"
-      printf '  Onboarding needs ops-install, ops-capabilities and github-ops. Install the loops\n'
-      printf '  before you run one:\n\n'
+      printf '  Onboarding and the loops both need ops-engine. The other two are separate\n'
+      printf '  choices: ops-preflight runs once before onboarding, ops-learnings is opt-in.\n\n'
       printf '%s' "$missing" | while read -r p; do
         [ -n "$p" ] || continue
         printf '    /plugin install %s@%s\n' "$p" "$name"

@@ -5,7 +5,7 @@ set -uo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 V="$HERE/validate-overlay.sh"
 ENGINE="$HERE/../../../../.."
-EXAMPLE="$ENGINE/plugins/loop-dispatch/skills/loop-dispatch/scripts/ops-routing.example.json"
+EXAMPLE="$ENGINE/plugins/ops-engine/skills/loop-dispatch/scripts/ops-routing.example.json"
 [ -f "$V" ] || { echo "FATAL: validate-overlay.sh not found"; exit 2; }
 command -v jq >/dev/null 2>&1 || { echo "FATAL: jq required"; exit 2; }
 

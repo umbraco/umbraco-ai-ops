@@ -1,0 +1,56 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "ops-preflight-answers.schema.json",
+  "title": "What a person told ops-preflight about this repo",
+  "description": "Written by ops-preflight into `<repo>/.claude/ops-preflight-answers.json`, and read by ops-install when it fills in a scaffolded capability. It is a record of what a HUMAN said, kept so nobody has to say it twice. Three rules about it, all load-bearing. It is NOT a 'preflight passed' flag: nothing routes on it, no loop reads it, and ops-install runs the same whether it exists or not. Every answer carries the date it was given, because an answer about a build command is only as good as the day it was said and the reader has to be able to see that. And it is a SUGGESTION, never a fact: ops-install shows an answer back with its date and a person confirms it, rather than filling anything in silently.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "answers"],
+  "properties": {
+    "version": {
+      "const": 1,
+      "description": "The file's shape. Bump only on a breaking change to it."
+    },
+    "answers": {
+      "type": "array",
+      "description": "One entry per question a person actually answered. A check nobody was asked about, or that detection resolved on its own, does not appear: this file records what was SAID, not what was found.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "question", "verdict", "answered"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]*$",
+            "description": "The check id the question came from, so a re-run can update this answer in place."
+          },
+          "consumer": {
+            "type": "string",
+            "description": "The capability this answer is about, straight from the check. This is what lets ops-install pick out the answers that matter while it fills in one capability's stub, with no mapping table to keep in step."
+          },
+          "action": {
+            "type": "string",
+            "description": "The action within that capability, where the check names one."
+          },
+          "question": {
+            "type": "string",
+            "description": "The question as it was asked, kept verbatim. Without it an answer six months old reads as an orphan."
+          },
+          "verdict": {
+            "enum": ["present", "gap", "unknown"],
+            "description": "What the answer resolved to. `unknown` is recorded too: knowing a person looked and could not say is worth more than a blank."
+          },
+          "said": {
+            "type": "string",
+            "description": "What the person actually said, in their words. This is the part ops-install reuses: `dotnet build Umbraco.Forms.slnx` is the answer, `present` is only the verdict."
+          },
+          "answered": {
+            "type": "string",
+            "pattern": "^[0-9]{2}-[0-9]{2}-[0-9]{4}$",
+            "description": "The date this answer was given, DD-MM-YYYY. Per answer, not per file, so a re-run that updates three answers leaves the other twenty carrying their own older dates."
+          }
+        }
+      }
+    }
+  }
+}

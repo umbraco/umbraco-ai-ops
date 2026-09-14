@@ -60,7 +60,7 @@ check "a stale plugin exits 1" 1 "$(rc "$old")"
 check "  it names the plugin"   1 "$(run "$old" | grep -c 'ops-install  *0.9.0  *0.11.0')"
 check "  and not the current one" 0 "$(run "$old" | grep -c '^  github-ops')"
 check "  it prints the install command" 1 \
-  "$(run "$old" | grep -c '/plugin install ops-install@umbraco-ai-ops')"
+  "$(run "$old" | grep -c '/plugin install ops-engine@umbraco-ai-ops')"
 check "  and the marketplace update" 1 "$(run "$old" | grep -c '/plugin marketplace update')"
 check "  and says to restart" 1 "$(run "$old" | grep -ci 'RESTART the session')"
 check "  and mentions the cloud rebuild bump" 1 "$(run "$old" | grep -c '# rebuild:')"
@@ -87,7 +87,7 @@ none="$(mkcache none github-ops:0.1.0)"
 check "a not-installed plugin exits 0" 0 "$(rc "$none")"
 check "  and is listed anyway"          1 "$(run "$none" | grep -c 'Not installed (not a problem yet): ops-install')"
 check "  with the command to install it" 1 \
-  "$(run "$none" | grep -c '/plugin install ops-install@umbraco-ai-ops')"
+  "$(run "$none" | grep -c '/plugin install ops-engine@umbraco-ai-ops')"
 check "  and is not called out of date" 0 "$(run "$none" | grep -ci 'out of date')"
 check "  --quiet still reports it, because it is actionable" 1 \
   "$(run "$none" --quiet | grep -c 'Not installed')"

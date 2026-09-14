@@ -18,10 +18,10 @@ check() { if [ "$2" = "$3" ]; then pass=$((pass+1)); else fail=$((fail+1)); echo
 
 # --- the git-checkout layout ----------------------------------------------
 co="$TMP/checkout"
-mkdir -p "$co/plugins/ops-install/skills/ops-install/scripts"
+mkdir -p "$co/plugins/ops-engine/skills/ops-install/scripts"
 : > "$co/catalog.json"
 check "checkout layout resolves to the repo root" "$co" \
-  "$(ops_engine_root "$co/plugins/ops-install/skills/ops-install/scripts")"
+  "$(ops_engine_root "$co/plugins/ops-engine/skills/ops-install/scripts")"
 
 # --- the installed-plugin layout ------------------------------------------
 # The real shape, verified against a live install: the plugin cache holds ONLY that plugin's
@@ -30,7 +30,7 @@ check "checkout layout resolves to the repo root" "$co" \
 home="$TMP/home/.claude/plugins"
 cache="$home/cache/umbraco-ai-ops/ops-install/0.2.0/skills/ops-install/scripts"
 mkt="$home/marketplaces/umbraco-ai-ops"
-mkdir -p "$cache" "$mkt/plugins/ops-install"
+mkdir -p "$cache" "$mkt/plugins/ops-engine"
 : > "$mkt/catalog.json"
 check "installed layout finds the marketplace clone" "$mkt" "$(ops_engine_root "$cache")"
 
@@ -47,7 +47,7 @@ check "a marketplace with no plugins/ is not the engine" 1 $?
 
 # --- ENGINE_ROOT wins over the walk ---------------------------------------
 check "ENGINE_ROOT overrides detection" "/somewhere/else" \
-  "$(ENGINE_ROOT=/somewhere/else ops_engine_root "$co/plugins/ops-install/skills/ops-install/scripts")"
+  "$(ENGINE_ROOT=/somewhere/else ops_engine_root "$co/plugins/ops-engine/skills/ops-install/scripts")"
 
 # --- no catalog anywhere: falls back, never prints nothing ----------------
 bare="$TMP/bare/a/b/c/d/e"; mkdir -p "$bare"
