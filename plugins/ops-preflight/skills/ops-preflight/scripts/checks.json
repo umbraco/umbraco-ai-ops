@@ -19,7 +19,12 @@
           ".worktreeinclude",
           "**/.env.example",
           "**/.env.template",
-          ".env.sample"
+          ".env.sample",
+          "global.json",
+          ".nvmrc",
+          ".node-version",
+          ".tool-versions",
+          "Directory.Packages.props"
         ],
         "any_file_contains": [
           {
@@ -510,6 +515,39 @@
       "title": "Failures get recorded so the process improves",
       "why": "A lesson from a bad run gets filed as an issue and swept up weekly. A repo with nowhere to put a lesson loses every one of them, and repeats the failure at the same cost.",
       "ask": "When an automated run goes wrong here, where does the lesson get written down?"
+    },
+    {
+      "id": "general-issue-quality",
+      "consumer": "general",
+      "severity": "quality",
+      "section": "Misc",
+      "title": "An issue carries enough for an agent to act on",
+      "why": "Every loop starts by reading an issue, and that issue is the whole brief. Two lines with no acceptance criteria means the agent guesses and a person reviews the guess, which costs more than writing the issue properly would have.",
+      "detect": {
+        "any_path": [
+          { "glob": ".github/ISSUE_TEMPLATE/**/*", "strength": "weak" },
+          { "glob": ".github/ISSUE_TEMPLATE.md", "strength": "weak" },
+          { "glob": ".gitlab/issue_templates/**/*", "strength": "weak" }
+        ]
+      },
+      "ask": "Where do the issues the loops will read live, and do they carry enough to act on without asking?"
+    },
+    {
+      "id": "general-line-endings",
+      "consumer": "general",
+      "severity": "quality",
+      "section": "Best practices",
+      "title": "Line endings are settled, so a diff shows only what changed",
+      "why": "An agent running on Linux against a repo with no rule rewrites the line endings of every file it touches. The diff then shows the whole file as changed, review becomes impossible, and the loop looks like it rewrote something it only edited one line of.",
+      "detect": {
+        "any_file_contains": [
+          { "glob": ".gitattributes", "pattern": "text=auto|eol=lf|eol=crlf|binary" }
+        ],
+        "any_path": [
+          { "glob": ".gitattributes", "strength": "weak" }
+        ]
+      },
+      "ask": "Does this repo pin its line endings, so a change made on another operating system does not rewrite whole files?"
     },
     {
       "id": "general-tool-exposure",

@@ -630,6 +630,49 @@ check "architecture docs feed the pattern-mining question" "weak" "$(src "$r" ge
 check "  and never answer it outright"                     "unknown" "$(v "$r" general-pattern-mining)"
 check "  they feed the coding-standards question too"      "weak" "$(src "$r" verify-coding-standards)"
 
+# --- the issue is the brief, and it may not live in this repo -----------------------------------
+# Every loop starts by reading an issue, and nothing asked whether those issues are worth reading.
+# It is QUALITY and not a must-have for one reason: a product can keep its issues in a different
+# repo, which one of the three looked at does. Detection here sees only the code repo, so a miss
+# means "they are somewhere I cannot see", never "there are none".
+d="$(mkrepo issuetmpl README.md)"
+mkdir -p "$d/.github/ISSUE_TEMPLATE"
+printf 'name: Bug\n' > "$d/.github/ISSUE_TEMPLATE/bug.yml"
+r="$(run "$d" "$SHIPPED")"
+check "an issue template is weak evidence"   "weak" "$(src "$r" general-issue-quality)"
+check "  and never answers on its own"       "unknown" "$(v "$r" general-issue-quality)"
+check "the check does not block"             "quality" \
+  "$(printf '%s' "$r" | jq -r '.findings[] | select(.id=="general-issue-quality") | .severity')"
+r="$(run "$(mkrepo noissuetmpl README.md)" "$SHIPPED")"
+check "no template in this repo is not a gap, it is a question" "unknown" "$(v "$r" general-issue-quality)"
+check "  with nothing claimed either way" 0 \
+  "$(printf '%s' "$r" | jq '[.findings[] | select(.id=="general-issue-quality") | .evidence[]] | length')"
+
+# --- line endings, because a diff nobody can read is a review nobody does ------------------------
+# An agent on Linux against a repo with no rule rewrites the endings of every file it touches, and
+# the diff then shows the whole file as changed. A `.gitattributes` EXISTING is not the same as one
+# that settles this: a real repo's is a merge driver for one file and says nothing about endings.
+d="$(mkrepo eolset README.md)"
+printf '* text=auto\n' > "$d/.gitattributes"
+r="$(run "$d" "$SHIPPED")"
+check "a .gitattributes that pins endings answers it" "present" "$(v "$r" general-line-endings)"
+
+d="$(mkrepo eolother README.md)"
+printf 'release-manifest.json merge=preserve-on-release\n' > "$d/.gitattributes"
+r="$(run "$d" "$SHIPPED")"
+check "one that says nothing about endings only asks" "unknown" "$(v "$r" general-line-endings)"
+check "  and shows the file it found"                 "weak"    "$(src "$r" general-line-endings)"
+
+# --- a pinned toolchain is part of what makes a bare worktree enough ----------------------------
+# The question is whether a fresh checkout on a clean machine can build. A pinned SDK, a pinned
+# Node and central package versions are three quarters of that answer, and none was being read.
+d="$(mkrepo pinned README.md)"
+printf '{"sdk":{"version":"10.0.100"}}\n' > "$d/global.json"
+printf '20.11.0\n' > "$d/.nvmrc"
+r="$(run "$d" "$SHIPPED")"
+check "a pinned toolchain feeds the bare-worktree question" 2 \
+  "$(printf '%s' "$r" | jq '[.findings[] | select(.id=="workspace-isolated-build") | .evidence[] | select(test("global.json|nvmrc"))] | length')"
+
 # --- git hooks: what they prove, and the one they must NOT prove --------------------------------
 # Nothing looked at `.githooks/` at all, and both live repos have one. A hook is the branch model
 # written down AND enforced, which is better evidence than a document on its own.
