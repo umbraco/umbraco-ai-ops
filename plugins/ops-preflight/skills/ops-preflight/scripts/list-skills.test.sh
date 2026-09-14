@@ -107,9 +107,72 @@ check "text mode says outright that a description is not proof" 1 \
 check "  no em dash anywhere in the output" 0 "$(printf '%s' "$out" | grep -c $'\xe2\x80\x94')"
 check "the JSON carries no verdict field"   0 "$(j mixed | grep -c '"verdict"')"
 
+# --- --for: the questions this repo has already answered itself -------------------
+# Every check records the capability it is about, in `consumer`. A repo that ships a skill of that
+# name has already written the answer down, so the join needs no mapping table.
+#
+# Watched failing on a live repo: asked what single command builds the product, the answer was "no
+# single command", while that repo's own `ops-change` named all three. Asked whether a bare
+# worktree is enough, the answer was "it needs a demo site first", while its own `ops-workspace`
+# says the opposite and gives its reasoning. Listing skill NAMES did not help, because neither
+# answer is in a description.
+FIND="$(printf '%s' '{"repo":"/x","sources":[],"findings":[
+  {"id":"verify-build-command","consumer":"ops-change","action":"verify","severity":"blocking",
+   "section":"Harness","title":"t","why":"w","ask":"What builds it?","verdict":"unknown","evidence":[]},
+  {"id":"workspace-isolated-build","consumer":"ops-workspace","action":"prepare","severity":"blocking",
+   "section":"Environment","title":"t","why":"w","ask":"Is a worktree enough?","verdict":"unknown","evidence":[]},
+  {"id":"general-tool-exposure","consumer":"general","severity":"quality","section":"Misc",
+   "title":"t","why":"w","ask":"Which tools?","verdict":"unknown","evidence":[]},
+  {"id":"no-question","consumer":"ops-change","action":"verify","severity":"quality","section":"Misc",
+   "title":"t","why":"w","verdict":"unknown","evidence":[]},
+  {"id":"not-shipped","consumer":"ops-release","action":"cut","severity":"blocking",
+   "section":"Release management","title":"t","why":"w","ask":"q?","verdict":"unknown","evidence":[]}
+]}' > "$TMP/findings.json"; printf '%s' "$TMP/findings.json")"
+
+skill joined ops-change '---
+name: ops-change
+description: builds it
+---
+Run `dotnet build Product.slnx` then `npm run build`.'
+skill joined ops-workspace '---
+name: ops-workspace
+description: a place to build
+---
+A plain worktree is full CI parity.'
+
+j2() { bash "$S" "$TMP/joined" --for "$FIND" --json 2>/dev/null; }
+check "a check whose capability the repo ships is linked" ".claude/skills/ops-change/SKILL.md" \
+  "$(j2 | jq -r '.[] | select(.check=="verify-build-command") | .read')"
+check "  and says which action to read about" "ops-change · verify" \
+  "$(j2 | jq -r '.[] | select(.check=="verify-build-command") | .capability')"
+check "a second capability links to its own skill" ".claude/skills/ops-workspace/SKILL.md" \
+  "$(j2 | jq -r '.[] | select(.check=="workspace-isolated-build") | .read')"
+check "a check owned by no capability is never linked" 0 \
+  "$(j2 | jq '[.[] | select(.check=="general-tool-exposure")] | length')"
+check "a check with no question is never linked" 0 \
+  "$(j2 | jq '[.[] | select(.check=="no-question")] | length')"
+check "a capability the repo does NOT ship is not linked" 0 \
+  "$(j2 | jq '[.[] | select(.check=="not-shipped")] | length')"
+check "only the real links are returned" 2 "$(j2 | jq 'length')"
+
+out="$(bash "$S" "$TMP/joined" --for "$FIND" 2>/dev/null)"
+check "text mode says to read before asking" 1 "$(printf '%s' "$out" | grep -c 'Read the file before asking')"
+check "  and that it is still a claim" 1 "$(printf '%s' "$out" | tr '\n' ' ' | grep -c 'still a claim, not proof')"
+
+# A repo that has not started onboarding is the normal case, and must not read as a problem.
+check "a repo with no capability skills links nothing" 0 \
+  "$(bash "$S" "$TMP/one" --for "$FIND" --json 2>/dev/null | jq 'length')"
+check "  and says so plainly" 1 \
+  "$(bash "$S" "$TMP/one" --for "$FIND" 2>/dev/null | grep -c 'normal case before onboarding')"
+
 # --- failure modes ---------------------------------------------------------------
 bash "$S" >/dev/null 2>&1;                      check "no argument exits 2" 2 $?
 bash "$S" "$TMP/does-not-exist" >/dev/null 2>&1; check "a missing directory exits 2" 2 $?
+bash "$S" "$TMP/joined" --for "$TMP/nope.json" >/dev/null 2>&1
+check "a missing findings file exits 2" 2 $?
+printf '%s' '{"hello":true}' > "$TMP/notreport.json"
+bash "$S" "$TMP/joined" --for "$TMP/notreport.json" >/dev/null 2>&1
+check "a file that is not an inspect report exits 2" 2 $?
 
 printf '\n%s: %d passed, %d failed\n' "$(basename "$0")" "$pass" "$fail"
 [ "$fail" -eq 0 ]

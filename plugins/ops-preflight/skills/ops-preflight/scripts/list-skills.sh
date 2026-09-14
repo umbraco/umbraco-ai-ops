@@ -25,16 +25,17 @@
 #   list-skills.sh <repo-root> [--json]
 set -uo pipefail
 
-repo="" fmt="text"
+repo="" fmt="text" for_findings=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --json) fmt="json"; shift ;;
-    -h|--help) echo "usage: $(basename "$0") <repo-root> [--json]"; exit 0 ;;
+    --for)  for_findings="${2:-}"; shift 2 ;;
+    -h|--help) echo "usage: $(basename "$0") <repo-root> [--json] [--for <findings.json>]"; exit 0 ;;
     *) [ -n "$repo" ] || repo="$1"; shift ;;
   esac
 done
 
-[ -n "$repo" ] || { echo "usage: $(basename "$0") <repo-root> [--json]" >&2; exit 2; }
+[ -n "$repo" ] || { echo "usage: $(basename "$0") <repo-root> [--json] [--for <findings.json>]" >&2; exit 2; }
 [ -d "$repo" ] || { echo "ERROR: no such directory: $repo" >&2; exit 2; }
 command -v jq >/dev/null 2>&1 || { echo "ERROR: jq required" >&2; exit 2; }
 
@@ -107,6 +108,55 @@ agents_json="$(printf '%s\n' "$agent_rows" | to_json)"
 engine_n="$(printf '%s' "$skills_json" | jq '[.[] | select(.engine)] | length')"
 own_n="$(printf '%s' "$skills_json" | jq '[.[] | select(.engine | not)] | length')"
 agents_n="$(printf '%s' "$agents_json" | jq 'length')"
+
+# --- --for: which questions this repo may already have answered itself --------------------------
+# A repo that has started onboarding ships its own capability skills, and those skills hold the
+# answers to questions this interview is about to ask. `ops-change` says what builds the product;
+# `ops-workspace` says what a build needs around it.
+#
+# That is not a guess. Every check records the capability it is about, in `consumer`, and the
+# action within it. So a check whose consumer is `ops-change` is answered by the repo's own
+# `ops-change`, if it has one. The link already exists in the data and needs no mapping table.
+#
+# THE FAILURE THIS FIXES was watched happening. A repo was asked "what single command builds this
+# whole product?" and answered "no single command". Its own `ops-change` names all three:
+# `dotnet build`, `dotnet test` per product, `npm run build` at the root. It was then asked whether
+# a bare worktree is enough and answered "it needs a demo site stood up first". Its own
+# `ops-workspace` says the opposite, with reasoning: the integration tests are self-contained, the
+# pipeline runs them with no SQL and no container, so a plain worktree is full CI parity, and
+# `prepare` MUST NOT stand up a demo site. Both answers came from memory of building by hand.
+# Listing the skill NAMES was not enough, because neither answer is in a description.
+#
+# The description-level rule still holds: this says where to read, never what the answer is.
+if [ -n "$for_findings" ]; then
+  [ -f "$for_findings" ] || { echo "ERROR: no such file: $for_findings" >&2; exit 2; }
+  jq -e '.findings | type == "array"' "$for_findings" >/dev/null 2>&1 \
+    || { echo "ERROR: $for_findings is not an inspect.sh report (no findings array)" >&2; exit 2; }
+
+  rows="$(jq -r --argjson skills "$skills_json" '
+    ($skills | map({key: .name, value: .path}) | from_entries) as $has
+    | .findings[]
+    | select((.ask // "") != "")
+    | select(.consumer != null) | select($has[.consumer] != null)
+    | [ .id, (.consumer + (if .action then " · " + .action else "" end)), $has[.consumer] ]
+    | @tsv' "$for_findings")"
+
+  if [ "$fmt" = "json" ]; then
+    printf '%s\n' "$rows" | jq -Rsc 'split("\n") | map(select(length>0) | split("\t")
+      | {check: .[0], capability: .[1], read: .[2]})'
+    exit 0
+  fi
+  if [ -z "$rows" ]; then
+    printf 'No question here is about a capability this repo already implements.\n'
+    printf 'That is the normal case before onboarding. Ask them all.\n'
+    exit 0
+  fi
+  printf 'This repo may have already answered these, in its own words\n\n'
+  printf '%s\n' "$rows" | awk -F'\t' '{ printf "  %-26s %-26s %s\n", $1, $2, $3 }'
+  printf '\nRead the file before asking, find the part about that action, and lead the question\n'
+  printf 'with what it says. A skill is still a claim, not proof, so the person still answers.\n'
+  exit 0
+fi
 
 if [ "$fmt" = "json" ]; then
   jq -nc --arg repo "$repo" --argjson skills "$skills_json" --argjson agents "$agents_json" \

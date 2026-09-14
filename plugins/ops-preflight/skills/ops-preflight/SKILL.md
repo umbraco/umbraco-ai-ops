@@ -342,10 +342,42 @@ were asked anyway, because nothing read them.
 It also reports engine skills the repo already has. That same repo had four, so it was
 part-onboarded and preflight never said so.
 
-**A description is a claim, never a verdict.** It says what a skill means to do, not that it works,
-and the same repo proves the difference: it ships `repo-setup` and still answered "no, a bare
-worktree is not enough, it needs a demo site stood up". So this never resolves a check. Use it to
-put the name in front of the person and let them answer.
+**A description is a claim, never a verdict.** It says what a skill means to do, not that it works.
+So this never resolves a check. Use it to put the name in front of the person and let them answer.
+
+### Then find the questions the repo has already answered
+
+```
+scripts/list-skills.sh <repo> --for findings.json
+```
+
+A repo partway through onboarding ships its own capability skills, and those skills hold the
+answers. Every check records the capability it is about, so a check whose `consumer` is
+`ops-change` is answered by the repo's own `ops-change`, if it has one. This prints the join:
+
+```
+verify-build-command      ops-change · verify       .claude/skills/ops-change/SKILL.md
+workspace-isolated-build  ops-workspace · prepare   .claude/skills/ops-workspace/SKILL.md
+```
+
+**Read the file before asking.** Find the part about that action and lead the question with what it
+says:
+
+> Your `ops-workspace` says a plain worktree is full CI parity, because the tests are
+> self-contained and the pipeline runs them with no SQL and no container, and that `prepare` must
+> not stand up a demo site. Still true?
+
+Not reading it produced two wrong answers on a live repo. Asked cold what single command builds the
+product, the answer was "no single command"; that repo's `ops-change` names all three. Asked
+whether a bare worktree is enough, the answer was "it needs a demo site first"; that repo's
+`ops-workspace` says the opposite and gives its reasoning. Both answers came from memory of
+building by hand. Listing the skill names was not enough, because neither answer is in a
+description.
+
+On a repo that has not started onboarding this prints nothing, which is the normal case.
+
+**It is still a claim.** A skill says what someone decided, and the repo may have moved since. The
+person still answers.
 
 **Four questions per call is the tool's limit, not a choice made here.** `AskUserQuestion` accepts
 at most four, and the human tabs through them. So ask four at a time: do not make four calls with
