@@ -253,7 +253,8 @@ while IFS= read -r id; do
   active_stack_count="$(printf '%s' "$active_stacks_json" | jq 'length')"
   unaccounted_json='[]'
   if [ "$whole_product" = "true" ] && [ "$has_strong" -eq 0 ] && [ "$active_stack_count" -ge 2 ]; then
-    strong_origins_json="$(printf '%s\n' "$strong_origins" | jq -R . | jq -sc 'map(select(length>0))')"
+    strong_origins_json="$(printf '%s\n' "$strong_origins" | jq -Rsc 'split("
+") | map(select(length>0))')"
     unaccounted_json="$(jq -nc --argjson active "$active_stacks_json" --argjson strong "$strong_origins_json" '
       if ($strong | index("base")) then [] else ($active - $strong) end
     ')"
@@ -273,8 +274,10 @@ while IFS= read -r id; do
   # Written to a FILE and read back with `--slurpfile`, not handed to jq as a `--argjson` literal:
   # an evidence array is uncapped now, and a real repo's real match count is easily large enough to
   # overflow the OS argv limit as an inline argument (see the TMPFILES comment above).
-  printf '%s\n' "${ev_strong[@]+"${ev_strong[@]}"}" | jq -R . | jq -sc 'map(select(length>0))' > "$ev_strong_file"
-  printf '%s\n' "${ev_weak[@]+"${ev_weak[@]}"}"   | jq -R . | jq -sc 'map(select(length>0))' > "$ev_weak_file"
+  printf '%s\n' "${ev_strong[@]+"${ev_strong[@]}"}" | jq -Rsc 'split("
+") | map(select(length>0))' > "$ev_strong_file"
+  printf '%s\n' "${ev_weak[@]+"${ev_weak[@]}"}"   | jq -Rsc 'split("
+") | map(select(length>0))' > "$ev_weak_file"
   verdicts="$(printf '%s' "$verdicts" | jq -c \
     --arg id "$id" --arg v "$verdict" --arg s "$source" --argjson u "$unaccounted_json" \
     --slurpfile es "$ev_strong_file" --slurpfile ew "$ev_weak_file" \

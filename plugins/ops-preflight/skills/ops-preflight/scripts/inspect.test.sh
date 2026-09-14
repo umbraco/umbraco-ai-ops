@@ -437,6 +437,188 @@ check "  no ' - ' punctuation or em dash in a PROSE field of any shipped check f
       ] | join("; ")
      ' "${SHIPPED_CHECK_FILES[@]}")"
 
+# --- the prose is for someone who has installed NOTHING yet -------------------------------------
+# A live run against a real repo put "The ops-change skill runs a code review before pushing." in
+# front of a person who had never heard of ops-change. The question text was generated at runtime,
+# but the source of the vocabulary was `why`: nine shipped checks explained themselves in engine
+# terms, and the model writing the options quite reasonably reused them. Preflight runs BEFORE
+# onboarding, so a capability name, the catalog, or "the framework default" mean nothing to the
+# reader. "The loops" is deliberately allowed: the report's own severity lines already say it, and
+# it is the one bit of vocabulary the reader is being introduced to on purpose. "Seam" is allowed
+# too, as ordinary English for a boundary between components, which is how the shipped text uses it.
+check "  no engine vocabulary in a PROSE field of any shipped check file" "" \
+  "$(jq -rs '
+      [ .[] | .checks[] | (.title // "") + " | " + (.why // "") + " | " + (.ask // "")
+        | ascii_downcase
+        | select(test("ops-[a-z]") or test("capability") or test("catalog") or test("framework default"))
+      ] | join("; ")
+     ' "${SHIPPED_CHECK_FILES[@]}")"
+
+# --- a check nobody can answer blocks the score forever ------------------------------------------
+# `verify-page-objects` and `node-lockfile` shipped with no `ask` at all. Detection misses them in a
+# repo that has neither, they stay `unknown`, and because score.sh refuses to score while anything
+# is unknown, no score can ever print for that repo. Nothing caught it; the interview simply had no
+# question to ask. A check carrying a severity is one this tool has an opinion about, so it owes the
+# reader a question.
+check "  every shipped check with a severity also carries an ask" "" \
+  "$(jq -rs '
+      [ .[] | .checks[] | select(.severity != null) | select((.ask // "") == "") | .id ] | join(", ")
+     ' "${SHIPPED_CHECK_FILES[@]}")"
+
+# --- a repo that has already worked out what a bare worktree is missing --------------------------
+# `.worktreeinclude` is a documented Claude Code file: gitignore syntax at the project root, listing
+# the gitignored files to copy into every new worktree. A `WorktreeCreate` hook is the other half of
+# the same story, replacing worktree creation outright so it can provision whatever git cannot.
+# Either one exists BECAUSE a bare worktree was not enough, which is the exact subject of
+# workspace-isolated-build, and neither is a product fact, so both belong in the engine base.
+#
+# They stay WEAK, and the reason is a live repo: Umbraco.Automate ships a `.worktreeinclude` and
+# still answered this question "no, it needs a demo site stood up first". The file covers gitignored
+# FILES and says nothing about a database, a container or a port, so resolving `present` off it
+# would be exactly the false pass the strength model exists to stop. It surfaces as evidence and the
+# human still answers. (`signal: true` on the check already forces weak; this pins the behaviour.)
+r="$(run "$(mkrepo wtinclude .worktreeinclude)" "$SHIPPED")"
+check "a .worktreeinclude is seen at all"        "unknown" "$(v "$r" workspace-isolated-build)"
+check "  as a weak match, so the human still answers" "weak" "$(src "$r" workspace-isolated-build)"
+check "  and it is kept as evidence to seed the question" ".worktreeinclude" \
+  "$(printf '%s' "$r" | jq -r '.findings[] | select(.id=="workspace-isolated-build") | .evidence[0]')"
+
+d="$(mkrepo wthook README.md)"
+mkdir -p "$d/.claude"
+printf '{ "hooks": { "WorktreeCreate": [] } }\n' > "$d/.claude/settings.json"
+r="$(run "$d" "$SHIPPED")"
+check "a WorktreeCreate hook counts as the same kind of evidence" "weak" \
+  "$(src "$r" workspace-isolated-build)"
+
+r="$(run "$(mkrepo wtnone README.md)" "$SHIPPED")"
+check "a repo with neither offers no evidence for it" 0 \
+  "$(printf '%s' "$r" | jq '[.findings[] | select(.id=="workspace-isolated-build") | .evidence[]] | length')"
+
+# --- a pinned port is the answer to "would three builds collide" --------------------------------
+# workspace-parallel shipped with no detect block at all, so it always asked with nothing in hand.
+# In a .NET repo the answer is usually sitting in `Properties/launchSettings.json`: a fixed port in
+# `applicationUrl`, or a pinned `sslPort`, means two worktrees running at once fight over the same
+# socket. That is a STACK fact, not a product fact, so it belongs in the dotnet profile rather than
+# the base.
+#
+# It is an INVERTED signal, the same shape as dotnet-private-feed: finding it suggests the answer is
+# "no, they would collide", so it must never resolve `present`. Weak, and the human answers with the
+# file named in front of them.
+DP="$HERE/profiles/dotnet.json"
+d="$(mkrepo pinnedport Product.csproj)"
+mkdir -p "$d/src/Web/Properties"
+printf '{ "profiles": { "Web": { "applicationUrl": "https://localhost:44331" } } }\n' \
+  > "$d/src/Web/Properties/launchSettings.json"
+r="$(bash "$I" "$d" --json --checks "$SHIPPED" --checks "$DP" 2>/dev/null)"
+check "a pinned port in launchSettings is seen"   "unknown" "$(v "$r" workspace-parallel)"
+check "  as a weak match, never a pass"           "weak"    "$(src "$r" workspace-parallel)"
+check "  with the file named, to answer with"     "src/Web/Properties/launchSettings.json" \
+  "$(printf '%s' "$r" | jq -r '.findings[] | select(.id=="workspace-parallel") | .evidence[0]')"
+
+# A dynamic port (`:0`) is what a repo does when it HAS solved this, so it must not trip the match.
+d="$(mkrepo dynport Product.csproj)"
+mkdir -p "$d/src/Web/Properties"
+printf '{ "profiles": { "Web": { "applicationUrl": "http://localhost:0" } } }\n' \
+  > "$d/src/Web/Properties/launchSettings.json"
+r="$(bash "$I" "$d" --json --checks "$SHIPPED" --checks "$DP" 2>/dev/null)"
+check "a dynamic port does not trip the match"    0 \
+  "$(printf '%s' "$r" | jq '[.findings[] | select(.id=="workspace-parallel") | .evidence[]] | length')"
+
+# --- a glob that does not start with `*` only ever matched the ROOT -----------------------------
+# preflight_paths_matching is `[[ $entry == $glob ]]` against the whole repo-relative path, so a
+# leading `*` is what lets a pattern reach a nested file. `*.sln` finds one at any depth; a glob
+# starting with a literal, like `playwright.config.*`, silently matched nothing below the root.
+# Found against a live repo that keeps Playwright in tests/<project>/, where the end-to-end check
+# reported unknown with no evidence while the config file sat right there. Same shape as the
+# `version.json` bug before it, in about fifteen more patterns: the test, lint and lockfile configs
+# all legitimately live in a subproject.
+#
+# `build.sh`, `test.sh` and `Makefile` deliberately keep their root anchoring: "ONE command builds
+# the product" is a claim about the top of the repo, and a build script three directories down is
+# not that.
+r="$(run "$(mkrepo nestedcfg tests/Acceptance/playwright.config.ts)" "$SHIPPED")"
+check "a nested playwright config is found now" "present" "$(v "$r" verify-e2e-or-navigation)"
+check "  and it is what earned the pass" "tests/Acceptance/playwright.config.ts" \
+  "$(printf '%s' "$r" | jq -r '.findings[] | select(.id=="verify-e2e-or-navigation") | .evidence_strong[0]')"
+
+NP="$HERE/profiles/node.json"
+r="$(bash "$I" "$(mkrepo nestedlock src/client/package-lock.json)" --json --checks "$SHIPPED" --checks "$NP" 2>/dev/null)"
+check "a nested lockfile is found now" "present" "$(v "$r" node-lockfile)"
+
+# A root-anchored script stays root-anchored, because that is the actual question it asks.
+r="$(run "$(mkrepo deepbuild tools/ci/build.sh)" "$SHIPPED")"
+check "a build.sh three levels down is still not 'one command builds it'" "unknown" \
+  "$(v "$r" verify-build-command)"
+
+# --- the false pass that fix nearly shipped -----------------------------------------------------
+# The first attempt added `*[Aa]cceptance[Tt]est*/*.cs` to the end-to-end check. A live repo has a
+# C# API controller namespace called AcceptanceTests, so 54 source files resolved the check PRESENT
+# on evidence that has nothing to do with driving a browser. A directory name is a guess; a
+# playwright config is named for the job. The `.cs` glob is gone and the `.ts` one is weak.
+r="$(run "$(mkrepo fakeacceptance src/Api/AcceptanceTests/SystemInfoController.cs)" "$SHIPPED")"
+check "C# files under an AcceptanceTests folder do NOT pass the e2e check" "unknown" \
+  "$(v "$r" verify-e2e-or-navigation)"
+r="$(run "$(mkrepo tsacceptance tests/AcceptanceTests/login.ts)" "$SHIPPED")"
+check "  and .ts files there only ask, never pass" "unknown" "$(v "$r" verify-e2e-or-navigation)"
+check "  while still showing what was seen"        "weak"    "$(src "$r" verify-e2e-or-navigation)"
+
+# --- three checks that used to detect nothing at all ---------------------------------------------
+# verify-review-gate, general-tool-exposure and verify-warnings-clean shipped with no `detect` block
+# whatsoever, so they asked with nothing in hand every single time, in every repo.
+
+# An `.mcp.json` is the repo saying which tools it has already put in an agent's reach. The question
+# is the inverted one ("which tools can it NOT reach"), so a match asks; it never answers.
+r="$(run "$(mkrepo mcp .mcp.json)" "$SHIPPED")"
+check "an .mcp.json is seen"                  "unknown" "$(v "$r" general-tool-exposure)"
+check "  weakly, because the question is inverted" "weak" "$(src "$r" general-tool-exposure)"
+check "  and named, so the answer can start there" ".mcp.json" \
+  "$(printf '%s' "$r" | jq -r '.findings[] | select(.id=="general-tool-exposure") | .evidence[0]')"
+
+# CODEOWNERS is a review gate on the PR, which is AFTER the push this check asks about, so it is a
+# `signal` match: it starts the conversation and settles nothing. This check is blocking, and a
+# false pass here drops a gate everyone believes held.
+r="$(run "$(mkrepo owners .github/CODEOWNERS)" "$SHIPPED")"
+check "a CODEOWNERS file is seen"             "unknown" "$(v "$r" verify-review-gate)"
+check "  and never passes a BLOCKING review gate on its own" "weak" "$(src "$r" verify-review-gate)"
+
+# TreatWarningsAsErrors is the one piece of file evidence that genuinely proves a clean build: the
+# build cannot go green with a warning in it. Strong, and precise, which matters because the live
+# repo that prompted this has `<WarningsAsErrors>nullable</WarningsAsErrors>` instead, promoting ONE
+# category and leaving a real backlog. A looser pattern would have called that a clean build.
+d="$(mkrepo warnclean Product.csproj)"
+printf '<Project><PropertyGroup><TreatWarningsAsErrors>true</TreatWarningsAsErrors></PropertyGroup></Project>\n' \
+  > "$d/Directory.Build.props"
+r="$(bash "$I" "$d" --json --checks "$SHIPPED" --checks "$DP" 2>/dev/null)"
+check "TreatWarningsAsErrors proves a clean build" "present" "$(v "$r" verify-warnings-clean)"
+
+d="$(mkrepo warnpartial Product.csproj)"
+printf '<Project><PropertyGroup><WarningsAsErrors>nullable</WarningsAsErrors></PropertyGroup></Project>\n' \
+  > "$d/Directory.Build.props"
+r="$(bash "$I" "$d" --json --checks "$SHIPPED" --checks "$DP" 2>/dev/null)"
+check "  but promoting one warning category does not" "unknown" "$(v "$r" verify-warnings-clean)"
+
+# --- two more things a live repo had and nothing looked for --------------------------------------
+r="$(bash "$I" "$(mkrepo testsite examples/TestSite/TestSite.csproj)" --json --checks "$SHIPPED" --checks "$DP" 2>/dev/null)"
+check "an example project is weak evidence of a runnable instance" "weak" \
+  "$(src "$r" dotnet-runnable-instance)"
+
+r="$(run "$(mkrepo envexample .env.example)" "$SHIPPED")"
+check "an .env.example says a fresh checkout needs filling in" ".env.example" \
+  "$(printf '%s' "$r" | jq -r '.findings[] | select(.id=="workspace-isolated-build") | .evidence[0]')"
+
+# --- written-down architecture is where a repo's conventions actually live -----------------------
+# Two checks only looked for a skill or a file with "standard", "convention" or "style" in the name.
+# A live repo writes the same thing down as `docs/vocabulary.md`, `docs/engineering-spec.md` and
+# `docs/control-flow-architecture.md`, so both asked with nothing in hand. Weak, because a document
+# existing is not the same as an agent being pointed at it, which is the other half of the question.
+d="$(mkrepo archdocs README.md)"
+mkdir -p "$d/docs"
+for n in vocabulary.md engineering-spec.md control-flow-architecture.md; do printf 'x\n' > "$d/docs/$n"; done
+r="$(run "$d" "$SHIPPED")"
+check "architecture docs feed the pattern-mining question" "weak" "$(src "$r" general-pattern-mining)"
+check "  and never answer it outright"                     "unknown" "$(v "$r" general-pattern-mining)"
+check "  they feed the coding-standards question too"      "weak" "$(src "$r" verify-coding-standards)"
+
 # --- dual-stack merge: two matching STACK profiles are additive, not a winner-take-all ---------
 # select-profile.sh's own contract is that stacks are ADDITIVE ("nothing picks one winner"). This
 # goes through the REAL auto-discovery path (no --checks), because the additive merge only exists

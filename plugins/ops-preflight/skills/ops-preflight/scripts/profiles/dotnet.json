@@ -34,10 +34,12 @@
       "title": "Analyzers are wired in and runnable by one command",
       "why": "Analyzer rules are this stack's written-down conventions in a form a machine can enforce. Configured but only visible inside an IDE means an agent never sees them.",
       "detect": {
-        "any_path": ["stylecop.json", "*.ruleset", ".globalconfig"],
+        "any_path": ["stylecop.json", "*/stylecop.json", "*.ruleset", ".globalconfig", "*/.globalconfig"],
         "any_file_contains": [
           { "glob": "Directory.Build.props", "pattern": "Analyzer|StyleCop|TreatWarningsAsErrors|EnforceCodeStyleInBuild", "strength": "weak" },
-          { "glob": ".editorconfig", "pattern": "dotnet_diagnostic|dotnet_analyzer", "strength": "weak" }
+          { "glob": "*/Directory.Build.props", "pattern": "Analyzer|StyleCop|TreatWarningsAsErrors|EnforceCodeStyleInBuild", "strength": "weak" },
+          { "glob": ".editorconfig", "pattern": "dotnet_diagnostic|dotnet_analyzer", "strength": "weak" },
+          { "glob": "*/.editorconfig", "pattern": "dotnet_diagnostic|dotnet_analyzer", "strength": "weak" }
         ]
       },
       "ask": "Are analyzers enforced by the build here, and does one command run them?"
@@ -52,8 +54,16 @@
       "why": "An agent that cannot start the product cannot check its change by hand or run anything end to end. This is the single biggest difference between a repo the loops do good work in and one they do not.",
       "detect": {
         "any_path": [
-          "scripts/*demo*", "docker-compose*.yml", "compose*.yml", "Dockerfile",
-          { "glob": "scripts/*install*", "strength": "weak" }, { "glob": "scripts/*run*", "strength": "weak" }
+          "scripts/*demo*",
+          "docker-compose*.yml", "*/docker-compose*.yml",
+          "compose*.yml", "*/compose*.yml",
+          "Dockerfile", "*/Dockerfile",
+          { "glob": "scripts/*install*", "strength": "weak" }, { "glob": "scripts/*run*", "strength": "weak" },
+          { "glob": "*[Tt]est[Ss]ite*/*.csproj", "strength": "weak" },
+          { "glob": "*[Dd]emo*/*.csproj", "strength": "weak" },
+          { "glob": "examples/*/*.csproj", "strength": "weak" },
+          { "glob": "*/Properties/launchSettings.json", "strength": "weak" },
+          { "glob": "Properties/launchSettings.json", "strength": "weak" }
         ]
       },
       "ask": "What stands up a running instance of the product with this project installed?"
@@ -65,10 +75,33 @@
       "severity": "blocking",
       "section": "Environment",
       "title": "A restore in a fresh worktree needs no credential",
-      "why": "A restore that needs a feed credential fails inside the bare worktree the default ops-workspace creates, and the failure reads as a broken build rather than a missing secret.",
+      "why": "A restore that needs a feed credential fails inside the bare copy of the repo each change gets, and the failure reads as a broken build rather than a missing secret.",
       "signal": true,
       "detect": { "any_path": ["NuGet.config", "nuget.config", "NuGet.Config", "*/NuGet.config", "*/nuget.config"] },
       "ask": "Does restoring this repo need a credential for a private package feed?"
+    },
+    {
+      "id": "verify-warnings-clean",
+      "section": "Harness",
+      "detect": {
+        "any_file_contains": [
+          { "glob": "Directory.Build.props", "pattern": "TreatWarningsAsErrors>[[:space:]]*[Tt]rue" },
+          { "glob": "*/Directory.Build.props", "pattern": "TreatWarningsAsErrors>[[:space:]]*[Tt]rue" },
+          { "glob": "*.csproj", "pattern": "TreatWarningsAsErrors>[[:space:]]*[Tt]rue", "strength": "weak" },
+          { "glob": ".globalconfig", "pattern": "severity[[:space:]]*=[[:space:]]*error", "strength": "weak" },
+          { "glob": "*/.globalconfig", "pattern": "severity[[:space:]]*=[[:space:]]*error", "strength": "weak" }
+        ]
+      }
+    },
+    {
+      "id": "workspace-parallel",
+      "section": "Environment",
+      "detect": {
+        "any_file_contains": [
+          { "glob": "Properties/launchSettings.json", "pattern": "applicationUrl.*:[0-9]{4,5}|sslPort.*[0-9]{4,5}", "strength": "weak" },
+          { "glob": "*/Properties/launchSettings.json", "pattern": "applicationUrl.*:[0-9]{4,5}|sslPort.*[0-9]{4,5}", "strength": "weak" }
+        ]
+      }
     }
   ]
 }

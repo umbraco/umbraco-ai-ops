@@ -8,9 +8,21 @@
       "severity": "blocking",
       "section": "Environment",
       "title": "A bare worktree is enough to build and test one change",
-      "why": "The framework default hands each change a plain git worktree and nothing else. If a build here needs a database, a container, a free port or a credential, that default cannot provide it and this repo must ship its own ops-workspace.",
+      "why": "Out of the box, each change gets a fresh copy of the repo and nothing else. If a build here also needs a database, a container, a free port or a credential, that is not enough, and this repo has to supply the extra setup itself.",
       "signal": true,
-      "detect": { "any_path": ["docker-compose*.yml", "compose*.yml", "Dockerfile", "*/Dockerfile", ".devcontainer/*"] },
+      "detect": {
+        "any_path": [
+          "docker-compose*.yml", "*/docker-compose*.yml",
+          "compose*.yml", "*/compose*.yml",
+          "Dockerfile", "*/Dockerfile", ".devcontainer/*",
+          ".worktreeinclude",
+          ".env.example", "*/.env.example", ".env.template", "*/.env.template", ".env.sample"
+        ],
+        "any_file_contains": [
+          { "glob": ".claude/settings.json", "pattern": "WorktreeCreate" },
+          { "glob": ".claude/settings.local.json", "pattern": "WorktreeCreate" }
+        ]
+      },
       "ask": "Starting from a fresh git worktree of this repo and nothing else, can someone build it and run its tests?"
     },
     {
@@ -20,7 +32,7 @@
       "severity": "blocking",
       "section": "Environment",
       "title": "Three builds can run at once without colliding",
-      "why": "ops-issue-loop dispatches up to three changes at a time. If two builds share a port, a database name, a lock file or a fixed output directory, they corrupt each other and the failures look random.",
+      "why": "Up to three changes are worked at the same time. If two builds share a port, a database name, a lock file or a fixed output directory, they corrupt each other and the failures look random.",
       "ask": "Can three builds of this repo run at the same time without sharing a port, a database name or an output directory?"
     },
     {
@@ -30,7 +42,7 @@
       "severity": "blocking",
       "section": "Harness",
       "title": "One command builds the product",
-      "why": "ops-change verify has to build before it can report pass or fail. Without a single command, verify becomes a prose recipe that drifts away from what CI actually does.",
+      "why": "The agent has to build before it can report pass or fail. Without one command that does it, the build step becomes a written recipe that drifts away from what CI actually runs.",
       "whole_product": true,
       "detect": {
         "any_path": [
@@ -47,7 +59,7 @@
       "severity": "blocking",
       "section": "Harness",
       "title": "One command runs the tests",
-      "why": "A verify that cannot run the tests reports a pass that means nothing. This is the check the whole engine leans on: the loops stop at a green PR and never re-derive whether the change was correct.",
+      "why": "A check that cannot run the tests reports a pass that means nothing. This is the one the whole engine leans on: the loops stop at a green PR and never work out for themselves whether the change was correct.",
       "whole_product": true,
       "detect": {
         "any_path": [
@@ -73,8 +85,10 @@
       "detect": {
         "any_path": [
           "lint.sh", "scripts/lint*",
-          { "glob": ".editorconfig", "strength": "weak" }, { "glob": ".eslintrc*", "strength": "weak" },
-          { "glob": "eslint.config.*", "strength": "weak" }, { "glob": ".stylelintrc*", "strength": "weak" }
+          { "glob": ".editorconfig", "strength": "weak" }, { "glob": "*/.editorconfig", "strength": "weak" },
+          { "glob": ".eslintrc*", "strength": "weak" }, { "glob": "*/.eslintrc*", "strength": "weak" },
+          { "glob": "eslint.config.*", "strength": "weak" }, { "glob": "*/eslint.config.*", "strength": "weak" },
+          { "glob": ".stylelintrc*", "strength": "weak" }, { "glob": "*/.stylelintrc*", "strength": "weak" }
         ]
       },
       "ask": "What single command lints this repo, and does it exit non-zero on an error?"
@@ -97,7 +111,16 @@
       "severity": "blocking",
       "section": "Misc",
       "title": "Something reviews a change before it is pushed",
-      "why": "The catalog puts code and security review inside ops-change verify, and the loops require only that it happened. A verify that builds and tests but reviews nothing silently drops a gate its caller believes held, and verify must report which reviews ran.",
+      "why": "Code review and security review happen while a change is being checked, and the loops require only that they happened. A check that builds and tests but reviews nothing quietly drops a gate everyone believes held, so it has to say which reviews actually ran.",
+      "signal": true,
+      "detect": {
+        "any_path": [
+          "CODEOWNERS", ".github/CODEOWNERS", "docs/CODEOWNERS",
+          ".claude/agents/*review*", ".claude/skills/*review*/*",
+          ".github/workflows/*review*", ".github/workflows/*codeql*", ".github/workflows/*security*",
+          ".github/PULL_REQUEST_TEMPLATE*"
+        ]
+      },
       "ask": "What reviews a change in this repo before it reaches a PR: a reviewer agent, a security scan, a required human?"
     },
     {
@@ -126,9 +149,12 @@
       "why": "An agent that cannot drive the product cannot tell whether its change works in the thing a person uses. End-to-end tests are the strong form; a skill describing how to reach each screen is the weak one, and it is far better than nothing.",
       "detect": {
         "any_path": [
-          "playwright.config.*", "cypress.config.*",
+          "playwright.config.*", "*/playwright.config.*",
+          "cypress.config.*", "*/cypress.config.*",
           "*[Ee]2[Ee]*/*.cs", "*[Ee]2[Ee]*/*.ts", "*[Ee]2[Ee]*/*.js",
-          ".claude/skills/*navigat*/*"
+          ".claude/skills/*navigat*/*",
+          { "glob": "*[Aa]cceptance[Tt]est*/*.ts", "strength": "weak" },
+          { "glob": "*[Aa]cceptance[Tt]est*/*.js", "strength": "weak" }
         ]
       },
       "ask": "Can an agent drive this product end to end: real tests, or a skill telling it how to navigate?"
@@ -141,6 +167,7 @@
       "section": "Testing",
       "title": "Browser tests go through page objects, not raw selectors",
       "why": "A test full of raw selectors breaks on every markup change, and an agent asked to fix it edits the selector rather than the bug. Page objects give it one place to look.",
+      "ask": "Do the browser tests here go through page objects, or do they reach for raw selectors?",
       "detect": {
         "any_path": [
           "*[Pp]age[-_]?[Oo]bject*/*.cs", "*[Pp]age[-_]?[Oo]bject*/*.ts", "*[Pp]age[-_]?[Oo]bject*/*.js",
@@ -162,7 +189,11 @@
           { "glob": "CLAUDE.md", "pattern": "[Ss]tandard|[Cc]onvention|[Ss]tyle [Gg]uide", "strength": "weak" },
           { "glob": "AGENTS.md", "pattern": "[Ss]tandard|[Cc]onvention|[Ss]tyle [Gg]uide", "strength": "weak" }
         ],
-        "any_path": ["docs/*standard*", "docs/*convention*", "docs/*style*"]
+        "any_path": [
+          "docs/*standard*", "docs/*convention*", "docs/*style*",
+          { "glob": "docs/*engineering*", "strength": "weak" },
+          { "glob": "docs/*vocabulary*", "strength": "weak" }
+        ]
       },
       "ask": "Are this repo's coding standards written down, and does CLAUDE.md point at them?"
     },
@@ -183,8 +214,8 @@
       "severity": "quality",
       "section": "Harness",
       "title": "The harness validates its own work before reporting pass",
-      "why": "A verify that reports pass without having run the lint and the tests is the failure this engine is built to prevent: it looks exactly like the working path.",
-      "ask": "Will ops-change verify run the lint and the full test command itself, rather than trusting CI to catch it later?"
+      "why": "A check that reports pass without having run the lint and the tests is the failure this engine is built to prevent: it looks exactly like the working path.",
+      "ask": "Before a change is pushed, should the agent run the lint and the full test command itself rather than leaving it to CI?"
     },
     {
       "id": "branching-documented",
@@ -193,7 +224,7 @@
       "severity": "blocking",
       "section": "Best practices",
       "title": "The branch model is written down",
-      "why": "ops-branching is the only holder of this repo's branch model, and ops-install asks a human to confirm the lines and the primary. If nobody has written the model down, nobody can confirm it, and a wrong primary sends every change to the wrong branch with nothing failing.",
+      "why": "Setting this repo up asks a person to confirm which version lines are live and which one is the main one. If nobody has written the branch model down, nobody can confirm it, and a wrong answer sends every change to the wrong branch with nothing failing.",
       "detect": {
         "any_path": ["docs/*branch*", "CONTRIBUTING*"],
         "any_file_contains": [
@@ -210,12 +241,15 @@
       "severity": "blocking",
       "section": "Release management",
       "title": "The version lives in a known file",
-      "why": "ops-release cut has to bump the version. If the version is spread across several files, or only exists as a tag someone types, cut cannot be written and a release goes out mislabelled.",
+      "why": "Cutting a release has to raise the version number. If the version is spread across several files, or only exists as a tag someone types by hand, that step cannot be written down and a release goes out mislabelled.",
       "detect": {
         "any_path": [
-          "version.json", "*/version.json", "Directory.Version.props", "VERSION",
+          "version.json", "*/version.json",
+          "Directory.Version.props", "*/Directory.Version.props", "VERSION",
           { "glob": "Directory.Build.props", "strength": "weak" },
+          { "glob": "*/Directory.Build.props", "strength": "weak" },
           { "glob": "package.json", "strength": "weak" },
+          { "glob": "*/package.json", "strength": "weak" },
           { "glob": "*.nuspec", "strength": "weak" }
         ]
       },
@@ -228,7 +262,7 @@
       "severity": "blocking",
       "section": "Release management",
       "title": "Something already knows how to prepare a release",
-      "why": "Preparing a release (branch, bump, changelog, open the PR) is the half of ops-release nothing generic can guess. A script or skill that already does it is what cut should delegate to.",
+      "why": "Preparing a release (branch, bump, changelog, open the PR) is the half nothing generic can guess. A script or skill that already does it here is what the release step should hand off to.",
       "detect": {
         "any_path": [
           ".claude/skills/*release*/*", "scripts/*release*",
@@ -244,7 +278,7 @@
       "severity": "blocking",
       "section": "Release management",
       "title": "Something already knows how to publish a release",
-      "why": "ops-release publish must leave nothing half-published on failure. Where a pipeline already publishes, the honest publish waits for it and reports; where nothing does, publish has to be written from scratch and that is the riskiest action in the engine.",
+      "why": "Publishing must leave nothing half-published when it fails. Where a pipeline already publishes, the honest thing to do is wait for it and report what happened; where nothing does, publishing has to be written from scratch, and that is the riskiest step of the lot.",
       "detect": {
         "any_path": [
           ".claude/skills/*trigger*/*",
@@ -283,7 +317,7 @@
       "severity": "quality",
       "section": "Harness",
       "title": "Failures get recorded so the process improves",
-      "why": "ops-learnings files proto-learning issues off the critical path and sweeps them weekly. A repo with nowhere to put a lesson loses every one of them, and repeats the failure at the same cost.",
+      "why": "A lesson from a bad run gets filed as an issue and swept up weekly. A repo with nowhere to put a lesson loses every one of them, and repeats the failure at the same cost.",
       "ask": "When an automated run goes wrong here, where does the lesson get written down?"
     },
     {
@@ -293,6 +327,15 @@
       "section": "Misc",
       "title": "The tools the team relies on are reachable by an agent",
       "why": "Anything a human needs to do this work and an agent cannot reach becomes a silent ceiling on what the loops can finish.",
+      "detect": {
+        "any_path": [
+          { "glob": ".mcp.json", "strength": "weak" },
+          { "glob": "MCP.md", "strength": "weak" }
+        ],
+        "any_file_contains": [
+          { "glob": ".claude/settings.json", "pattern": "mcpServers|enabledMcpjsonServers", "strength": "weak" }
+        ]
+      },
       "ask": "Which tools does your team use for this repo that an agent currently has no way to reach?"
     },
     {
@@ -302,7 +345,15 @@
       "section": "Utilities",
       "title": "Repeated patterns get promoted into written standards",
       "why": "A pattern used forty times and written down nowhere is a convention an agent will break, plausibly, in every new file.",
-      "detect": { "any_path": [".claude/skills/*pattern*/*", ".claude/skills/*standard*/*"] },
+      "detect": {
+        "any_path": [
+          ".claude/skills/*pattern*/*", ".claude/skills/*standard*/*",
+          { "glob": "docs/*vocabulary*", "strength": "weak" },
+          { "glob": "docs/*glossary*", "strength": "weak" },
+          { "glob": "docs/*architecture*", "strength": "weak" },
+          { "glob": "docs/*spec*", "strength": "weak" }
+        ]
+      },
       "ask": "Is there anything that turns repeated patterns in this codebase into documented standards?"
     }
   ]

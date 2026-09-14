@@ -19,7 +19,11 @@
           { "glob": "*package.json", "pattern": "\"test\": *\"[^\"]*(vitest|jest|mocha|ava|tape|jasmine|karma|qunit|playwright|cypress|wdio|c8|nyc|node (--test|test)|tsc|\\./|npm run|pnpm |yarn )" }
         ],
         "any_path": [
-          "test.sh", "scripts/test.sh", "vitest.config.*", "jest.config.*", "karma.conf.*", "web-test-runner.config.*",
+          "test.sh", "scripts/test.sh",
+          "vitest.config.*", "*/vitest.config.*",
+          "jest.config.*", "*/jest.config.*",
+          "karma.conf.*", "*/karma.conf.*",
+          "web-test-runner.config.*", "*/web-test-runner.config.*",
           { "glob": "*[Tt]ests/*.ts", "strength": "weak" }, { "glob": "*[Tt]ests/*.js", "strength": "weak" },
           { "glob": "*[Tt]est/*.ts", "strength": "weak" }, { "glob": "*[Tt]est/*.js", "strength": "weak" },
           { "glob": "*.test.*", "strength": "weak" }, { "glob": "*.spec.*", "strength": "weak" }
@@ -33,9 +37,11 @@
         "any_file_contains": [{ "glob": "*package.json", "pattern": "\"lint\"", "strength": "weak" }],
         "any_path": [
           "lint.sh", "scripts/lint*",
-          { "glob": ".editorconfig", "strength": "weak" }, { "glob": ".eslintrc*", "strength": "weak" },
-          { "glob": "eslint.config.*", "strength": "weak" }, { "glob": ".stylelintrc*", "strength": "weak" },
-          { "glob": "biome.json", "strength": "weak" }
+          { "glob": ".editorconfig", "strength": "weak" }, { "glob": "*/.editorconfig", "strength": "weak" },
+          { "glob": ".eslintrc*", "strength": "weak" }, { "glob": "*/.eslintrc*", "strength": "weak" },
+          { "glob": "eslint.config.*", "strength": "weak" }, { "glob": "*/eslint.config.*", "strength": "weak" },
+          { "glob": ".stylelintrc*", "strength": "weak" }, { "glob": "*/.stylelintrc*", "strength": "weak" },
+          { "glob": "biome.json", "strength": "weak" }, { "glob": "*/biome.json", "strength": "weak" }
         ]
       }
     },
@@ -51,14 +57,32 @@
       "ask": "Do the front-end components here have unit or component tests?"
     },
     {
+      "id": "verify-warnings-clean",
+      "section": "Harness",
+      "detect": {
+        "any_file_contains": [
+          { "glob": "*package.json", "pattern": "--max-warnings[ =]*0" },
+          { "glob": "*/.eslintrc*", "pattern": "--max-warnings[ =]*0", "strength": "weak" }
+        ]
+      }
+    },
+    {
       "id": "node-lockfile",
       "consumer": "ops-workspace",
       "action": "prepare",
       "severity": "quality",
       "section": "Frontend",
       "title": "A lockfile is committed",
-      "why": "Without one, two worktrees resolve different dependency versions and a failure that reproduces in one will not reproduce in the other.",
-      "detect": { "any_path": ["package-lock.json", "yarn.lock", "pnpm-lock.yaml", "bun.lockb"] }
+      "why": "Without one, two copies of the repo install different dependency versions, and a failure that reproduces in one will not reproduce in the other.",
+      "ask": "Is a lockfile committed for the front-end dependencies here?",
+      "detect": {
+        "any_path": [
+          "package-lock.json", "*/package-lock.json",
+          "yarn.lock", "*/yarn.lock",
+          "pnpm-lock.yaml", "*/pnpm-lock.yaml",
+          "bun.lockb", "*/bun.lockb"
+        ]
+      }
     }
   ]
 }

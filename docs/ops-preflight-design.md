@@ -139,6 +139,8 @@ it is pruned.
 select-profile.sh <repo>            → which check files apply
 inspect.sh <repo> --json            → findings.json (present / unknown)
         ↓
+list-skills.sh <repo>               → what the repo already documents, to ask better
+        ↓
    batched AskUserQuestion           → answers.json  (present / gap)
         ↓
 plan-issues.sh findings answers     → one issue plan per gap
@@ -150,9 +152,29 @@ score.sh findings answers           → a score, once nothing is left unknown
 
 - **`inspect.sh` never runs your build.** It reads files. Hermetic — `bash` + `jq` — so it works
   on a machine that cannot compile the product, and it is safe in CI.
+- **`list-skills.sh` reads what the repo already documents about itself**, before a single question
+  is asked: the name and description of every skill and agent under `.claude/`, plus how many of
+  them are the engine's own, which is how a part-onboarded repo announces itself. A description is a
+  claim, never a verdict, so it resolves nothing; it names the thing so the question can be asked
+  properly. A live repo's `repo-setup`, `session-hook-config` and `demo-site-management` skills each
+  described the answer to a question that was asked anyway.
 - **The interview is batched, four questions per `AskUserQuestion` call, seeded from what
-  `inspect.sh` found.** Same two rules `ops-install` already follows; a question detection has
-  already answered is never asked.
+  `inspect.sh` found.** Four is the tool's own hard limit, not a choice: there is no call that asks
+  everything. A question detection has already answered is never asked.
+- **Must-haves first, then stop and offer the rest.** Every `blocking` question, then a pause and a
+  count of the `quality` ones left, as an optional second sitting. A live run asked eighteen in one
+  go, which is more than anyone answers well.
+- **An *"I do not know"* answer triggers one targeted look, never an assumption.** The check's own
+  `detect` patterns say where to look; what turns up is handed back to the person, who still
+  decides. Two of three unknowns in a live run were a lint script and a `CLAUDE.md` link sitting in
+  files nobody had opened.
+- **Every check carrying a severity carries an `ask`.** Without one it can never leave `unknown`,
+  and since `score.sh` refuses to score while anything is unknown, one silent check blocks the score
+  for that repo forever. `inspect.test.sh` asserts it.
+- **The prose is written for someone who has installed nothing yet.** No capability name, no
+  catalog, no "framework default" in a `title`, `why` or `ask`; those leak straight into the
+  generated question options, which is how `ops-change` ended up in front of a first-time reader.
+  Asserted in `inspect.test.sh` alongside the product-name sweep.
 - **Issue titles are stable** (`ops-preflight: <title>`), so a re-run finds the existing issue and
   files nothing. Gaps are labelled `ops/preflight`, created idempotently before the first file.
 - **`score.sh` refuses to score while any check is still `unknown`.** Unknown means detection could

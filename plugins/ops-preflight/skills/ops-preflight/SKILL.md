@@ -260,28 +260,71 @@ does not need to be repeated once per stack to satisfy this rule.
 
 ## Step 3 — ask about the rest
 
-Two rules, the same two `ops-install` runs by.
+**Read what the repo already says about itself, first.**
 
-**Batch them.** `AskUserQuestion` takes **up to four questions per call** and the human tabs
-through them. Ask four at a time. Do not make four calls with one question each.
+```
+scripts/list-skills.sh <repo>
+scripts/list-skills.sh <repo> --json
+```
+
+A repo's own skills are a short, purpose-written index of what this codebase knows how to do, and
+they answer preflight questions outright. A live repo had a `repo-setup` skill describing "git
+hooks, demo site creation, and dependency installation", a `session-hook-config` skill naming
+"dotnet restore fails with 401 errors", and a `demo-site-management` skill. All three questions
+were asked anyway, because nothing read them.
+
+It also reports engine skills the repo already has. That same repo had four, so it was
+part-onboarded and preflight never said so.
+
+**A description is a claim, never a verdict.** It says what a skill means to do, not that it works,
+and the same repo proves the difference: it ships `repo-setup` and still answered "no, a bare
+worktree is not enough, it needs a demo site stood up". So this never resolves a check. Use it to
+put the name in front of the person and let them answer.
+
+**Four questions per call is the tool's limit, not a choice made here.** `AskUserQuestion` accepts
+at most four, and the human tabs through them. So ask four at a time: do not make four calls with
+one question each, and do not plan around a single call that asks everything, because no such call
+exists.
+
+**Must-haves first, then stop and offer the rest.** Ask every `blocking` question, then **stop**,
+report what is known so far, and say how many `quality` questions are left, offering them as a
+second sitting. A live run against a real repo asked eighteen questions in one go, which is more
+than anyone answers well; the must-haves are around nine, and they are the ones that decide
+whether the loops can start at all. Section order holds inside each pass: release management and
+testing first, then harness, environment, frontend, backend, best practices, utilities, misc. That
+is the order a repo hits the problems, and it is why those two come first if patience runs out.
 
 **Seed every option from what you already know.** `inspect.sh` just told you what is in the repo;
 the `evidence` array on a nearby check is often the answer to the next question. A question
 detection already answered is never asked, which is why a check with a `detect` block that matched
 generates no question at all.
 
-Ask in this order, and say why the order matters:
+**Write the questions in the repo's own words, not the engine's.** Nobody running this has
+installed anything yet, so a question naming `ops-change`, `ops-release` or a capability means
+nothing to them. The shipped `ask` and `why` text is already free of those names and
+`inspect.test.sh` fails if one comes back; do not reintroduce them when writing the options.
 
-1. **In the printed section order**, release management and testing first, then harness,
-   environment, frontend, backend, best practices, utilities, and misc last. That is the order a
-   repo hits the problems, and it is why those two sections come first even if the human runs out
-   of patience before the rest: they are what unlock the merge and release parts of the pipeline.
-2. **Within a section, `blocking` before `quality`.** A blocking gap means a capability cannot be
-   written; a quality gap means the loops run and produce worse work. If the human tires partway
-   through a section, the ones that mattered there are done first.
+### *"I do not know"* is an answer, and also a prompt to go and look
 
-A check with **no `ask`** is never asked. It is reported and left — some misses are worth showing
-and not worth a question.
+Keep the option on every question. It is the truth surprisingly often, and forcing it to `present`
+or `gap` invents a fact.
+
+But **do not record it and move on.** Take one targeted look for the thing the question was about.
+Start with the skill list above, which is the highest-yield place by a distance, then that check's
+`detect` patterns, then the obvious places a repo keeps it. Put the question back with what you
+found:
+
+> I looked. `package.json` has a `lint` script that runs eslint and exits non-zero, and
+> `CLAUDE.md` links to `docs/coding-standards.md`. Does that answer it?
+
+**The look never sets the answer.** It gathers evidence and hands it back; the person still
+decides. If they still do not know, the verdict is `unknown` and it stays there. This matters
+because it is cheap: two of the three unknowns in a live run against a real repo were a lint
+script and a `CLAUDE.md` link, both sitting in files nobody had opened.
+
+A check with **no `ask`** is never asked, and is reported and left. Every check this plugin ships
+has one, and a test fails if a new one arrives without it, because a check nobody can answer stays
+`unknown` forever and silently blocks the score.
 
 **Write the answers to a file** as a flat map of check id to verdict:
 
@@ -289,11 +332,9 @@ and not worth a question.
 { "verify-test-command": "present", "release-trigger": "gap", "verify-ui-approval": "unknown" }
 ```
 
-`unknown` is a legitimate answer and must stay available: *"I do not know"* is the truth
-surprisingly often, and forcing it to `present` or `gap` invents a fact. It files nothing.
-
 **Do not answer on the human's behalf.** Not from the repo, not from what seems likely, not from
-what a similar repo did. Every value in that file came from a person, or it is `unknown`.
+what a similar repo did. Showing someone what you found is not the same as deciding for them:
+every value in that file came from a person saying so, or it is `unknown`.
 
 ## Step 4 — plan the issues
 
