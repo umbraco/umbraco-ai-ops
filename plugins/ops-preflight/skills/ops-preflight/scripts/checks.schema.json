@@ -84,7 +84,7 @@
           "type": "array",
           "minItems": 1,
           "items": { "$ref": "#/$defs/path_pattern" },
-          "description": "Globs matched against the whole repo-relative path. `*` matches any characters INCLUDING `/`, so `*.sln` finds one at any depth and `scripts/build*` is anchored at the root. There is no `**`. A bare string carries the default strength (see `path_pattern`); write the object form only to set a glob's strength explicitly."
+          "description": "Globs matched against the whole repo-relative path, in the STANDARD glob language: the one the harness's Glob tool and .gitignore both use. `**` crosses `/`, a single `*` does not, and `?` is one non-slash character. So `**/*.sln` finds a solution at any depth, `*.sln` finds only one at the repo root, and `scripts/build*` is anchored at the root. Write `**/` whenever you mean 'anywhere', because this used to be a private dialect where a bare `*` crossed `/` and that hid the same bug twice: `playwright.config.*` and `version.json` both looked like they searched everywhere and only ever matched the root. The standard language also means a pattern goes straight to the Glob tool with no translation, which is how `inspect.sh --plan` works. A bare string carries the default strength (see `path_pattern`); write the object form only to set a glob's strength explicitly."
         },
         "any_file_contains": {
           "type": "array",

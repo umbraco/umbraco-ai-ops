@@ -90,7 +90,7 @@ check "a signal check with no ask exits 2" 2 $?
 # weak match on the very same check still asks, and no match at all still asks — unchanged.
 MIX="$(cf mix '{"version":1,"checks":[
   {"id":"mixed","consumer":"ops-release","severity":"blocking","section":"Release management","title":"t","why":"w","ask":"q",
-   "detect":{"any_path":["release.sh",{"glob":"*.yml","strength":"weak"}]}}
+   "detect":{"any_path":["release.sh",{"glob":"**/*.yml","strength":"weak"}]}}
 ]}')"
 r="$(run "$(mkrepo strongmatch release.sh)" "$MIX")"
 check "a strong pattern match resolves present, no question" "present" "$(v "$r" mixed)"
@@ -144,7 +144,7 @@ check "  it still shows a plain found: line" 1 \
 # different pieces of evidence: "found: X" then "also seen (weak): X" naming the identical file.
 DUPE="$(cf dupe '{"version":1,"checks":[
   {"id":"dupecheck","consumer":"general","severity":"quality","section":"Misc","title":"t","why":"w",
-   "detect":{"any_path":[{"glob":"*post-release*/*","strength":"strong"},{"glob":"*clean*/*","strength":"weak"}]}}
+   "detect":{"any_path":[{"glob":"**/*post-release*/**/*","strength":"strong"},{"glob":"**/*clean*/**/*","strength":"weak"}]}}
 ]}')"
 d="$(mkrepo dupefile .claude/skills/post-release-cleanup/SKILL.md)"
 r="$(run "$d" "$DUPE")"
@@ -169,13 +169,24 @@ check "a release.yml that only labels still asks release-trigger, never a silent
 check "  weak: a CI file named for the job is still not proof it does the job" \
   "weak" "$(src "$r" release-trigger)"
 
-# --- glob semantics: `*` crosses `/` ------------------------------------------
+# --- glob semantics: the standard ones, where `**` crosses `/` and `*` does not -----------------
+# This used to be its own dialect where a bare `*` crossed `/`. It read fine and hid a real bug:
+# `playwright.config.*` looks like it finds a config anywhere and only ever matched the repo root,
+# so a repo keeping Playwright in tests/<project>/ reported no end-to-end tests with the file
+# sitting right there. `version.json` had gone the same way earlier. In the standard language the
+# difference is visible in the pattern itself, and it is also what lets `--plan` hand a pattern
+# straight to the harness's Glob tool with nothing to translate.
 G="$(cf glob '{"version":1,"checks":[
-  {"id":"anywhere","consumer":"general","severity":"quality","section":"Misc","title":"t","why":"w","detect":{"any_path":["*.sln"]}},
+  {"id":"anywhere","consumer":"general","severity":"quality","section":"Misc","title":"t","why":"w","detect":{"any_path":["**/*.sln"]}},
+  {"id":"rootonly","consumer":"general","severity":"quality","section":"Misc","title":"t","why":"w","detect":{"any_path":["*.sln"]}},
   {"id":"anchored","consumer":"general","severity":"quality","section":"Misc","title":"t","why":"w","detect":{"any_path":["scripts/build.sh"]}}
 ]}')"
 r="$(run "$(mkrepo nested a/b/c/Product.sln)" "$G")"
-check "a bare *.sln finds one nested deep"  "present" "$(v "$r" anywhere)"
+check "**/*.sln finds one nested deep"      "present" "$(v "$r" anywhere)"
+check "  while a bare *.sln does not"       "unknown" "$(v "$r" rootonly)"
+r="$(run "$(mkrepo rootsln Product.sln)" "$G")"
+check "a bare *.sln finds one at the root"  "present" "$(v "$r" rootonly)"
+check "  and **/*.sln finds it there too"   "present" "$(v "$r" anywhere)"
 r="$(run "$(mkrepo anch scripts/build.sh)" "$G")"
 check "an anchored glob matches at the root" "present" "$(v "$r" anchored)"
 r="$(run "$(mkrepo anch2 deep/scripts/build.sh)" "$G")"
@@ -618,6 +629,73 @@ r="$(run "$d" "$SHIPPED")"
 check "architecture docs feed the pattern-mining question" "weak" "$(src "$r" general-pattern-mining)"
 check "  and never answer it outright"                     "unknown" "$(v "$r" general-pattern-mining)"
 check "  they feed the coding-standards question too"      "weak" "$(src "$r" verify-coding-standards)"
+
+# --- --plan: the lookups, for the harness to run with its own Glob and Grep ---------------------
+# `--plan` stops after merging the layers and says what to look for. The skill runs those with the
+# built-in tools, which is one ripgrep call each rather than this script restarting a program per
+# pattern, and the calls are visible while they happen instead of the run being a silent minute.
+PLANBASE="$(cf planbase '{"version":1,"checks":[
+  {"id":"p-glob","consumer":"general","severity":"quality","section":"Misc","title":"t","why":"w","ask":"q",
+   "detect":{"any_path":["**/*.sln",{"glob":"**/*.csproj","strength":"weak"}]}},
+  {"id":"p-grep","consumer":"general","severity":"quality","section":"Misc","title":"t","why":"w","ask":"q",
+   "detect":{"any_file_contains":[{"glob":"**/*package.json","pattern":"tsc|\\\\./|npm run"}]}},
+  {"id":"p-shares","consumer":"general","severity":"quality","section":"Misc","title":"t","why":"w","ask":"q",
+   "detect":{"any_path":["**/*.sln"]}}
+]}')"
+plan="$(bash "$I" "$(mkrepo planrepo x.sln)" --plan --checks "$PLANBASE" 2>/dev/null)"
+check "the plan is valid JSON"            0 "$(printf '%s' "$plan" | jq empty >/dev/null 2>&1; echo $?)"
+check "a path check becomes a glob lookup" "glob" \
+  "$(printf '%s' "$plan" | jq -r '.lookups[] | select(.glob=="**/*.csproj") | .tool')"
+check "a content check becomes a grep lookup" "grep" \
+  "$(printf '%s' "$plan" | jq -r '.lookups[] | select(.glob=="**/*package.json") | .tool')"
+# Deduplicated by what is asked for, so a glob two checks share is ONE call that feeds both.
+check "a glob two checks share is one lookup" 1 \
+  "$(printf '%s' "$plan" | jq '[.lookups[] | select(.glob=="**/*.sln")] | length')"
+check "  and it records both checks it feeds" "p-glob,p-shares" \
+  "$(printf '%s' "$plan" | jq -r '[.lookups[] | select(.glob=="**/*.sln") | .uses[].check] | sort | join(",")')"
+check "the pattern goes over untranslated" "**/*.csproj" \
+  "$(printf '%s' "$plan" | jq -r '.lookups[] | select(.glob=="**/*.csproj") | .glob')"
+check "  and carries its strength" "weak" \
+  "$(printf '%s' "$plan" | jq -r '.lookups[] | select(.glob=="**/*.csproj") | .uses[0].strength')"
+
+# A BACKSLASH IN A CONTENT PATTERN SURVIVES THE TRIP. It did not: the plan was assembled through a
+# tab-separated intermediate, `@tsv` escapes `\` as `\\`, and `tsc|\./|npm run` came back out as
+# `tsc|\\./|npm run`, which matches a literal backslash and so matches nothing at all. It silently
+# cost the node test-command check every package.json it should have found. Patterns travel
+# base64-encoded now, and this is the assertion that says so.
+check "a backslash in a content pattern is not doubled" 'tsc|\./|npm run' \
+  "$(printf '%s' "$plan" | jq -r '.lookups[] | select(.tool=="grep") | .pattern')"
+
+# --- --evidence: the same rules, applied to what the harness found ------------------------------
+# The point of the split is that BOTH paths end in the same place. This runs the same repo both
+# ways and asserts the findings are identical, which is the only assertion that really matters
+# here: a second way of looking that disagreed with the first would be worse than not having it.
+d="$(mkrepo evrepo a/b/Product.sln c/Other.csproj)"
+direct="$(bash "$I" "$d" --json --checks "$PLANBASE" 2>/dev/null)"
+plan="$(bash "$I" "$d" --plan --checks "$PLANBASE" 2>/dev/null)"
+ev="$TMP/ev.json"
+printf '%s' "$plan" | jq -c '
+  [ .lookups[] | {(.id): (if .glob=="**/*.sln" then ["a/b/Product.sln"]
+                          elif .glob=="**/*.csproj" then ["c/Other.csproj"]
+                          else [] end)} ] | add' > "$ev"
+viaev="$(bash "$I" "$d" --json --checks "$PLANBASE" --evidence "$ev" 2>/dev/null)"
+check "both ways of looking agree, exactly" "" \
+  "$(diff <(printf '%s' "$direct" | jq -S '.findings') <(printf '%s' "$viaev" | jq -S '.findings') 2>&1)"
+
+# A path the harness returned that the pattern does not really cover is DROPPED. The Glob tool and
+# this catalog agree on syntax, but the filter stays as the backstop: whatever comes back, the same
+# expression that always decided a match still decides it.
+printf '%s' "$plan" | jq -c '
+  [ .lookups[] | {(.id): (if .glob=="**/*.sln" then ["a/b/Product.sln","not-a-solution.txt"] else [] end)} ] | add' > "$ev"
+viaev="$(bash "$I" "$d" --json --checks "$PLANBASE" --evidence "$ev" 2>/dev/null)"
+check "a path that does not match the pattern is dropped" '["a/b/Product.sln"]' \
+  "$(printf '%s' "$viaev" | jq -c '.findings[] | select(.id=="p-glob") | .evidence_strong')"
+
+bash "$I" "$d" --json --checks "$PLANBASE" --evidence "$TMP/no-such-file.json" >/dev/null 2>&1
+check "a missing evidence file exits 2" 2 $?
+printf '{ not json' > "$TMP/bad-ev.json"
+bash "$I" "$d" --json --checks "$PLANBASE" --evidence "$TMP/bad-ev.json" >/dev/null 2>&1
+check "an unreadable evidence file exits 2" 2 $?
 
 # --- dual-stack merge: two matching STACK profiles are additive, not a winner-take-all ---------
 # select-profile.sh's own contract is that stacks are ADDITIVE ("nothing picks one winner"). This

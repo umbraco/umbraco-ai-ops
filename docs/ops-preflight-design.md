@@ -135,23 +135,61 @@ it is pruned.
 
 ## Flow
 
+Rectangles are this plugin's scripts, hexagons are work the harness or a human does, and cylinders
+are the files passed between them. Nothing here is stored: every file is temporary to one run.
+
+```mermaid
+flowchart TD
+    SP["select-profile.sh<br/>which check files apply"]
+    PLAN["inspect.sh --plan<br/>one lookup per pattern"]
+    TOOLS{{"Glob and Grep<br/>run in parallel"}}
+    EV[("evidence.json<br/>what each lookup found")]
+    RESOLVE["inspect.sh --evidence<br/>applies the verdict rules"]
+    FIND[("findings.json<br/>present or unknown, never gap")]
+    SKILLS["list-skills.sh<br/>what the repo already documents"]
+    ASK{{"Interview<br/>must-haves first, four at a time"}}
+    ANS[("answers.json<br/>present, gap or unknown")]
+    ISSUES["plan-issues.sh<br/>one issue plan per gap"]
+    SCORE["score.sh<br/>a score, once nothing is unknown"]
+    CONFIRM{{"File them?"}}
+    GH["github-ops create-issue"]
+    KEEP["Stop. The plan is useful on its own"]
+
+    SP --> PLAN --> TOOLS --> EV --> RESOLVE --> FIND
+    FIND --> SKILLS --> ASK --> ANS
+    FIND --> ISSUES
+    ANS --> ISSUES
+    FIND --> SCORE
+    ANS --> SCORE
+    ISSUES --> CONFIRM
+    CONFIRM -->|yes| GH
+    CONFIRM -->|no| KEEP
 ```
-select-profile.sh <repo>            → which check files apply
-inspect.sh <repo> --json            → findings.json (present / unknown)
-        ↓
-list-skills.sh <repo>               → what the repo already documents, to ask better
-        ↓
-   batched AskUserQuestion           → answers.json  (present / gap)
-        ↓
-plan-issues.sh findings answers     → one issue plan per gap
-        ↓
-score.sh findings answers           → a score, once nothing is left unknown
-        ↓
-   github-ops · create-issue        → only on a yes
-```
+
+Two things the picture is meant to make obvious. **Only the interview can produce a `gap`**, which
+is why `findings.json` says `present or unknown` and `answers.json` is the first place `gap`
+appears. And **both `plan-issues.sh` and `score.sh` take the findings AND the answers**, because an
+answer overrides what detection saw and a check nobody answered keeps whatever verdict it had.
 
 - **`inspect.sh` never runs your build.** It reads files. Hermetic — `bash` + `jq` — so it works
   on a machine that cannot compile the product, and it is safe in CI.
+- **The looking is done by the harness's own Glob and Grep, through `--plan` and `--evidence`.**
+  `--plan` says what to look for, the skill runs those lookups in parallel with the built-in tools,
+  and `--evidence` applies the same verdict rules to what came back. Every path is checked against
+  the pattern that asked for it first, so a stray result changes nothing.
+  - **Why:** the script's own path restarts a program per pattern, about 1,400 of them, at roughly
+    26ms each on Windows. That is the whole of its half-minute runtime; replacing the match loop
+    with grep, cutting jq calls, and shrinking the file list sixteenfold each changed nothing
+    measurable, which is what proves it. It also makes the step visible, because tool calls appear
+    as they happen where a shell command is silent until it ends.
+  - **`inspect.sh <repo>` alone still works and is the reference.** It needs no harness, it is what
+    the hermetic tests exercise, and the two paths are asserted to produce identical findings. If
+    they ever disagree, the script is right.
+- **Glob patterns are the standard language**, the one the Glob tool and `.gitignore` use: `**`
+  reaches into folders, a single `*` does not. It used to be a private dialect where a bare `*`
+  crossed `/`, which read fine and hid the same bug twice (`playwright.config.*` and `version.json`
+  both silently matched the root only). It is also what lets `--plan` hand a pattern to the Glob
+  tool untranslated, so there is one language and nothing to keep in step.
 - **`list-skills.sh` reads what the repo already documents about itself**, before a single question
   is asked: the name and description of every skill and agent under `.claude/`, plus how many of
   them are the engine's own, which is how a part-onboarded repo announces itself. A description is a

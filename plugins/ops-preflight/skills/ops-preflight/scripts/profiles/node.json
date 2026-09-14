@@ -1,14 +1,30 @@
 {
   "version": 1,
   "profile": "node",
-  "when": { "any_path": ["package.json", "*/package.json"] },
+  "when": {
+    "any_path": [
+      "**/package.json"
+    ]
+  },
   "checks": [
     {
       "id": "verify-build-command",
       "section": "Harness",
       "detect": {
-        "any_file_contains": [{ "glob": "*package.json", "pattern": "\"build\"", "strength": "weak" }],
-        "any_path": ["Makefile", "build.sh", "build.ps1", "build.cmd", "scripts/build*"]
+        "any_file_contains": [
+          {
+            "glob": "**/*package.json",
+            "pattern": "\"build\"",
+            "strength": "weak"
+          }
+        ],
+        "any_path": [
+          "Makefile",
+          "build.sh",
+          "build.ps1",
+          "build.cmd",
+          "scripts/build*"
+        ]
       }
     },
     {
@@ -16,17 +32,42 @@
       "section": "Harness",
       "detect": {
         "any_file_contains": [
-          { "glob": "*package.json", "pattern": "\"test\": *\"[^\"]*(vitest|jest|mocha|ava|tape|jasmine|karma|qunit|playwright|cypress|wdio|c8|nyc|node (--test|test)|tsc|\\./|npm run|pnpm |yarn )" }
+          {
+            "glob": "**/*package.json",
+            "pattern": "\"test\": *\"[^\"]*(vitest|jest|mocha|ava|tape|jasmine|karma|qunit|playwright|cypress|wdio|c8|nyc|node (--test|test)|tsc|\\./|npm run|pnpm |yarn )"
+          }
         ],
         "any_path": [
-          "test.sh", "scripts/test.sh",
-          "vitest.config.*", "*/vitest.config.*",
-          "jest.config.*", "*/jest.config.*",
-          "karma.conf.*", "*/karma.conf.*",
-          "web-test-runner.config.*", "*/web-test-runner.config.*",
-          { "glob": "*[Tt]ests/*.ts", "strength": "weak" }, { "glob": "*[Tt]ests/*.js", "strength": "weak" },
-          { "glob": "*[Tt]est/*.ts", "strength": "weak" }, { "glob": "*[Tt]est/*.js", "strength": "weak" },
-          { "glob": "*.test.*", "strength": "weak" }, { "glob": "*.spec.*", "strength": "weak" }
+          "test.sh",
+          "scripts/test.sh",
+          "**/vitest.config.*",
+          "**/jest.config.*",
+          "**/karma.conf.*",
+          "**/web-test-runner.config.*",
+          {
+            "glob": "**/*[Tt]ests/**/*.ts",
+            "strength": "weak"
+          },
+          {
+            "glob": "**/*[Tt]ests/**/*.js",
+            "strength": "weak"
+          },
+          {
+            "glob": "**/*[Tt]est/**/*.ts",
+            "strength": "weak"
+          },
+          {
+            "glob": "**/*[Tt]est/**/*.js",
+            "strength": "weak"
+          },
+          {
+            "glob": "**/*.test.*",
+            "strength": "weak"
+          },
+          {
+            "glob": "**/*.spec.*",
+            "strength": "weak"
+          }
         ]
       }
     },
@@ -34,14 +75,36 @@
       "id": "verify-lint-command",
       "section": "Harness",
       "detect": {
-        "any_file_contains": [{ "glob": "*package.json", "pattern": "\"lint\"", "strength": "weak" }],
+        "any_file_contains": [
+          {
+            "glob": "**/*package.json",
+            "pattern": "\"lint\"",
+            "strength": "weak"
+          }
+        ],
         "any_path": [
-          "lint.sh", "scripts/lint*",
-          { "glob": ".editorconfig", "strength": "weak" }, { "glob": "*/.editorconfig", "strength": "weak" },
-          { "glob": ".eslintrc*", "strength": "weak" }, { "glob": "*/.eslintrc*", "strength": "weak" },
-          { "glob": "eslint.config.*", "strength": "weak" }, { "glob": "*/eslint.config.*", "strength": "weak" },
-          { "glob": ".stylelintrc*", "strength": "weak" }, { "glob": "*/.stylelintrc*", "strength": "weak" },
-          { "glob": "biome.json", "strength": "weak" }, { "glob": "*/biome.json", "strength": "weak" }
+          "lint.sh",
+          "scripts/lint*",
+          {
+            "glob": "**/.editorconfig",
+            "strength": "weak"
+          },
+          {
+            "glob": "**/.eslintrc*",
+            "strength": "weak"
+          },
+          {
+            "glob": "**/eslint.config.*",
+            "strength": "weak"
+          },
+          {
+            "glob": "**/.stylelintrc*",
+            "strength": "weak"
+          },
+          {
+            "glob": "**/biome.json",
+            "strength": "weak"
+          }
         ]
       }
     },
@@ -53,7 +116,14 @@
       "section": "Frontend",
       "title": "Front-end components have their own tests",
       "why": "A component with no test is one an agent can only check by looking at it, which it cannot do. Component tests are where a front-end change gets its pass or fail.",
-      "detect": { "any_path": ["*.test.ts", "*.test.js", "*.spec.ts", "*.spec.js"] },
+      "detect": {
+        "any_path": [
+          "**/*.test.ts",
+          "**/*.test.js",
+          "**/*.spec.ts",
+          "**/*.spec.js"
+        ]
+      },
       "ask": "Do the front-end components here have unit or component tests?"
     },
     {
@@ -61,8 +131,15 @@
       "section": "Harness",
       "detect": {
         "any_file_contains": [
-          { "glob": "*package.json", "pattern": "--max-warnings[ =]*0" },
-          { "glob": "*/.eslintrc*", "pattern": "--max-warnings[ =]*0", "strength": "weak" }
+          {
+            "glob": "**/*package.json",
+            "pattern": "--max-warnings[ =]*0"
+          },
+          {
+            "glob": "**/.eslintrc*",
+            "pattern": "--max-warnings[ =]*0",
+            "strength": "weak"
+          }
         ]
       }
     },
@@ -77,10 +154,10 @@
       "ask": "Is a lockfile committed for the front-end dependencies here?",
       "detect": {
         "any_path": [
-          "package-lock.json", "*/package-lock.json",
-          "yarn.lock", "*/yarn.lock",
-          "pnpm-lock.yaml", "*/pnpm-lock.yaml",
-          "bun.lockb", "*/bun.lockb"
+          "**/package-lock.json",
+          "**/yarn.lock",
+          "**/pnpm-lock.yaml",
+          "**/bun.lockb"
         ]
       }
     }

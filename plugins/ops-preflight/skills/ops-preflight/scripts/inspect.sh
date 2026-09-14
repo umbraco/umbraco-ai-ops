@@ -37,10 +37,12 @@
 # --checks replaces layer selection entirely and is for tests; normally select-profile.sh decides.
 set -uo pipefail
 
-repo="" fmt="text"; files=()
+repo="" fmt="text"; files=(); plan_mode=false; evidence_file=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --json)   fmt="json"; shift ;;
+    --plan)     plan_mode=true; shift ;;
+    --evidence) evidence_file="${2:-}"; shift 2 ;;
     --checks) files+=("${2:-}"); shift 2 ;;
     -h|--help) echo "usage: $(basename "$0") <repo-root> [--json] [--checks <file>]..."; exit 0 ;;
     *) [ -z "$repo" ] && repo="$1"; shift ;;
@@ -181,8 +183,91 @@ bad="$(printf '%s' "$merged" | jq -r '
 nosig="$(printf '%s' "$merged" | jq -r '[ .[] | select((.signal // false) and ((.ask // "") == "")) | .id ] | join(", ")')"
 [ -z "$nosig" ] || { echo "ERROR: signal check(s) with no \`ask\` — nothing could ever resolve them: $nosig" >&2; exit 2; }
 
+# --- every pattern in the catalog, with `signal` already resolved into a strength ---------------
+# One jq pass over the merged catalog producing one row per pattern. Both `--plan` and `--evidence`
+# read it, so the shorthand rules (a bare any_path string is `strong` unless the check is
+# `signal: true`; an explicit `strength` always wins) are applied in exactly one place rather than
+# once per consumer, which is how the two used to drift.
+patterns_tsv() {
+  printf '%s' "$merged" | jq -r '
+    .[] | . as $c | (if ($c.signal // false) then "weak" else "strong" end) as $default
+    | (($c.detect.any_path // [])[]
+        | if type=="string" then {k:"glob", s:$default, o:"base", g:., p:""}
+          else {k:"glob", s:(.strength // $default), o:(.origin // "base"), g:.glob, p:""} end),
+      (($c.detect.any_file_contains // [])[]
+        | {k:"grep", s:(.strength // $default), o:(.origin // "base"), g:.glob, p:.pattern})
+    | [$c.id, .k, .s, .o, .g, (.p | @base64)] | @tsv' 2>/dev/null | tr -d '\r'
+}
+# The content pattern travels BASE64-ENCODED, and that is not caution for its own sake. `@tsv`
+# escapes a backslash as `\\`, so a regex like `tsc|\./|npm run` came back out of the round trip as
+# `tsc|\\./|npm run`, which matches a literal backslash and therefore nothing. It silently cost the
+# node test-command check every package.json it should have matched. Globs carry no backslash, so
+# they pass as they are.
+
+# --- --plan: what to look for, for the harness to look with ------------------------------------
+# The lookups the skill runs with the built-in Glob and Grep tools instead of this script shelling
+# out once per pattern.
+#
+# The `glob` field is the catalog's pattern, handed over untouched. That is only possible because
+# the catalog is written in the standard glob language, the same one the Glob tool speaks, so there
+# is nothing to translate and nothing to keep in step. `match` is the same pattern as a regular
+# expression, and `--evidence` filters every returned path through it, so whichever way the looking
+# was done, the same rule decides what counted.
+#
+# Lookups are deduplicated by what they ask for, so a glob shared by four checks is one call, and
+# `uses` records which checks it feeds and how strongly.
+#
+# Built HERE from the already-merged catalog, never by re-running this script. An earlier version
+# shelled out to `$0 --plan`, passing the resolved layer files back in as `--checks`, and that path
+# skips the dual-stack union entirely: on a repo with two stacks the second profile's `detect`
+# replaced the first's instead of joining it, so the plan had 133 lookups where the real run had
+# 143 and the ids lined up with nothing. Same class of bug as the one that put this logic in a
+# shared library in the first place, and the fix is the same: one implementation, called twice.
+build_plan() {
+  local plan_rows; plan_rows="$(mktemp)"; TMPFILES+=("$plan_rows")
+  while IFS=$'\t' read -r c k s o g p; do
+    [ -n "$c" ] || continue
+    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$c" "$k" "$s" "$o" "$g" "$p" "$(preflight_glob_to_ere "$g")"
+  done < <(patterns_tsv) > "$plan_rows"
+
+  jq -R -s --arg repo "$repo" '
+    [ split("\n")[] | select(length > 0) | split("\t")
+      | {check:.[0], kind:.[1], strength:.[2], origin:.[3], glob:.[4],
+         content:(.[5] | @base64d), match:.[6]} ]
+    | group_by([.kind, .glob, .content])
+    | { repo: $repo,
+        lookups: [ to_entries[] | .key as $i | .value
+          | { id: ("l\($i)"), tool: (.[0].kind), glob: (.[0].glob),
+              pattern: (.[0].content), match: (.[0].match),
+              uses: [ .[] | {check, strength, origin} ] } ] }
+    | .lookups |= map(if .tool == "glob" then del(.pattern) else . end)
+  ' "$plan_rows"
+}
+
+if [ "$plan_mode" = true ]; then build_plan; exit 0; fi
+
 # --- evaluate --------------------------------------------------------------------------------
-preflight_scan "$repo"
+# Two ways in. With `--evidence` the harness has already done the looking with its own Glob and
+# Grep, and this reduces to filtering and applying the rules. Without it, this script does the
+# looking itself, which is slower but needs nothing but bash, jq and a shell, and is what the
+# hermetic tests exercise.
+if [ -n "$evidence_file" ]; then
+  # One TSV of every accepted match, keyed by check, built in a single pass. A path is accepted
+  # only if it satisfies the exact `match` expression, so the superset the Glob tool returned is
+  # narrowed back to what the catalog actually asked for.
+  all_raw="$(mktemp)"; TMPFILES+=("$all_raw")
+  [ -f "$evidence_file" ] || { echo "ERROR: no such evidence file: $evidence_file" >&2; exit 2; }
+  jq empty "$evidence_file" 2>/dev/null || { echo "ERROR: $evidence_file is not valid JSON" >&2; exit 2; }
+  build_plan | jq -r --slurpfile e "$evidence_file" '
+    ($e[0] // {}) as $found
+    | .lookups[] as $l
+    | ($found[$l.id] // [])[] as $path
+    | select($path | test($l.match))
+    | $l.uses[] as $u
+    | [$u.check, $u.strength, $u.origin, $path] | @tsv' 2>/dev/null | tr -d '\r' > "$all_raw"
+else
+  preflight_scan "$repo"
+fi
 
 # Reused every iteration (see the TMPFILES comment above) rather than one pair per check.
 ev_strong_file="$(mktemp)"; TMPFILES+=("$ev_strong_file")
@@ -223,7 +308,11 @@ while IFS= read -r id; do
   # ever shortens either list (see the findings build below).
   ev_strong=(); ev_weak=(); has_strong=1; strong_origins=""
   if [ "$d" != "null" ]; then
-    raw="$(preflight_detect_ex "$repo" "$d" 2>/dev/null | tr -d '\r')"
+    if [ -n "$evidence_file" ]; then
+      raw="$(awk -F'\t' -v c="$id" '$1==c{print $2"\t"$3"\t"$4}' "$all_raw")"
+    else
+      raw="$(preflight_detect_ex "$repo" "$d" 2>/dev/null | tr -d '\r')"
+    fi
     if [ -n "$raw" ]; then
       printf '%s\n' "$raw" | cut -f1 | grep -qx strong && has_strong=0
       strong_paths="$(printf '%s\n' "$raw" | awk -F'\t' '$1=="strong"{print $3}' | sort -u)"

@@ -6,9 +6,19 @@
 # match under `inspect.sh` for the same repo — a disagreement that produces a plausible report
 # rather than an error, which is the failure mode this engine is most careful about.
 #
-# GLOB SEMANTICS, and they are not bash's defaults: a pattern is matched against the WHOLE
-# repo-relative path, with `*` crossing `/`. So `*.sln` finds a solution at any depth, and
-# `scripts/build*` is anchored at the repo root. There is no `**` and none is needed.
+# GLOB SEMANTICS: the standard ones, the same language the Glob tool and .gitignore use. A pattern
+# is matched against the WHOLE repo-relative path. `**` crosses `/`, a single `*` does not, and `?`
+# is one non-slash character. So `**/*.sln` finds a solution at any depth, `*.sln` finds only one at
+# the root, and `scripts/build*` is anchored at the repo root.
+#
+# This used to be its own dialect where a bare `*` crossed `/`, which read fine and hid a real bug:
+# `playwright.config.*` looks like it would find a config anywhere and only ever matched the root,
+# so a repo keeping Playwright in tests/<project>/ reported no end-to-end tests while the file sat
+# right there. It happened again with `version.json`. In this language the difference is visible in
+# the pattern itself, which is the point: you cannot write the bug without seeing it.
+#
+# It is also what lets `inspect.sh --plan` hand its patterns straight to the harness's Glob tool
+# with no translation. One language, one meaning, nothing to keep in step.
 
 # Directories that are never interesting and are always enormous. Pruned rather than filtered so
 # a mature repo stays fast — `.git` alone is most of the entries in one, and a throwaway checkout
@@ -86,11 +96,14 @@ preflight_scan() { # preflight_scan <repo-root> — fills PREFLIGHT_ENTRIES
   [ -n "$(trap -p EXIT)" ] || trap 'rm -f "${TMPFILES[@]}"' EXIT
 }
 
-# Glob to extended regular expression, matching the semantics documented at the top of this file:
-# the pattern covers the WHOLE repo-relative path and `*` crosses `/`. So `*` becomes `.*`, `?`
-# becomes `.`, a bracket expression passes through (`[Pp]`, `[0-9]` mean the same thing in both
-# languages, and a leading `!` becomes `^`), and every other regex metacharacter is escaped so it
-# stays a literal. Anchored at both ends, which is what `[[ $path == $glob ]]` did.
+# Glob to extended regular expression, in the STANDARD glob language (see the header): `**` crosses
+# `/`, a single `*` does not, `?` is one non-slash character, a bracket expression passes through
+# unchanged (`[Pp]`, `[0-9]` mean the same thing in both languages; a leading `!` becomes `^`), and
+# every other regex metacharacter is escaped so it stays a literal. Anchored at both ends, because a
+# pattern always describes the whole repo-relative path.
+#
+# `**/` becomes `(.*/)?` rather than `.*/` so that `**/x` matches a root-level `x` as well as a
+# nested one, which is what everyone means by it and what the Glob tool does.
 preflight_glob_to_ere() {
   local g="$1" out="" i c inbracket=0 first=0
   for (( i=0; i<${#g}; i++ )); do
@@ -104,8 +117,15 @@ preflight_glob_to_ere() {
     fi
     case "$c" in
       '[') inbracket=1; first=1; out+="[" ;;
-      '*') out+=".*" ;;
-      '?') out+="." ;;
+      '*')
+        if [ "${g:i+1:1}" = "*" ]; then
+          if [ "${g:i+2:1}" = "/" ]; then out+="(.*/)?"; i=$((i+2))
+          else                             out+=".*";     i=$((i+1)); fi
+        else
+          out+="[^/]*"
+        fi
+        ;;
+      '?') out+="[^/]" ;;
       '.'|'^'|'$'|'+'|'{'|'}'|'('|')'|'|'|'\\') out+="\\$c" ;;
       *)   out+="$c" ;;
     esac

@@ -97,10 +97,54 @@ exists for exactly that, and putting a product fact in the engine breaks the gol
 
 ## Step 2 — read the repo
 
+**Use the harness's own Glob and Grep to do the looking.** Three calls to this script, and the
+searching in between is done by the tools you already have.
+
+### 2a. Ask what to look for
+
 ```
-scripts/inspect.sh <repo-root>          # the report
-scripts/inspect.sh <repo-root> --json   # keep this; step 4 needs it
+scripts/inspect.sh <repo-root> --plan > plan.json
 ```
+
+Each entry in `plan.json` is one lookup, and it is dropped straight into a tool call:
+
+| Field | What to do with it |
+|---|---|
+| `tool` | `glob` means the **Glob** tool; `grep` means the **Grep** tool |
+| `glob` | Glob's `pattern`, or Grep's `glob` filter. Hand it over **exactly as written** |
+| `pattern` | Grep only: its `pattern`. Use `output_mode: "files_with_matches"` |
+| `id` | The key to file the results under |
+| `match`, `uses` | Not yours. Step 2c uses them |
+
+The patterns need no editing because the catalog is written in the same glob language the Glob
+tool speaks. `**` reaches into folders, a single `*` does not. If you find yourself rewriting a
+pattern to make it work, the catalog is wrong and the fix belongs there, not here.
+
+### 2b. Run them, in parallel
+
+There are usually well over a hundred lookups, and they are independent. **Put many tool calls in
+one message** so they run at once. A few at a time turns a fast step into a slow one.
+
+Write the results to a file as `{"<id>": ["<path>", ...]}`, one key per lookup, an empty list for a
+lookup that found nothing. Paths are **relative to the repo root**; trim the absolute prefix the
+tools return. Record every path a tool gives back, and if a tool says it truncated a long list, say
+so rather than presenting what came back as the whole of it.
+
+### 2c. Turn the results into the report
+
+```
+scripts/inspect.sh <repo-root> --evidence evidence.json          # the report
+scripts/inspect.sh <repo-root> --evidence evidence.json --json   # keep this; step 4 needs it
+```
+
+Every path is checked against the pattern that asked for it before it counts, so a stray result
+changes nothing, and the verdict rules are the same ones that have always applied.
+
+> **`inspect.sh <repo-root>` on its own still works and needs no harness at all.** It does the
+> looking itself with `rg` and `grep`. That is what the tests exercise, and what to fall back on
+> when something here misbehaves. It is slower: on Windows it starts around 1,400 programs, which
+> costs about 26ms each, so a real repo takes half a minute. The two paths are asserted to produce
+> identical findings, and if they ever disagree, the script is right and this step has a bug.
 
 **Show the report verbatim.** It is the honest answer, and a summary of it is not — particularly
 the `unknown` count.
