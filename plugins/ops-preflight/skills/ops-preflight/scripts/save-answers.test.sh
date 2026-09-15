@@ -22,8 +22,8 @@ FIND="$(w findings.json '{
   "repo":"/x","sources":[],
   "findings":[
     {"id":"verify-build-command","consumer":"ops-change","action":"verify","severity":"blocking",
-     "section":"Harness","title":"One command builds it","why":"w",
-     "ask":"What single command builds this whole product?","verdict":"unknown","source":null,"evidence":[]},
+     "section":"Harness","title":"Commands build the whole product","why":"w",
+     "ask":"What commands build this product, and in what order?","verdict":"unknown","source":null,"evidence":[]},
     {"id":"release-trigger","consumer":"ops-release","action":"publish","severity":"blocking",
      "section":"Release management","title":"Something publishes","why":"w",
      "ask":"What publishes a release here?","verdict":"unknown","source":null,"evidence":[]},
@@ -39,15 +39,17 @@ out()  { cat "$TMP/$1/.claude/ops-preflight-answers.json"; }
 # --- the ordinary case ---------------------------------------------------------
 R="$(repo one)"
 A="$(w a1.json '{"verify-build-command":"present","release-trigger":"gap"}')"
-SAID="$(w s1.json '{"verify-build-command":"dotnet build Product.slnx"}')"
+# A real two-stack repo answers this with a LIST, not one command, and the whole list has to
+# survive into `said`. Half a build command is how `/ops-install` writes half a capability.
+SAID="$(w s1.json '{"verify-build-command":"npm ci && npm run build, then dotnet build Product.slnx"}')"
 OPS_PREFLIGHT_TODAY=14-09-2026 bash "$S" "$R" "$FIND" "$A" "$SAID" >/dev/null 2>&1
 check "it writes into the repo's .claude folder" 0 "$([ -f "$R/.claude/ops-preflight-answers.json" ]; echo $?)"
 check "valid JSON"                    0 "$(out one | jq empty >/dev/null 2>&1; echo $?)"
 check "version is pinned"             1 "$(out one | jq '.version')"
 check "one entry per question answered" 2 "$(out one | jq '.answers | length')"
-check "the words are kept, not just the verdict" "dotnet build Product.slnx" \
+check "the whole list is kept, not just the verdict" "npm ci && npm run build, then dotnet build Product.slnx" \
   "$(out one | jq -r '.answers[] | select(.id=="verify-build-command") | .said')"
-check "the question is kept verbatim" "What single command builds this whole product?" \
+check "the question is kept verbatim" "What commands build this product, and in what order?" \
   "$(out one | jq -r '.answers[] | select(.id=="verify-build-command") | .question')"
 check "the date is carried"           "14-09-2026" \
   "$(out one | jq -r '.answers[] | select(.id=="verify-build-command") | .answered')"
@@ -86,7 +88,7 @@ check "  and its new verdict"                  "present" \
   "$(out one | jq -r '.answers[] | select(.id=="release-trigger") | .verdict')"
 check "an untouched answer keeps its OWN older date" "14-09-2026" \
   "$(out one | jq -r '.answers[] | select(.id=="verify-build-command") | .answered')"
-check "  and keeps what was said"  "dotnet build Product.slnx" \
+check "  and keeps what was said"  "npm ci && npm run build, then dotnet build Product.slnx" \
   "$(out one | jq -r '.answers[] | select(.id=="verify-build-command") | .said')"
 check "answers are sorted by id, so a re-run makes a readable diff" "release-trigger,verify-build-command" \
   "$(out one | jq -r '[.answers[].id] | join(",")')"

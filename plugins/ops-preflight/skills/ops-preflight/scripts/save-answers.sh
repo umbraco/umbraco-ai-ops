@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Write down what a person told the preflight interview, so nobody has to say it twice.
 #
-# WHY THIS EXISTS: preflight asks "what single command builds this whole product?" and a person
+# WHY THIS EXISTS: preflight asks "what commands build this product, and in what order?" and a person
 # answers it. Then `/ops-install` scaffolds an `ops-change` stub and asks the same thing again,
 # because nothing carried the answer across. That is three or four repeated questions per repo, and
 # the person answering has no way to know it is the same question.

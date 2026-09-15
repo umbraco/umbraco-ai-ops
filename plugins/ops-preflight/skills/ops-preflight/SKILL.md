@@ -312,7 +312,7 @@ while an equivalent dotnet-only repo reports `ASK` for the identical check, was 
 run, and this is the fix for it.
 
 ```
-    [ASK    ] One command runs the tests (ops-change verify)
+    [ASK    ] Commands run the tests for the whole product (ops-change verify)
               found: src/StaticAssets/package.json
               also seen (weak): Tests/FooTests.cs (+383 more)
               no strong evidence from: dotnet
@@ -325,6 +325,11 @@ evidence for some active stacks but not all: that is `source: partial` in the JS
 root `build.sh`, `test.sh` or `lint.sh`) counts for every active stack at once, because a real
 repo-wide command genuinely answers the question regardless of how many stacks the repo has. It
 does not need to be repeated once per stack to satisfy this rule.
+
+**All four ask for commands, plural.** A repo with a front end and a back end normally builds,
+tests and lints in two steps, and that is a `present`: what the loops need is that every part is
+covered by a command someone can run, not that the count is one. Take the list and the order the
+steps go in. A part with no command at all is the gap, however short the rest of the list is.
 
 ## Step 3 — ask about the rest
 
@@ -488,9 +493,12 @@ has one, and a test fails if a new one arrives without it, because a check nobod
 what a similar repo did. Showing someone what you found is not the same as deciding for them:
 every value in that file came from a person saying so, or it is `unknown`.
 
-**Keep what they actually said, not only the verdict.** "What single command builds this whole
-product?" has the answer `dotnet build Product.slnx`; `present` is just the box it went in. Write a
-second flat map of check id to their words, and pass it to the next step.
+**Keep what they actually said, not only the verdict.** "What commands build this product, and in
+what order?" has an answer like `npm ci && npm run build`, then `dotnet build Product.slnx`;
+`present` is just the box it went in. Write a second flat map of check id to their words, and pass
+it to the next step. **Where the answer is a list, keep the whole list, in order**, in that one
+string. Dropping the front-end step because the back-end one sounds like the real build hands
+`/ops-install` half a build command, and it will write half a capability from it.
 
 ### Then offer to save it
 

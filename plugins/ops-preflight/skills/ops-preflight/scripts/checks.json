@@ -55,8 +55,8 @@
       "action": "verify",
       "severity": "blocking",
       "section": "Harness",
-      "title": "One command builds the product",
-      "why": "The agent has to build before it can report pass or fail. Without one command that does it, the build step becomes a written recipe that drifts away from what CI actually runs.",
+      "title": "Commands build the whole product",
+      "why": "The agent has to build before it can report pass or fail. It does not have to be ONE command: an ordered list is fine, and a repo with a front end and a back end normally needs one for each. What matters is that the list covers every part, and that each step is a command someone can run rather than a written recipe that drifts away from what CI actually runs.",
       "whole_product": true,
       "detect": {
         "any_path": [
@@ -76,7 +76,7 @@
           }
         ]
       },
-      "ask": "What single command builds this whole product?"
+      "ask": "What commands build this product, and in what order? A short list is fine, so say if the front end and the back end build separately. Between them, do they cover every part?"
     },
     {
       "id": "verify-test-command",
@@ -84,8 +84,8 @@
       "action": "verify",
       "severity": "blocking",
       "section": "Harness",
-      "title": "One command runs the tests",
-      "why": "A check that cannot run the tests reports a pass that means nothing. This is the one the whole engine leans on: the loops stop at a green PR and never work out for themselves whether the change was correct.",
+      "title": "Commands run the tests for the whole product",
+      "why": "A check that cannot run the tests reports a pass that means nothing. This is the one the whole engine leans on: the loops stop at a green PR and never work out for themselves whether the change was correct. One command or a short ordered list, so long as no part of the product is left untested.",
       "whole_product": true,
       "detect": {
         "any_path": [
@@ -133,7 +133,7 @@
           }
         ]
       },
-      "ask": "What single command runs this repo's tests?"
+      "ask": "What commands run this repo's tests, and in what order? A short list is fine, so say if the front end and the back end have separate suites. Between them, do they cover every part?"
     },
     {
       "id": "verify-lint-command",
@@ -141,8 +141,8 @@
       "action": "verify",
       "severity": "quality",
       "section": "Harness",
-      "title": "One command lints, and it fails on error",
-      "why": "Lint is the cheapest signal an agent has that it wrote something unidiomatic. A linter that only warns is one an agent learns to ignore.",
+      "title": "Commands lint the whole product, and fail on error",
+      "why": "Lint is the cheapest signal an agent has that it wrote something unidiomatic. A linter that only warns is one an agent learns to ignore. One command or a short ordered list, so long as every part is covered and each step exits non-zero on an error.",
       "whole_product": true,
       "detect": {
         "any_path": [
@@ -166,7 +166,7 @@
           }
         ]
       },
-      "ask": "What single command lints this repo, and does it exit non-zero on an error?"
+      "ask": "What commands lint this repo, and in what order? A short list is fine. Does each one exit non-zero on an error, and do they cover every part?"
     },
     {
       "id": "verify-warnings-clean",
@@ -177,7 +177,7 @@
       "title": "The build is free of warnings today",
       "why": "An agent cannot tell the one warning it just introduced from the four hundred that were already there. A noisy baseline turns a real signal into wallpaper.",
       "whole_product": true,
-      "ask": "Does a full build of this repo finish with zero warnings today?"
+      "ask": "Run every one of those build commands today. Do they all finish with zero warnings?"
     },
     {
       "id": "verify-review-gate",

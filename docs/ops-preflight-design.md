@@ -31,10 +31,10 @@ Every check is **data**, not prose in a skill:
   "id": "verify-test-command",
   "consumer": "ops-change · verify",
   "severity": "blocking",
-  "title": "One command runs the tests",
-  "why": "ops-change · verify has to report pass or fail with enough detail to act on. Without a single command that does it, verify becomes a prose recipe that drifts.",
+  "title": "Commands run the tests for the whole product",
+  "why": "ops-change · verify has to report pass or fail with enough detail to act on. One command or a short ordered list, so long as every part is covered; without commands at all, verify becomes a prose recipe that drifts.",
   "detect": { "any_path": ["**/*Tests*.csproj"] },
-  "ask": "What single command runs this repo's tests?"
+  "ask": "What commands run this repo's tests, and in what order?"
 }
 ```
 
