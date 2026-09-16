@@ -2,7 +2,7 @@ name: loop-dispatch (reusable)
 
 # Reusable workflow that routes a GitHub loop event to the repo's loop-dispatch
 # routine. A caller workflow in each target repo (see
-# plugins/loop-dispatch/skills/new-loop-routine) declares the events and calls this,
+# plugins/ops-engine/skills/new-loop-routine) declares the events and calls this,
 # passing the two secrets explicitly (NOT `secrets: inherit` — inherit only works when
 # the caller and this workflow share an org/enterprise; consumer repos may not).
 # It runs route-event.sh at the edge and fires the routine via its Fire URL ONLY when
@@ -89,7 +89,7 @@ jobs:
           # $GITHUB_EVENT_PATH / $GITHUB_EVENT_NAME are the CALLER repo's triggering event.
           # route-event.sh reads the payload for action/label/repo/number (the event NAME
           # is a header, not body, so it is passed explicitly).
-          out="$(bash ops/plugins/loop-dispatch/skills/loop-dispatch/scripts/route-event.sh \
+          out="$(bash ops/plugins/ops-engine/skills/loop-dispatch/scripts/route-event.sh \
                    --event "$GITHUB_EVENT_NAME" ${overlay:+--overlay "$overlay"} ${meta:+--repo-meta "$meta"})"
           echo "route-event: $out"
           loop="${out#loop=}"; loop="${loop%% *}"
