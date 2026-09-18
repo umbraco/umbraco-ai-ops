@@ -325,7 +325,7 @@
           "output": {
             "live": "array — the lines currently taking work, ORDERED OLDEST FIRST. The order is part of the answer: `port_order` says which direction a change travels, and only this array says which lines lie in that direction. A caller MUST NOT work that out by comparing version numbers in the names — that is the caller learning a product's naming scheme, and it breaks on the first line that is not `vN`.",
             "primary": "string — the line work starts on before being ported",
-            "port_order": "string — `upward` (toward the end of `live`) or `downward` (toward the start)"
+            "port_order": "string — `upward` (toward the end of `live`) or `downward` (toward the start). The direction runs FROM `primary` onward, and is not a one-way filter: a change landing behind the primary line ports to `primary` first, then on this way."
           },
           "example": {}
         }

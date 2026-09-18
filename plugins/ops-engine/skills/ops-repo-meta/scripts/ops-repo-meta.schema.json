@@ -66,7 +66,7 @@
             "upward",
             "downward"
           ],
-          "description": "`upward` = primary is older, ports go to newer lines. `downward` = the reverse. A human decision; the engine never infers it."
+          "description": "`upward` = primary is older, ports go to newer lines. `downward` = the reverse. A human decision; the engine never infers it. It is the direction FROM `primary` onward, not a one-way filter: a change landing behind the primary line ports to `primary` first and then on this way, so a contribution opened against an older line still reaches the newer ones."
         }
       }
     },

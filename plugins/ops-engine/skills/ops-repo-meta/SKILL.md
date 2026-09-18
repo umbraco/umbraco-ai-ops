@@ -146,7 +146,10 @@ The version lines currently taking work.
 - **`primary`** — the line work starts on before being ported. **Not** necessarily the
   newest line, and **not** necessarily the default branch.
 - **`port_order`** — `upward` (ports travel toward the end of `live`) or `downward` (toward
-  the start).
+  the start). It is the direction **from `primary` onward**, not a one-way filter on every
+  change: a change that lands *behind* the primary line travels to `primary` first and then on
+  this way, so a contribution opened against an older line still reaches the newer ones.
+  `ops-port-loop` owns that rule and is where the worked cases live.
 
 **The order of `live` is part of the answer.** `port_order` gives a direction; only this array
 says which lines lie in that direction. Without the order a caller has to compare version

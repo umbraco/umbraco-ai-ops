@@ -68,34 +68,56 @@ first**, and that order is the whole of how you know which lines lie in the port
 > branch-to-line mapping and is command-only by ruling, so this is the residue of that ruling,
 > handled by asking a human rather than by guessing.
 
-**Then take the direction off the ordered list.** `port_order` says which way changes travel:
+**Then take the targets off the ordered list, in two parts.** A change travels **to `primary`
+first, and onward from there** in the `port_order` direction:
 
-| `port_order` | Targets |
-|---|---|
-| `upward` | every live line **after** the source line in `live` |
-| `downward` | every live line **before** the source line in `live` |
+1. **Back to primary** — every live line strictly between the source and `primary`, plus
+   `primary` itself. Empty when the source already **is** the primary line.
+2. **Onward from primary** — every live line past `primary` in the `port_order` direction:
+   after it in `live` for `upward`, before it for `downward`.
 
-**Position in `live`, never a comparison of version numbers.** A loop that parses `17` out of
+The targets are the two parts together with the source line removed. Work both out by
+**position in `live`, never by a comparison of version numbers.** A loop that parses `17` out of
 `v17` has learned a product's naming scheme, and it breaks on the first line that is not `vN`.
 
-> **Direction is the whole rule, and "every other live line" is wrong.** A repo can have a line
-> that is live but is not a normal port target. Forms runs **v13, v17 and v18** with v17 primary
-> and `upward`: a change landing on v17 ports to **v18 only**, because v13 comes earlier in
-> `live` and takes security merges alone. "Every other live line" would open an unwanted v13 PR
-> on every single change. The direction rule excludes it with no special case — and a security
-> fix that lands on v13 still ports up to v17 and v18, which is what you want.
+| `live` | `primary` | `port_order` | Source | Targets |
+|---|---|---|---|---|
+| `v17, v18` | `v18` | `downward` | v18 | v17 |
+| `v17, v18` | `v18` | `downward` | v17 | v18 |
+| `v13, v17, v18` | `v17` | `upward` | v13 | v17, v18 |
+| `v13, v17, v18` | `v17` | `upward` | v17 | v18 |
+| `v13, v17, v18` | `v17` | `upward` | v18 | v17 |
+
+> **Why the direction is relative to the source and not absolute.** A one-way filter — "every
+> line after the source under `upward`" — silently drops any change that lands *behind* the
+> primary line, which is what an outside contribution opened against an older line normally is.
+> Automate runs `live: [v17, v18]` with v18 primary and `downward`, so a PR based on v17 has
+> nothing before it: a one-way rule reports no targets, stops, and v18 never gets the fix.
+> Routing through `primary` sends it up to v18 and leaves every normal case exactly as it was.
+
+> **It still is not "every other live line".** A repo can have a line that is live but is not a
+> normal port target, and routing through `primary` protects it with no special case. Forms runs
+> **v13, v17 and v18** with v17 primary and `upward`. Nothing ever targets v13: it sits behind
+> `primary` in the direction opposite `port_order`, so neither part above can reach it, and it
+> takes security merges a human lands on it directly. Those still port **up** to v17 and v18,
+> which is what you want. "Every other live line" would open an unwanted v13 PR on every single
+> change.
+>
+> That protection is **positional, not declared**: v13 is safe because of where it sits in
+> `live`, not because anything marks it legacy. Flip that repo's `port_order` to `downward` and
+> v13 becomes an ordinary target with nothing to warn you.
 
 Then:
 
-- **No targets** → comment saying so and stop. That is a normal outcome, not a failure. **Say
-  which of the two reasons it was**, because they read identically otherwise and one of them is
-  also the symptom of a wrong `live` order:
+- **No targets** → comment saying so and stop. That is a normal outcome, not a failure, but only
+  two things produce it now and one of them is a bug. **Say which it was**, because they read
+  identically otherwise:
   - **`live` has one entry** — there is nowhere to port to at all.
-  - **The source line is at the end of the direction** — the change landed on the last line in
-    `live` under `upward`, or the first under `downward`. Name the source line and quote `live`
-    in the order you read it, so a human seeing `live` the wrong way round can spot it. A
-    reversed `live` sends every change on the primary line straight down this path and nothing
-    ever errors (a real onboarding did exactly that on 29-07-2026).
+  - **The source is `primary` and nothing lies past it** in the `port_order` direction. Name the
+    source line and quote `live` in the order you read it, so a human seeing `live` the wrong way
+    round can spot it. A reversed `live`, or a `port_order` pointing away from the rest of the
+    repo, sends every change on the primary line straight down this path and nothing ever errors
+    (a real onboarding did exactly that on 29-07-2026).
 - **Skip any line that already has a port** for this issue — open or merged. A re-fired label
   MUST NOT open a second PR. This is the idempotency requirement and it is the one most likely
   to bite, because labels get re-applied by hand.
@@ -104,7 +126,7 @@ Announce the target list before doing anything.
 
 ## Step 3 — port, one line at a time
 
-Work targets in `port_order` sequence — nearest line first. For each:
+Work targets nearest first, measured as distance from the source line in `live`. For each:
 
 1. **`ops-change · implement`** with `{ issue, line, port: { from_line, commit } }`. The `port`
    block is what tells the repo it is porting and from where. **How** it ports — cherry-pick
@@ -139,8 +161,9 @@ Report: which lines were targeted, which have a green PR, which failed and why.
 ## Rules
 
 - **Port from the merge commit, never from an open PR.** Review changes things.
-- **Direction comes from `port_order` plus the order of `live`, never from a version number.**
-  A loop that compares the `17` in `v17` with the `18` in `v18` has learned a product fact.
+- **Targets come from position in `live`: back to `primary`, then onward in `port_order`.**
+  Never from a version number. A loop that compares the `17` in `v17` with the `18` in `v18` has
+  learned a product fact.
 - **Never guess the source line.** Take it from the caller, or match it exactly once against the
   declared live set, or stop and ask. Everything else here depends on it.
 - **Idempotent.** Same PR labelled twice must not open a second port. Check for an existing one
