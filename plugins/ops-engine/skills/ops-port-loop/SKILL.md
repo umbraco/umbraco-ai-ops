@@ -134,7 +134,9 @@ Work targets nearest first, measured as distance from the source line in `live`.
    engine never learns the mechanism.
 2. **`ops-change · verify`**. A port can fail on a line the original passed on; that is the
    entire reason it gets its own verify.
-3. **The PR** — `ops-change` opens it onto that line's base.
+3. **The PR** — `ops-change · implement` already opened it onto that line's base and returned
+   `pr_number`. A returned branch with no `pr_number` is a failure for that line, not something
+   to work around by opening the PR here.
 4. **Drive CI green** — `ops-ci · status`, then `log` on red. **Cap: 8 attempts**, the same as
    the issue loop.
 5. **Comment the port PR link on the issue**, saying which line it targets.

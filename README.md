@@ -316,7 +316,7 @@ skill must implement exactly these and reject anything else.
 <table>
 <thead><tr><th>Capability</th><th>Action</th><th>What it does</th></tr></thead>
 <tbody>
-<tr><td rowspan="3"><code>ops-change</code></td><td><code>implement</code></td><td>Make the change the issue asks for on a work branch, and push it.</td></tr>
+<tr><td rowspan="3"><code>ops-change</code></td><td><code>implement</code></td><td>Make the change the issue asks for on a work branch, push it, AND open the PR onto that line's base by calling <code>ops-branching · open-pr</code>.</td></tr>
 <tr><td><code>verify</code></td><td>Run this repo's build, tests and sanity checks against the change, and report pass or fail with enough detail for the caller to act on a failure.</td></tr>
 <tr><td><code>close-issue</code></td><td>Told that a PR has landed, work out which issue it was for and close that issue only once EVERY target line has landed.</td></tr>
 <tr><td rowspan="4"><code>ops-release</code></td><td><code>plan</code></td><td>Turn the trigger into release facts: which line, which version, and which units of work the release contains.</td></tr>

@@ -91,8 +91,12 @@ Each subagent, for its issue:
    porting to another line is its own change, with its own PR, verify and CI.
 2. **`ops-change · verify`** on the branch it returns. Red → fix and re-verify, inside
    `ops-change`.
-3. **The PR** — `ops-change` opens it (through `ops-branching`, privately). This loop never
-   picks a base.
+3. **The PR** — `ops-change · implement` already opened it, through `ops-branching`
+   privately, and returned `pr_number` and `url` alongside the branch. This loop never picks a
+   base and never calls `ops-branching` itself. **An `implement` that returns a branch and no
+   `pr_number` has not finished**: report it as a failure and block the issue. Do not open the
+   PR yourself to get past it — that is a loop reaching into a `supporting` capability, and the
+   result is a pushed branch nobody is reviewing.
 4. **Drive CI green** — `ops-ci · status`; on red, `ops-ci · log` then back to `implement` /
    `verify`. **Cap: 8 attempts.**
 5. **Mark it done.** Remove `labels.in_progress`, add `labels.done`, and — if step 3 did not

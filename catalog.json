@@ -21,7 +21,7 @@
       "operations": [
         {
           "action": "implement",
-          "description": "Make the change the issue asks for on a work branch, and push it. Where the context carries a port source this is a port, not a replay: adapt the change to the target line, because a port that needs adapting is a real change.",
+          "description": "Make the change the issue asks for on a work branch, push it, AND open the PR onto that line's base by calling `ops-branching · open-pr`. Opening it is part of this action, not the caller's job: `ops-branching` is `supporting`, so no loop may call it, and an `implement` that stops at a pushed branch leaves the change with nowhere to go and the loop with nothing to track. Idempotent on the PR as well as the branch: an existing open PR for the branch is returned, never a second one. Where the context carries a port source this is a port, not a replay: adapt the change to the target line, because a port that needs adapting is a real change.",
           "input": {
             "issue": "object — the issue being worked, including the repo that holds it",
             "line": "string — the line to implement on, e.g. v17",
@@ -29,7 +29,9 @@
           },
           "output": {
             "branch": "string — the branch the work was pushed to",
-            "summary": "string — what was changed, for the PR body"
+            "pr_number": "integer — the PR this action opened onto the line's base, or the existing one when the branch was already there. A loop tracks it, comments it on the issue and drives CI on it, and has no other way to learn it.",
+            "url": "string — the PR's URL, for the comment that points the issue at its PR",
+            "summary": "string — what was changed, used as the PR body"
           },
           "example": {
             "issue": {
