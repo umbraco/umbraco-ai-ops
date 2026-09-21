@@ -75,6 +75,11 @@
       "additionalProperties": false,
       "description": "Label overrides, keyed by PURPOSE and not by name — which is what lets a repo rename a label without touching a loop. Partial: name only what you are changing, and the `ops/`-namespaced framework defaults fill in the rest. Point a key at a label the repo already has rather than creating a second one that means the same thing.",
       "properties": {
+        "authored": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Overrides the default `ops/generated-by-ai`. Applied to the PR a loop opened, and left on afterwards — provenance, not a gate. Shares its default NAME with `done` and is a separate purpose: `done` marks the issue, this marks the PR, and where the topology is split those are different repos, so a repo must be able to rename one without the other."
+        },
         "blocked": {
           "$ref": "#/$defs/label",
           "description": "Default `ops/ai-blocked`."

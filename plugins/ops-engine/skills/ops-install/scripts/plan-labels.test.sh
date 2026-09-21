@@ -26,14 +26,14 @@ name_of() { printf '%s' "$1" | jq -r --arg p "$2" '.labels[] | select(.purpose==
 
 # --- single repo: everything collapses onto code --------------------------
 p="$(plan "$(mkrepo single '{"version":1}')")"
-check "twelve labels are planned"         12 "$(printf '%s' "$p" | jq '.labels | length')"
+check "thirteen labels are planned"       13 "$(printf '%s' "$p" | jq '.labels | length')"
 check "single repo means one target"      1  "$(printf '%s' "$p" | jq '.summary.repos | length')"
 check "  ready lands on code"       "owner/code" "$(repo_of "$p" ready)"
 check "  proto_learning too"        "owner/code" "$(repo_of "$p" proto_learning)"
 
 # --- with no file at all --------------------------------------------------
 mkdir -p "$TMP/nofile"
-check "a repo with no ops-repo-meta.json still plans twelve" 12 \
+check "a repo with no ops-repo-meta.json still plans thirteen" 13 \
   "$(bash "$P" "$TMP/nofile" --code owner/code --json 2>/dev/null | jq '.labels | length')"
 
 # --- split topology: the role decides the repo ---------------------------
@@ -49,6 +49,13 @@ check "  rework too"                       "owner/code"   "$(repo_of "$p" rework
 # the ports it triggers get commented onto the issue. Forms is the case that makes this matter:
 # the PR is on the private code repo, the issue is on the public one.
 check "  and port, which is a PR label"    "owner/code"   "$(repo_of "$p" port)"
+# `authored` is provenance on the PR. It shares its default NAME with `done` and must NOT share
+# its repo: on Forms, `done` lands on the public issues repo and `authored` on the private code
+# repo, and a repo renaming one must be able to leave the other alone.
+check "  and authored, the PR's provenance" "owner/code" "$(repo_of "$p" authored)"
+check "  sharing done's default name"       "$(name_of "$p" done)" "$(name_of "$p" authored)"
+check "  but never done's repo"             "different"   "$([ "$(repo_of "$p" done)" = "$(repo_of "$p" authored)" ] && echo same || echo different)"
+check "  and renaming done leaves it alone" "ops/generated-by-ai"   "$(name_of "$(plan "$(mkrepo authsplit '{"version":1,"labels":{"done":"mine"}}')")" authored)"
 check "learnings follow the code repo when undeclared" "owner/code" "$(repo_of "$p" proto_learning)"
 check "split topology means two targets"   2 "$(printf '%s' "$p" | jq '.summary.repos | length')"
 
@@ -65,14 +72,14 @@ check "an overridden name is used"    "needs-ai" "$(name_of "$p" ready)"
 check "  and another"                 "shipit"   "$(name_of "$p" land)"
 check "a non-overridden name defaults" "ops/auto-rework" "$(name_of "$p" rework)"
 check "overrides are flagged"         2 "$(printf '%s' "$p" | jq '[.labels[] | select(.overridden)] | length')"
-check "the rest are not"              10 "$(printf '%s' "$p" | jq '[.labels[] | select(.overridden | not)] | length')"
+check "the rest are not"              11 "$(printf '%s' "$p" | jq '[.labels[] | select(.overridden | not)] | length')"
 
 # --- every label has what create-label needs ----------------------------
 p="$(plan "$(mkrepo full '{"version":1}')")"
 check "every label has a name, repo, colour and description" 0 \
   "$(printf '%s' "$p" | jq '[.labels[] | select((.label|length)==0 or (.repo|length)==0 or (.colour|test("^[0-9a-f]{6}$")|not) or (.description|length)==0)] | length')"
-check "purposes are unique" 12 "$(printf '%s' "$p" | jq '[.labels[].purpose] | unique | length')"
-check "the default names are all ops/-namespaced" 12 \
+check "purposes are unique" 13 "$(printf '%s' "$p" | jq '[.labels[].purpose] | unique | length')"
+check "the default names are all ops/-namespaced" 13 \
   "$(printf '%s' "$p" | jq '[.labels[] | select(.label | startswith("ops/"))] | length')"
 
 # --- the code repo is never taken from the file -------------------------
@@ -81,7 +88,7 @@ check "--code wins for the code role" "given/code" "$(repo_of "$p" land)"
 
 # --- text mode + usage ---------------------------------------------------
 out="$(bash "$P" "$(mkrepo text '{"version":1}')" --code owner/code 2>/dev/null)"
-check "text mode lists twelve labels" 12 "$(printf '%s' "$out" | grep -c '#[0-9a-f]\{6\}')"
+check "text mode lists thirteen labels" 13 "$(printf '%s' "$out" | grep -c '#[0-9a-f]\{6\}')"
 check "text mode says how to create them" 1 "$(printf '%s' "$out" | grep -c 'create-label')"
 
 # --- the git-remote path --------------------------------------------------

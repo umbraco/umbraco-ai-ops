@@ -29,7 +29,7 @@ second one here would defeat both.
 | **`ops-change · implement`** | do the work for one issue | service |
 | **`ops-change · verify`** | prove it, this repo's way | service |
 | `ops-ci · status` / `log` | drive CI green on the PR | cross-cutting (read) |
-| `ops-repo-meta · identity` | the labels, **by purpose** — `labels.ready`, `labels.in_progress`, `labels.done`, `labels.blocked`. Never a hard-coded name | cross-cutting (read) |
+| `ops-repo-meta · identity` | the labels, **by purpose** — `labels.ready`, `labels.in_progress`, `labels.done`, `labels.blocked`, `labels.authored`. Never a hard-coded name | cross-cutting (read) |
 | `ops-repo-meta · topology` / `lines` | `issues` = where the backlog is, `code` = where the PR opens, and which line is primary | cross-cutting (read) |
 | `ops-notify · send` | only when the loop gives up on an issue | cross-cutting (infra) |
 
@@ -97,25 +97,47 @@ Each subagent, for its issue:
    `pr_number` has not finished**: report it as a failure and block the issue. Do not open the
    PR yourself to get past it — that is a loop reaching into a `supporting` capability, and the
    result is a pushed branch nobody is reviewing.
+
+   **Apply `labels.authored` to the PR** once `implement` returns its number. That is
+   provenance, not a gate: it says a loop wrote this, and it stays on. On a repo where humans
+   and loops both open PRs, nothing else tells the two apart without opening each one. It is
+   the PR-side twin of `labels.done` on the issue, and it is the **only** label this loop ever
+   puts on a PR — `land`, `rework` and `port` are the human's, and a loop that applies its own
+   gate has removed the gate.
 4. **Drive CI green** — `ops-ci · status`; on red, `ops-ci · log` then back to `implement` /
    `verify`. **Cap: 8 attempts.**
 5. **Mark it done.** Remove `labels.in_progress`, add `labels.done`, and — if step 3 did not
-   already — comment the PR link.
+   already — comment on the issue.
 
-   Three labels, three different jobs, and they are not interchangeable:
+   Four labels, four different jobs, and they are not interchangeable. Three sit on the issue;
+   `authored` is the one that sits on the PR:
 
-   | Purpose | Default | When |
-   |---|---|---|
-   | `labels.ready` | `ops/ready-for-ai` | the human's gate. Off the moment work starts |
-   | `labels.in_progress` | `ops/in-progress` | **state.** On only while work is in flight |
-   | `labels.done` | `ops/generated-by-ai` | **provenance.** On at the end, and stays on |
+   | Purpose | Default | Where | When |
+   |---|---|---|---|
+   | `labels.ready` | `ops/ready-for-ai` | issue | the human's gate. Off the moment work starts |
+   | `labels.in_progress` | `ops/in-progress` | issue | **state.** On only while work is in flight |
+   | `labels.done` | `ops/generated-by-ai` | issue | **provenance.** On at the end, and stays on |
+   | `labels.authored` | `ops/generated-by-ai` | **PR** | **provenance.** On at step 3, and stays on |
+
+   `done` and `authored` share a default *name* and are not one purpose: they are applied to
+   different things, on different repos where the topology is split, at different moments. A
+   repo renaming one must be able to leave the other alone, which is why there are two keys.
 
    `done` is not the opposite of `in_progress` — it records that a loop built this, which stays
    true forever. `in_progress` records that one is building it *now*, which stops being true.
    Conflating them is what left a live run's issue looking untouched (29-07-2026).
 
-   **Comment the PR link as soon as the PR exists** (step 3), not here. A run that dies while
-   CI is still building must still leave the issue pointing at its PR.
+   **Comment as soon as the PR exists** (step 3), not here. A run that dies while CI is still
+   building must still leave the issue pointing at its PR.
+
+   **Write the comment for whoever reads the issue, not for the loop.** Say what was done and
+   which line it is on, in words, and put the PR link after it. **The link is the extra, never
+   the message.** Where a repo's issues are public and its code is not, the link is a 404 to
+   the person who filed the issue — a comment that is only a link tells them nothing at all,
+   and the loop cannot tell the difference because it can see the PR perfectly well. The same
+   rule costs nothing on a single public repo, so it is not conditional on the topology and
+   nothing needs to detect a repo's visibility. The same boundary is why `Closes #N` cannot be
+   leaned on either (`ops-change · close-issue`).
 
 Track `{issue, branch, pr_number, model, attempts}`. A subagent is done at a green PR.
 
@@ -124,7 +146,8 @@ own workspace via `ops-workspace`, and a second isolation layer around it bypass
 own setup — the seeded database, the claimed port, the restored dependencies.
 
 A subagent that cannot finish records the issue as **blocked**: `labels.blocked` on,
-`labels.in_progress` **off**, a comment saying why. (The ready label came off back in step 0.)
+`labels.in_progress` **off**, a comment saying why — **in words, not as a pasted build log**
+(see step 3). (The ready label came off back in step 0.)
 Clearing `in_progress` matters — an issue left carrying it reads as work still running, and
 nothing will ever come back to it. Confirm that happened and **move on** — one bad issue must not stall
 the queue.
@@ -175,7 +198,11 @@ remaining issue is then terminal — a green PR awaiting the landing label, or b
 **Backstops — stop touching the issue, label it `labels.blocked`, clear `labels.in_progress`,
 comment why:**
 
-- **CI-green cap: 8** attempts on one PR. Then blocked, with the last failure in the comment.
+- **CI-green cap: 8** attempts on one PR. Then blocked, with the last failure **named** in the
+  issue comment and its **output on the PR** — same boundary as step 3. A build log is written
+  for whoever can read the code, and pasting one onto a public issue publishes internal paths,
+  internal package names and snippets of a private source tree. The loop cannot notice, because
+  it can read both repos.
 - **No-progress guard** — never retry the same failing action verbatim. A pass that produces no
   new state means blocked, not another lap.
 - **Global backstop (unattended)** — bound total dispatches or wall-clock. When it trips, `log`

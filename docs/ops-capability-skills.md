@@ -161,6 +161,10 @@ ops-repo-meta topology — roles, not one identity
 
 - **code repo:** branch, push, PR, `ci/status`, `auto-merge`/`auto-rework` PR labels, merge, tag, publish.
 
+Gotcha · a link across the split is a 404
+
+The boundary that stops `Closes #N` also stops the PR link. Where the issues repo is public and the code is not, whoever filed the issue cannot open the PR a loop comments on it — and the loop cannot tell, because it can see the PR. **Every comment a loop leaves on an issue must read correctly with the link removed:** what was done, on which line, then the link appended for the people who can follow it. Unconditional, so nothing has to detect a repo's visibility. `ops-issue-loop` step 3 holds the rule.
+
 Gotcha · cross-repo auto-close
 
 GitHub's closing keywords only auto-close an issue in the *same* repo as the PR — so `Closes #N` won't fire across a public/private split. The `change` capability must **explicitly close + label the issue on the issues repo after merge** (its `close-issue` action), not lean on the keyword. And the `loop-dispatch` caller workflow installs on *both* repos — the installer materializes issue-label rules to the public repo, PR-label rules to the private one.

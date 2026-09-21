@@ -83,6 +83,7 @@ Who am I, and what labels do I run by.
     "land":        "ops/auto-merge",
     "rework":      "ops/auto-rework",
     "port":        "ops/port",
+    "authored":    "ops/generated-by-ai",
     "release":     "ops/auto-release",
     "release_blocked": "ops/release-blocked",
     "proto_learning":  "ops/proto-learning",
