@@ -105,8 +105,34 @@ mkdir -p "$SKILLS_DEST" "$AGENTS_DEST"
     done < <(find "$OPS_DIR/plugins" -type f -path '*/agents/*.md' 2>/dev/null | sort)
 
     # --- the capture hooks, plus their settings.json wiring --------------
+    # SKIP ALL OF IT WHERE THE PLUGIN IS INSTALLED. An enabled `ops-learnings` plugin already
+    # registers these hooks itself through ${CLAUDE_PLUGIN_ROOT}, so copying and wiring a second
+    # set makes every capture run TWICE. Worse than duplicate work: the copy is a snapshot and
+    # goes stale the moment the plugin moves on, so the two runs are different versions of the
+    # hook and only one of them has whatever was last fixed. It happened on a real machine — a
+    # 14-09-2026 copy running beside a current plugin, filing two near-identical proto-learnings
+    # for one session (umbraco/Umbraco.Automate#294 and #295, two minutes apart).
+    #
+    # Cloud, which is the only reason this wiring exists, is unaffected: nothing is installed
+    # there, so the check is false and the copy and wiring happen exactly as before. The check
+    # reads `enabledPlugins`, because that — not the plugin being on disk — is the condition
+    # under which Claude Code registers a plugin's hooks.
+    plugin_installed=no
+    if command -v jq >/dev/null 2>&1 && [ -f "$SETTINGS" ]; then
+      jq -e '[(.enabledPlugins // {}) | to_entries[]
+              | select(.key | startswith("ops-learnings@")) | .value] | any' \
+         "$SETTINGS" >/dev/null 2>&1 && plugin_installed=yes
+    fi
+
     plug="$(find "$OPS_DIR/plugins" -maxdepth 1 -type d -name 'ops-learnings' 2>/dev/null | head -1)"
-    if [ -n "$plug" ] && [ -d "$plug/hooks" ]; then
+    if [ "$plugin_installed" = yes ]; then
+      # Clear any copy an earlier run left, so a stale one cannot linger unwired and be picked
+      # up by hand later. Removing the settings entries is NOT done here: this script does not
+      # own that file's other contents, and a wiring it did not write this run is not its to
+      # delete. Anyone cleaning up after the old behaviour removes those two entries themselves.
+      rm -rf "$HOOKS_ROOT"
+      echo "ops-learnings plugin is installed — skipping hook copy and wiring (it registers its own)"
+    elif [ -n "$plug" ] && [ -d "$plug/hooks" ]; then
       rm -rf "$HOOKS_ROOT"; mkdir -p "$HOOKS_ROOT"
       cp -r "$plug/hooks" "$HOOKS_ROOT/hooks"
       # The hook script resolves its schema relative to its own plugin root, so the

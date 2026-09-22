@@ -149,5 +149,30 @@ OPS_SRC="$TMP/nope" OPS_REPO="file:///nonexistent-$$" OPS_HOME="$H6" \
 if grep -q "nonexistent-$$" "$H6/skill-sync.log"; then pass=$((pass+1))
 else fail=$((fail+1)); echo "FAIL: OPS_REPO should appear in the failure message"; fi
 
+# --- the plugin being installed means DO NOT wire ------------------------
+# The wiring exists for cloud, where no plugin is installed. On a machine where the
+# `ops-learnings` plugin IS enabled, Claude Code registers the same two hooks itself, so wiring
+# a second set runs every capture twice — off a snapshot that goes stale as soon as the plugin
+# moves on. That is not hypothetical: a 14-09-2026 copy ran beside a current plugin and filed
+# two near-identical proto-learnings for one session.
+H5="$TMP/home-plugin"; mkdir -p "$H5/.claude"
+printf '{"enabledPlugins":{"ops-learnings@umbraco-ai-ops":true,"other@x":false}}
+'   > "$H5/.claude/settings.json"
+run "$ENGINE" "$H5"
+check "an enabled plugin means no SubagentStop wiring" "null"   "$(jq -r '.hooks.SubagentStop // "null"' "$H5/.claude/settings.json")"
+check "  and no SessionEnd wiring"                     "null"   "$(jq -r '.hooks.SessionEnd // "null"' "$H5/.claude/settings.json")"
+check "  and no hook copy is left on disk"             "absent"   "$([ -e "$H5/.claude/ops-hooks" ] && echo present || echo absent)"
+check "  while the skills still install"               "0"   "$([ -f "$H5/.claude/skills/ops-issue-loop/SKILL.md" ] && echo 0 || echo 1)"
+check "  and enabledPlugins is left alone"             "true"   "$(jq -r '.enabledPlugins["ops-learnings@umbraco-ai-ops"]' "$H5/.claude/settings.json")"
+
+# A DISABLED plugin is not an installed one: cloud and a machine that turned it off both still
+# need the wiring, so `false` must behave exactly like absent.
+H6="$TMP/home-plugin-off"; mkdir -p "$H6/.claude"
+printf '{"enabledPlugins":{"ops-learnings@umbraco-ai-ops":false}}
+' > "$H6/.claude/settings.json"
+run "$ENGINE" "$H6"
+check "a disabled plugin still gets wired" "1"   "$(jq '.hooks.SubagentStop | length' "$H6/.claude/settings.json")"
+
+
 printf '\n%s: %d passed, %d failed\n' "$(basename "$0")" "$pass" "$fail"
 [ "$fail" -eq 0 ]
