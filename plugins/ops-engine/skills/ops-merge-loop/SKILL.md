@@ -132,6 +132,11 @@ has to ask a human.
 - **Hand off, do not port here.** This loop schedules landings. It does not resolve lines, and
   it must never call `ops-change · implement`. Everything about which lines and in which
   direction lives in `ops-port-loop` and `ops-repo-meta · lines`.
+- **Read `ops-port-loop` for the handoff only.** Its rules bind it, not you and not the PR. In
+  particular its "never applies the landing label" is about what that loop *writes*; it is not a
+  reason to treat a landing label on a port PR as wrong, and it is never a reason to remove one.
+  A PR being a port is not a gate — the gates live in `ops-integrate` and ports are not among
+  them.
 - **No label, no ports.** A port is never opened without a maintainer confirming it, and the
   absence of the label is that confirmation withheld. Do not infer one from the issue text.
 

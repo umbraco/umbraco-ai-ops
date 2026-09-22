@@ -66,6 +66,17 @@ failing", "conflicts with its base" — so the caller can comment it verbatim.
 
 - The landing label: `ops-repo-meta · identity` → `labels.land`. **Ask for the purpose, not
   the name** — a repo may have renamed it.
+
+> **The landing label is a human's, start to finish.** A human puts it on and a human takes it
+> off. This service is the only thing in the engine that *acts* on it, and acting on it means
+> landing the PR or reporting a gate that did not hold — never editing the label. No loop removes
+> it, no loop applies it, and no loop declines to land because of what kind of PR it is on. If
+> the label is on and the gates hold, it lands.
+>
+> Every reason a loop might invent for stripping it — it is a port, it looks automated, it seems
+> to have arrived oddly — is the loop overriding the one human instruction in the pipeline, on a
+> guess about where the label came from that it cannot actually check. See the 22-09-2026
+> incident in `ops-port-loop` Step 4 for what that costs.
 - Nothing else. In particular **do not** resolve a base branch, a release base or a merge
   strategy. You cannot, and that is deliberate: `ops-branching` holds them privately.
 
