@@ -256,6 +256,24 @@ leaves an issue that looks untouched and cannot be found.
 
 When you add a label, prefix it, and add it to the list above.
 
+**A trigger label is a human's instruction. A loop answers one; it never overrules one.** The
+`auto-` labels are how a maintainer says land this, rework this, release this. Three rules, and
+the first two are narrower than they look:
+
+- **A loop may clear the label that fired it, to record an outcome.** That is how it says the work
+  is done or that it has stopped — `ops-rework-loop` clears `ops/auto-rework` when it has
+  finished, and `ops-release-loop` clears `ops/auto-release` when a gate blocks it. The landing
+  label is the exception and stays on after a merge, which is why `ops-integrate` is idempotent.
+- **No loop removes a label because it judges the label was wrongly applied.** That is the one
+  forbidden move, and it is not the same as the bullet above. Nothing can tell a label a loop
+  applied from one a human applied, so a loop acting on that judgement is overriding the only
+  human instruction in the pipeline on a guess it cannot check.
+- **No loop applies a trigger label to its own work**, which would be approving itself.
+
+And a rule about a label written in one skill **binds that skill**, not the label and not every
+other loop that happens to read that skill — see `ops-port-loop` Step 4 for the incident that
+wording caused (22-09-2026).
+
 **Keep the `auto-` names as they are.** With `ops/` in front, the `auto-` in `ops/auto-merge`
 / `ops/auto-rework` / `ops/auto-release` is arguably redundant, and shortening them to
 `ops/merge` / `ops/rework` / `ops/release` was raised and **declined** (28-07-2026): the
