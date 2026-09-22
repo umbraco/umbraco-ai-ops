@@ -103,16 +103,39 @@ release PR open, and leave the label on so a human can decide.
 ## Step 3 — the pre-publish review (second gate)
 
 Once CI is green, and **before anything irreversible**, run the **`release-reviewer` agent**
-(defined in this plugin — read-only Opus; what it checks lives in its own definition). Gather
-the PR's facts through `github-ops` — number, head, base, target version, triggering issue,
-the diff, CI status, mergeability — and pass them in.
+(defined in this plugin — judgement-only Opus; what it checks lives in its own definition).
 
-It scores the PR against the **repo's** release-review checklist when the repo ships one,
-otherwise the engine's default
-([`references/release-review-checklist.md`](references/release-review-checklist.md)). The
-checklist is an extension point, not a fixed list. It returns **VERDICT: PASS** or
-**VERDICT: BLOCK + findings**, and this loop gates on the verdict — the agent is read-only and
-cannot publish.
+**You gather the facts; the agent reads nothing.** The agent's only tool is `Read`, and its
+only legitimate target is the engine default checklist that ships beside this skill. It has no
+way to fetch a file and must never be pointed at the working tree, because a local checkout can
+be stale, on another branch, or absent — a gate that judged the wrong content would still
+report a pass. So everything it judges comes from you, through `github-ops`, from the forge's
+API.
+
+**Resolve the head SHA first**, and fetch every file at that SHA. The PR can move while the
+loop is mid-flight; facts gathered without pinning may describe a commit that is no longer what
+would publish. Pass in:
+
+1. **PR number**, title, body, head branch, **head commit SHA**, base branch.
+2. The target **version** and the **line** it targets.
+3. The **triggering issue**'s title and body.
+4. The **diff** (changed files + size), **CI status per check**, and **mergeability**.
+5. **The version-file list** from `ops-release · plan` — the literal paths that were supposed
+   to be bumped, so the agent can spot one that was missed entirely rather than only judging
+   the files it was handed.
+6. **The content of those version files and the changelog, fetched at the head SHA.**
+7. **The resolved checklist.** Look for the repo's own — `.claude/release-review-checklist.md`,
+   then a repo-root `release-review-checklist.md` — **at the head SHA, through `github-ops`**,
+   and pass its content and path when one exists. Say so explicitly when the repo ships none,
+   and the agent falls back to the engine default
+   ([`references/release-review-checklist.md`](references/release-review-checklist.md)). The
+   checklist is an extension point, not a fixed list.
+8. **A note per failed fetch**, in the form `could not fetch <path> at <sha>: <error>`, for any
+   file that should have been there. Never drop a failed fetch silently: the agent scores a
+   check it cannot judge as a BLOCK, which is the point.
+
+It returns **VERDICT: PASS** or **VERDICT: BLOCK + findings** with a per-check scorecard, and
+this loop gates on the verdict — the agent cannot publish.
 
 > **The routine's `allowed_tools` must include the Agent/Task tool.** If the agent cannot be
 > spawned, the gate has **not run** — treat that as a **BLOCK** and follow the BLOCK path

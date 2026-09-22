@@ -5,18 +5,21 @@ irreversible and un-gated by a human, review the release PR against **every** ch
 below before merging/tagging/publishing.
 
 > **This is the engine's DEFAULT checklist — it is a seam, not a fixed list.** An applied
-> repo overrides it by shipping its own `release-review-checklist.md` (the `release-reviewer`
-> agent looks for `.claude/release-review-checklist.md`, then a repo-root
-> `release-review-checklist.md`, before falling back to this file). A repo checklist may add,
-> tighten, or relax checks for that repo's stack/lines. Keep this default product-agnostic —
-> repo-specific checks belong in the repo's own file, not here.
+> repo overrides it by shipping its own `release-review-checklist.md`. **The loop resolves it,
+> not the agent**: Step 3 looks for `.claude/release-review-checklist.md`, then a repo-root
+> `release-review-checklist.md`, fetches it at the PR's head SHA, and passes the content in.
+> The agent falls back to this file only when the loop says the repo ships none — it cannot go
+> looking, because it must not read the working tree. A repo checklist may add, tighten, or
+> relax checks for that repo's stack/lines. Keep this default product-agnostic — repo-specific
+> checks belong in the repo's own file, not here.
 
 - A **BLOCK** finding **stops the publish** — comment the finding on the triggering
   issue, leave the PR open, and do **not** merge/tag/publish.
 - A **WARN** finding does **not** block — note it in the completion comment so a human
   can glance at it.
-- Judge each check from what's observable on the PR (title/branch/issue, the diff, CI,
-  mergeability). If a check can't be evaluated, treat it as a BLOCK and say why.
+- Judge each check from what the caller handed you — the PR's title/branch/issue, the diff,
+  CI, mergeability, and the file contents pinned to the PR's head commit. Never from a local
+  checkout. If a check can't be evaluated from that material, treat it as a BLOCK and say why.
 - **Reason beyond the list.** These checks are a *floor*, not a ceiling — also step back
   and ask *"does anything about this PR look wrong or risky to ship?"* Flag anything off
   even when no row covers it (BLOCK if clearly wrong, WARN if merely suspect), and add a
