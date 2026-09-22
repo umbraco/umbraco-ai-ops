@@ -44,6 +44,12 @@ STATE="${OPS_LEARNINGS_STATE:-$(dirname "$LOG")}"
 mkdir -p "$(dirname "$LOG")" "$STATE" 2>/dev/null || true
 log() { printf '%s [%s] %s\n' "$(date -u +%FT%TZ 2>/dev/null || echo now)" "$SCOPE" "$*" >>"$LOG" 2>/dev/null || true; }
 
+# Everything this hook writes to stderr goes to the log as well. A hook runs async and detached,
+# so its stderr otherwise goes nowhere: when the prompt build failed, the log recorded the
+# downstream symptom and threw the line saying why on the floor. A log that keeps symptoms and
+# discards causes is worse than no log, because it reads as though it were complete.
+exec 2>>"$LOG"
+
 # --- Re-entry guard --------------------------------------------------------
 # The analyzer below is itself a `claude` session that loads this plugin, so its own
 # SessionEnd/SubagentStop would re-invoke this script. The env var is inherited by that child
@@ -91,9 +97,27 @@ fi
 if [ -z "$REPO" ]; then log "no destination repo (set \$OPS_LEARNINGS_REPO) — skipping"; exit 0; fi
 
 # --- Analyze (read-only) ---------------------------------------------------
-PROMPT="$(sed -e "s#{{TRANSCRIPT}}#$TRANSCRIPT#g" \
-              -e "s#{{SCHEMA}}#$SCHEMA#g" \
-              -e "s#{{REPO}}#$REPO#g" "$PROMPT_FILE")"
+# Substitute with bash, NOT sed. A transcript path on Windows is `C:\Users\...\D--Repo\4d62...`,
+# and sed treats a backslash in the REPLACEMENT as an escape: `\4` is a backreference to a group
+# that does not exist, so sed aborts with "invalid reference \4 on `s' command's RHS", prints
+# nothing, and `$(...)` yields an empty prompt. `claude -p ""` then refuses with "Input must be
+# provided...", which was the only error ever reaching the log, because sed's own stderr was not
+# captured. Capture ran that way for seven weeks: ~2250 failures against 3 filings, the 3 being
+# the runs whose path happened to have no digit after a backslash.
+#
+# `${var//find/replace}` does no escape processing at all, so any path survives it verbatim.
+TEMPLATE="$(cat "$PROMPT_FILE")" || { log "could not read $PROMPT_FILE — skipping"; exit 0; }
+PROMPT="${TEMPLATE//\{\{TRANSCRIPT\}\}/$TRANSCRIPT}"
+PROMPT="${PROMPT//\{\{SCHEMA\}\}/$SCHEMA}"
+PROMPT="${PROMPT//\{\{REPO\}\}/$REPO}"
+
+# An empty prompt is the failure the comment above is about. Catch it HERE, where the reason is
+# knowable, rather than letting `claude` report it downstream as its own usage error.
+[ -n "$PROMPT" ] || { log "prompt came out empty from $PROMPT_FILE — skipping"; exit 0; }
+
+# Size, every run. Had this line existed, the log would have read "prompt built: 0 bytes" on
+# day one instead of an unexplained refusal from `claude` three steps later.
+log "prompt built: ${#PROMPT} bytes"
 
 log "analyzing $TRANSCRIPT"
 if [ -n "${OPS_LEARNINGS_ANALYZER_OUT:-}" ]; then

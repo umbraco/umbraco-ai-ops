@@ -140,5 +140,26 @@ printf '%s' "$(event "$PLAIN" sess-sig)" | env \
   OPS_LEARNINGS_ANALYZER_OUT="$FILEABLE" bash "$CAP" subagent >/dev/null 2>&1
 grep_log "honours a custom \$OPS_LEARNINGS_SIGNATURE" "DRY RUN would file" 1
 
+# --- a backslash in a substituted value must survive ----------------------
+# The regression that cost seven weeks of capture. The prompt was built with `sed`, which reads
+# a backslash in the REPLACEMENT as an escape, so a Windows transcript path ending
+# `...D--DXP-Forms-Forms` + separator + `4d628c62-...` made sed abort on an invalid backreference
+# and emit nothing. The prompt came out empty and `claude -p ""` refused, three steps downstream.
+#
+# The carrier here is $OPS_LEARNINGS_REPO, not the transcript path, on purpose: the real value
+# was a path, but a filename cannot hold that separator on Windows, so a test built that way
+# would only run on the Linux CI box and quietly skip on the machine the bug happened on.
+# Every substituted value goes through the same expansion, so any one of them proves it.
+LOGF="$TMP/log-backslash.txt"; STATED="$TMP/state-backslash"; mkdir -p "$STATED"
+printf '%s' "$(event "$LOOPY" sess-backslash)" | env \
+  OPS_LEARNINGS_LOG="$LOGF" OPS_LEARNINGS_STATE="$STATED" OPS_LEARNINGS_DRY_RUN=1 \
+  OPS_LEARNINGS_REPO='owner\4d62-repo' \
+  OPS_LEARNINGS_ANALYZER_OUT="$FILEABLE" bash "$CAP" subagent >/dev/null 2>&1
+check "a backslash-digit value does not fail the hook" 0 "$?"
+grep_log "  and the prompt still builds, so it files" "DRY RUN would file" 1
+grep_log "  never reporting an empty prompt"          "prompt came out empty" 0
+grep_log "  and the built prompt is not empty"       "prompt built: 0 bytes" 0
+
+
 printf '\n%s: %d passed, %d failed\n' "$(basename "$0")" "$pass" "$fail"
 [ "$fail" -eq 0 ]
