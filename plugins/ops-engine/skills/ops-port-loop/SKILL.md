@@ -42,6 +42,12 @@ Read the PR: its merge state, its base branch, and the issue it closes.
 - **Merged.** Take the **merge commit** — that, not the branch, is what gets ported. The branch
   may be deleted by the time you run.
 
+**Merged is not the same as yours to port.** This loop has two entry points — the label event
+and `ops-merge-loop`'s handoff — and a PR given the landing label and the port label together
+fires **both**, for the same change. Neither is wrong and neither is removable, so the
+arbitration is per target line and lives in step 2's claim rule. Reaching this point is not
+permission to start.
+
 ## Step 2 — work out the target lines
 
 Ask `ops-repo-meta · lines` for `live`, `primary` and `port_order`. **`live` is ordered oldest
@@ -121,6 +127,40 @@ Then:
 - **Skip any line that already has a port** for this issue — open or merged. A re-fired label
   MUST NOT open a second PR. This is the idempotency requirement and it is the one most likely
   to bite, because labels get re-applied by hand.
+- **Then claim the line before you work it, and honour another run's claim.** The rule above is
+  a check with no claim, and two runs in flight both pass it. Per target line, in this order:
+  1. A port PR already exists for this issue on that line → **skip**, and say so.
+  2. Otherwise read the source PR's comments for a claim marker for that line —
+     `<!-- ops-port-claim: <line> -->` — posted in the **last 30 minutes**. Found → another run
+     owns this line right now. **Skip**, naming the line and saying a twin has it.
+  3. Otherwise post that marker on the source PR, inside a comment that also reads as English
+     to a human (*"Porting to v17."*), and only then go to step 3 for that line.
+
+  **A claim older than 30 minutes with nothing behind it is dead, and is ignored.** That is
+  deliberate: a run that dies between claiming and opening its PR must not wedge the line
+  forever. The claim only has to cover the gap between claiming and the PR existing, which is
+  minutes. After that, rule 1 is the real guard, because it reads authoritative state.
+
+  **It is a record, not a lock, and it is never cleared on success.** Nothing here is atomic,
+  and two runs firing in the same second can still both claim. It closes the window that
+  actually opened, not every window that could.
+
+> **The incident this exists for (22-09-2026, `umbraco/Umbraco.Automate`).** A maintainer put
+> `ops/auto-merge` and `ops/port` on a PR in the same second. That is **two** labelled events,
+> so the edge router correctly fired **two** loops — `ops-merge-loop` and this one. The merge
+> loop landed the PR and handed off to this loop again, exactly as it is meant to. The port
+> therefore ran twice, from two entry points, and each opened its own PR onto v17 (#312 and
+> #313 from one source, #314 and #315 from another).
+>
+> **Step 1's "not merged yet, stop" did not catch it**, because it asks about *now*. The label
+> fired while the PR was open, the merge landed two minutes later, and by the time the cloud
+> session read the PR it was merged. Both paths saw a merged PR and both went on. A guard
+> phrased as a moment in time cannot hold against a run that reads at a different moment.
+>
+> **Nor did the branch name save it**, because the two entry points produced different ones —
+> `v17/feature/create-content-action` from the label fire, `v17/feature/port-285-...` from the
+> handoff, which knew the source PR. `ops-change` dedupes on the branch, so two names meant two
+> branches and two PRs.
 
 Announce the target list before doing anything.
 

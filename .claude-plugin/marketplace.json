@@ -14,7 +14,7 @@
       "name": "ops-engine",
       "source": "./plugins/ops-engine",
       "description": "The engine: everything needed to onboard a repo and run its loops. The installer (`ops-install`), the edge router (`loop-dispatch`) and the routine scaffolder, the six framework-default capabilities a repo inherits until it ships its own (`ops-branching`, `ops-ci`, `ops-integrate`, `ops-notify`, `ops-repo-meta`, `ops-workspace`), the shared GitHub and CI reference (`github-ops`), and the five loops that turn a labelled backlog into merged, released code (`ops-issue-loop`, `ops-port-loop`, `ops-rework-loop`, `ops-merge-loop`, `ops-release-loop`) plus the independent reviewer that gates a publish. Product-agnostic: a consumer supplies its own `ops-change` and `ops-release` as skills in its repo, and overrides any default by shipping a skill of the same name. These ship together because nobody runs a loop without the installer, the router and the defaults underneath it.",
-      "version": "0.17.0",
+      "version": "0.17.1",
       "category": "workflow",
       "keywords": [
         "automation",
