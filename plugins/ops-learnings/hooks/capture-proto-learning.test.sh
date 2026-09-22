@@ -161,5 +161,77 @@ grep_log "  never reporting an empty prompt"          "prompt came out empty" 0
 grep_log "  and the built prompt is not empty"       "prompt built: 0 bytes" 0
 
 
+# --- the analyzer must not join the session it is analyzing ----------------
+# The real analyzer is a nested `claude`, and a child inherits the variables that bind a
+# process to the invoking session's inbound message channel. Inherited, the analyzer joins the
+# loop session and can swallow a live event meant for the loop. These three tests use a stub
+# `claude` on PATH, so they stay hermetic: nothing is spawned but bash.
+BIN="$TMP/bin"; mkdir -p "$BIN"
+
+# waitfor <file> — the analyzer runs DETACHED, so the hook returns before it finishes. Poll
+# rather than sleep a fixed amount: fast when it is fast, and it gives up rather than hanging.
+waitfor() {
+  local f="$1" i=0
+  while [ ! -f "$f" ] && [ "$i" -lt 100 ]; do i=$((i+1)); sleep 0.1; done
+  [ -f "$f" ]
+}
+
+# The session-binding variables the hook must drop, and the two it must keep.
+SESSION_VARS="CLAUDE_CODE_MESSAGING_SOCKET CLAUDE_CODE_MESSAGING_TOKEN CLAUDE_SESSION_INGRESS_TOKEN_FILE CLAUDE_CODE_POST_FOR_SESSION_INGRESS_V2 CLAUDE_CODE_REMOTE_SESSION_ID CLAUDE_CODE_SESSION_ID CLAUDE_PID"
+
+# run_with_stub <name> <stub-body> — fires the hook with $BIN/claude in front of PATH, with a
+# full set of session variables set, and waits for the stub to record that it ran.
+run_with_stub() {
+  local name="$1" body="$2"
+  LOGF="$TMP/log-$name.txt"; STATED="$TMP/state-$name"; mkdir -p "$STATED"
+  ENVDUMP="$TMP/env-$name.txt"; rm -f "$ENVDUMP"
+  { printf '#!/usr/bin/env bash\nenv > "%s"\n' "$ENVDUMP"; printf '%s\n' "$body"; } > "$BIN/claude"
+  chmod +x "$BIN/claude"
+  printf '%s' "$(event "$LOOPY" "sess-$name")" | env \
+    PATH="$BIN:$PATH" \
+    OPS_LEARNINGS_LOG="$LOGF" \
+    OPS_LEARNINGS_STATE="$STATED" \
+    OPS_LEARNINGS_DRY_RUN=1 \
+    OPS_LEARNINGS_REPO="owner/repo" \
+    CLAUDE_CODE_MESSAGING_SOCKET=/tmp/sock \
+    CLAUDE_CODE_MESSAGING_TOKEN=tok \
+    CLAUDE_SESSION_INGRESS_TOKEN_FILE=/tmp/ingress \
+    CLAUDE_CODE_POST_FOR_SESSION_INGRESS_V2=1 \
+    CLAUDE_CODE_REMOTE_SESSION_ID=remote-1 \
+    CLAUDE_CODE_SESSION_ID=sess-1 \
+    CLAUDE_PID=4242 \
+    CLAUDE_CODE_OAUTH_TOKEN=oauth-secret \
+    bash "$CAP" subagent >/dev/null 2>&1
+  check "$name exits 0" 0 $?
+  waitfor "$ENVDUMP" || { fail=$((fail+1)); echo "FAIL: $name — stub claude never ran"; }
+  MARKERF="$STATED/analyzed-subagent-sess-$name"
+}
+
+run_with_stub "isolation" 'printf '"'"'{"file":false}'"'"''
+for v in $SESSION_VARS; do
+  n="$(grep -c "^$v=" "$ENVDUMP" 2>/dev/null || true)"
+  check "  drops \$$v" 0 "$n"
+done
+check "  keeps the OAuth token, which authenticates rather than addresses" \
+  1 "$(grep -c '^CLAUDE_CODE_OAUTH_TOKEN=' "$ENVDUMP" 2>/dev/null || true)"
+check "  keeps the re-entry guard, or the analyzer captures itself" \
+  1 "$(grep -c '^OPS_LEARNINGS_CAPTURE=' "$ENVDUMP" 2>/dev/null || true)"
+
+# --- the marker is claimed before the analyzer, and released if it fails ---
+# Claimed before, because a detached analyzer can be in flight for minutes while another
+# SubagentStop fires on the same session. Released on failure, or one crash would retire that
+# session from capture forever.
+run_with_stub "marker-kept" 'printf '"'"'{"file":false}'"'"''
+check "keeps the marker when the analyzer succeeds" 1 "$([ -f "$MARKERF" ] && echo 1 || echo 0)"
+
+run_with_stub "marker-freed" 'exit 1'
+# The failure line is written by the detached child AFTER the stub exits, so poll for it
+# rather than sleeping a guess.
+i=0; while ! grep -q "analyzer invocation failed" "$LOGF" 2>/dev/null && [ "$i" -lt 100 ]; do i=$((i+1)); sleep 0.1; done
+check "releases the marker when the analyzer fails" 0 "$([ -f "$MARKERF" ] && echo 1 || echo 0)"
+grep_log "  and says so" "analyzer invocation failed" 1
+
+rm -f "$BIN/claude"
+
 printf '\n%s: %d passed, %d failed\n' "$(basename "$0")" "$pass" "$fail"
 [ "$fail" -eq 0 ]

@@ -74,8 +74,13 @@ fi
 # --- Once-per-session guard ------------------------------------------------
 # transcript_path is the WHOLE shared session JSONL, not a per-subagent slice. Resuming a
 # stuck subagent fires another SubagentStop over the same (growing) transcript, so without
-# this the same session gets re-analysed repeatedly. Analyse each session once per scope; the
-# marker is written after the analyzer runs, so a crashed analyzer can be retried.
+# this the same session gets re-analysed repeatedly. Analyse each session once per scope.
+#
+# The marker is CLAIMED just before the analyzer is spawned and RELEASED if the spawn or the
+# analyzer fails, so a crashed analyzer can still be retried. It used to be written after the
+# analyzer returned, which left the whole analyzer run unclaimed: fine while that run was
+# synchronous and short, wrong now the analyzer is detached and can be in flight for minutes
+# while another SubagentStop fires on the same session.
 SID="$(printf '%s' "$EVENT" | jq -r '.session_id // empty' 2>/dev/null)"
 MARKER=""
 if [ -n "$SID" ]; then
@@ -119,75 +124,152 @@ PROMPT="${PROMPT//\{\{REPO\}\}/$REPO}"
 # day one instead of an unexplained refusal from `claude` three steps later.
 log "prompt built: ${#PROMPT} bytes"
 
-log "analyzing $TRANSCRIPT"
-if [ -n "${OPS_LEARNINGS_ANALYZER_OUT:-}" ]; then
-  OUT="$OPS_LEARNINGS_ANALYZER_OUT"
-else
-  command -v claude >/dev/null 2>&1 || { log "missing claude — skipping capture"; exit 0; }
-  OUT="$(claude -p "$PROMPT" --model sonnet --allowedTools "Read,Grep" 2>>"$LOG")" || {
-    log "analyzer invocation failed"; exit 0; }
-fi
+# --- What happens to the analyzer's answer ---------------------------------
+# A function, because there are now two callers: the test seam below, which runs inline, and
+# the detached analyzer further down. `return`, never `exit` — an `exit` here would kill the
+# subshell mid-flight and skip the marker release.
+record() {
+  OUT="$1"
 
+  # The analyzer outputs a single JSON object, optionally fenced. Strip fences.
+  JSON="$(printf '%s' "$OUT" | sed -e 's/^```json//' -e 's/^```//' -e 's/```$//' | jq -c . 2>/dev/null)"
+  if [ -z "$JSON" ]; then
+    log "analyzer output not JSON: $(printf '%s' "$OUT" | tr -d '\n' | head -c 200)"; return 0
+  fi
+
+  if [ "$(printf '%s' "$JSON" | jq -r '.file // false')" != "true" ]; then
+    log "analyzer decided not to file — nothing captured"; return 0
+  fi
+
+  TITLE="$(printf '%s' "$JSON" | jq -r '.title // empty')"
+  [ -n "$TITLE" ] || { log "analyzer said file:true with no title — skipping"; return 0; }
+
+  RECORD="$(printf '%s' "$JSON" | jq -r '.record // {} | tojson')"
+  NOTES="$(printf '%s' "$JSON" | jq -r '.notes // ""')"
+  BODY="$(printf '```json\n%s\n```\n\n**Notes:** %s\n' "$RECORD" "$NOTES")"
+
+  if [ -n "${OPS_LEARNINGS_DRY_RUN:-}" ]; then
+    log "DRY RUN would file to $REPO [$LABEL]: $TITLE"
+    log "DRY RUN body: $(printf '%s' "$BODY" | tr -d '\n' | head -c 300)"
+    return 0
+  fi
+
+  # --- File it -------------------------------------------------------------
+  # `gh` locally; on a runner without it, curl + the REST API. Dedupe on an exact open title
+  # either way — deeper clustering is ops-triage-loop's job, not the analyzer's.
+  API="https://api.github.com/repos/$REPO/issues"
+  TOKEN="${GH_TOKEN:-${GITHUB_TOKEN:-}}"
+
+  if command -v gh >/dev/null 2>&1; then
+    if gh issue list --repo "$REPO" --label "$LABEL" --state open --search "$TITLE" \
+         --json title --jq '.[].title' 2>/dev/null | grep -qxF "$TITLE"; then
+      log "duplicate open proto-learning, skipping: $TITLE"; return 0
+    fi
+    if URL="$(gh issue create --repo "$REPO" --label "$LABEL" --title "$TITLE" --body "$BODY" 2>>"$LOG")"; then
+      log "filed proto-learning: $URL"
+    else
+      log "gh issue create failed for: $TITLE"
+    fi
+  elif [ -n "$TOKEN" ] && command -v curl >/dev/null 2>&1; then
+    gh_api() { curl -sS -H "Authorization: Bearer $TOKEN" -H "Accept: application/vnd.github+json" \
+                    -H "X-GitHub-Api-Version: 2022-11-28" "$@" 2>>"$LOG"; }
+    if gh_api "$API?state=open&labels=$LABEL&per_page=100" | jq -r '.[].title' 2>/dev/null | grep -qxF "$TITLE"; then
+      log "duplicate open proto-learning, skipping: $TITLE"; return 0
+    fi
+    payload="$(jq -nc --arg t "$TITLE" --arg b "$BODY" --arg l "$LABEL" '{title:$t,body:$b,labels:[$l]}')"
+    # Capture status + body so a failure (e.g. a 403 from an auth/scope problem) is logged
+    # rather than swallowed — an empty .html_url used to hide the real reason.
+    resp="$(gh_api -w $'\n%{http_code}' -X POST "$API" -d "$payload")"
+    http="$(printf '%s' "$resp" | tail -n1)"
+    body="$(printf '%s' "$resp" | sed '$d')"
+    URL="$(printf '%s' "$body" | jq -r '.html_url // empty' 2>/dev/null)"
+    if [ "$http" = "201" ] && [ -n "$URL" ]; then
+      log "filed proto-learning (rest api): $URL"
+    else
+      log "REST issue create failed (HTTP ${http:-?}) for: $TITLE — $(printf '%s' "$body" | tr -d '\n' | head -c 300)"
+    fi
+  else
+    log "no gh and no token — skipping capture"
+  fi
+  return 0
+}
+
+# Give the session back so a failed analyzer can be retried on the next fire.
+release_marker() { [ -n "$MARKER" ] && rm -f "$MARKER" 2>/dev/null; return 0; }
+
+log "analyzing $TRANSCRIPT"
+
+# Claim the session now, before anything long-running starts. See the once-per-session guard.
 [ -n "$MARKER" ] && { : >"$MARKER" 2>/dev/null || true; }
 
-# The analyzer outputs a single JSON object, optionally fenced. Strip fences.
-JSON="$(printf '%s' "$OUT" | sed -e 's/^```json//' -e 's/^```//' -e 's/```$//' | jq -c . 2>/dev/null)"
-if [ -z "$JSON" ]; then
-  log "analyzer output not JSON: $(printf '%s' "$OUT" | tr -d '\n' | head -c 200)"; exit 0
-fi
-
-if [ "$(printf '%s' "$JSON" | jq -r '.file // false')" != "true" ]; then
-  log "analyzer decided not to file — nothing captured"; exit 0
-fi
-
-TITLE="$(printf '%s' "$JSON" | jq -r '.title // empty')"
-[ -n "$TITLE" ] || { log "analyzer said file:true with no title — skipping"; exit 0; }
-
-RECORD="$(printf '%s' "$JSON" | jq -r '.record // {} | tojson')"
-NOTES="$(printf '%s' "$JSON" | jq -r '.notes // ""')"
-BODY="$(printf '```json\n%s\n```\n\n**Notes:** %s\n' "$RECORD" "$NOTES")"
-
-if [ -n "${OPS_LEARNINGS_DRY_RUN:-}" ]; then
-  log "DRY RUN would file to $REPO [$LABEL]: $TITLE"
-  log "DRY RUN body: $(printf '%s' "$BODY" | tr -d '\n' | head -c 300)"
+# Test seam: a canned analyzer response, recorded inline. Deliberately BEFORE the detach — the
+# tests assert on log lines, and a detached writer would race them.
+if [ -n "${OPS_LEARNINGS_ANALYZER_OUT:-}" ]; then
+  record "$OPS_LEARNINGS_ANALYZER_OUT"
   exit 0
 fi
 
-# --- File it -------------------------------------------------------------
-# `gh` locally; on a runner without it, curl + the REST API. Dedupe on an exact open title
-# either way — deeper clustering is ops-triage-loop's job, not the analyzer's.
-API="https://api.github.com/repos/$REPO/issues"
-TOKEN="${GH_TOKEN:-${GITHUB_TOKEN:-}}"
+# Nothing was spawned, so give the session back rather than retiring it over a missing binary.
+command -v claude >/dev/null 2>&1 || { log "missing claude — skipping capture"; release_marker; exit 0; }
 
-if command -v gh >/dev/null 2>&1; then
-  if gh issue list --repo "$REPO" --label "$LABEL" --state open --search "$TITLE" \
-       --json title --jq '.[].title' 2>/dev/null | grep -qxF "$TITLE"; then
-    log "duplicate open proto-learning, skipping: $TITLE"; exit 0
-  fi
-  if URL="$(gh issue create --repo "$REPO" --label "$LABEL" --title "$TITLE" --body "$BODY" 2>>"$LOG")"; then
-    log "filed proto-learning: $URL"
-  else
-    log "gh issue create failed for: $TITLE"
-  fi
-elif [ -n "$TOKEN" ] && command -v curl >/dev/null 2>&1; then
-  gh_api() { curl -sS -H "Authorization: Bearer $TOKEN" -H "Accept: application/vnd.github+json" \
-                  -H "X-GitHub-Api-Version: 2022-11-28" "$@" 2>>"$LOG"; }
-  if gh_api "$API?state=open&labels=$LABEL&per_page=100" | jq -r '.[].title' 2>/dev/null | grep -qxF "$TITLE"; then
-    log "duplicate open proto-learning, skipping: $TITLE"; exit 0
-  fi
-  payload="$(jq -nc --arg t "$TITLE" --arg b "$BODY" --arg l "$LABEL" '{title:$t,body:$b,labels:[$l]}')"
-  # Capture status + body so a failure (e.g. a 403 from an auth/scope problem) is logged
-  # rather than swallowed — an empty .html_url used to hide the real reason.
-  resp="$(gh_api -w $'\n%{http_code}' -X POST "$API" -d "$payload")"
-  http="$(printf '%s' "$resp" | tail -n1)"
-  body="$(printf '%s' "$resp" | sed '$d')"
-  URL="$(printf '%s' "$body" | jq -r '.html_url // empty' 2>/dev/null)"
-  if [ "$http" = "201" ] && [ -n "$URL" ]; then
-    log "filed proto-learning (rest api): $URL"
-  else
-    log "REST issue create failed (HTTP ${http:-?}) for: $TITLE — $(printf '%s' "$body" | tr -d '\n' | head -c 300)"
-  fi
-else
-  log "no gh and no token — skipping capture"
-fi
+# --- Isolate the analyzer from the invoking session ------------------------
+# The analyzer is a nested `claude`, and a child inherits the variables that bind a process to
+# THIS session's inbound message channel: the runner's messaging socket and token, the session
+# ingress token file, and the session ids. With those inherited the analyzer joins the very
+# loop session it is analyzing, so a live event meant for the loop — a CI webhook, or the
+# loop's own self-scheduled check-in — can be delivered into the analyzer's turn and never
+# reach the loop's driving logic. On the prototype that starved a loop's check-in and stalled a
+# release mid-flight (hifi-phil/umbraco-mcp-ops#93).
+#
+# Drop them, so the analyzer can only ever run as its own unaddressable session. CLAUDE_PID is
+# in the list because the socket path is derived from it. The OAuth token is deliberately NOT
+# dropped: that is what AUTHENTICATES the analyzer, not what ADDRESSES it, and capture without
+# it does nothing at all.
+#
+# OPS_LEARNINGS_CAPTURE stays exported too. It is the re-entry guard, and the analyzer is
+# itself a session whose own SessionEnd would otherwise re-invoke this script.
+ISOLATE=(env
+  -u CLAUDE_CODE_MESSAGING_SOCKET
+  -u CLAUDE_CODE_MESSAGING_TOKEN
+  -u CLAUDE_SESSION_INGRESS_TOKEN_FILE
+  -u CLAUDE_CODE_POST_FOR_SESSION_INGRESS_V2
+  -u CLAUDE_CODE_WEBSOCKET_AUTH_FILE_DESCRIPTOR
+  -u CLAUDE_CODE_REMOTE_SESSION_ID
+  -u CLAUDE_CODE_SESSION_ID
+  -u CLAUDE_PID
+)
+
+# Bound the runtime where the tool exists. Detached and disowned, nothing on the loop's side
+# supervises the analyzer any more, so a hang would otherwise hold the marker claimed and the
+# analyzer's auth alive indefinitely.
+if command -v timeout >/dev/null 2>&1; then ISOLATE=(timeout 600 "${ISOLATE[@]}"); fi
+
+# A new process session too, where the tool exists. The hook fires as the loop session is
+# ending, so staying in its process group means the analyzer is torn down with it. Detached, it
+# outlives that teardown. Without `setsid` (macOS) the analyzer stays in the hook's process
+# group and loses that immunity, but is still env-isolated from the loop's live events — which
+# is the part that corrupts a running loop.
+if command -v setsid >/dev/null 2>&1; then ISOLATE=(setsid "${ISOLATE[@]}"); fi
+
+# Run detached and return immediately, so nothing on the loop's side — not even this already
+# async hook process — has the analyzer in front of it.
+(
+  # `env -u` removes the variable's NAME from the child's environment; it does not close the
+  # descriptor that variable names. If this fd was inherited without O_CLOEXEC the analyzer
+  # could still read and write the loop session's websocket auth channel despite never seeing
+  # the name. Close it directly.
+  case "${CLAUDE_CODE_WEBSOCKET_AUTH_FILE_DESCRIPTOR:-}" in
+    ''|*[!0-9]*) : ;;
+    *) eval "exec ${CLAUDE_CODE_WEBSOCKET_AUTH_FILE_DESCRIPTOR}<&-" 2>/dev/null || true ;;
+  esac
+  OUT="$("${ISOLATE[@]}" claude -p "$PROMPT" --model sonnet --allowedTools "Read,Grep" 2>>"$LOG")" \
+    || {
+      # Release BEFORE logging, so the log line is the signal that cleanup has finished rather
+      # than that it is about to start. Nothing outside this detached subshell can see it
+      # otherwise, so the order is what the tests can key on.
+      release_marker; log "analyzer invocation failed"; exit 0;
+    }
+  record "$OUT"
+) </dev/null >/dev/null 2>&1 &
+disown 2>/dev/null || true
 exit 0
