@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # validate-repo-meta.sh — validate a repo's .claude/ops-repo-meta.json.
 #
-# A THIN WRAPPER. The real validator lives with the schema it enforces, in the ops-capabilities
-# plugin (skills/ops-repo-meta/scripts/), because the data seam and its check belong together.
+# A THIN WRAPPER. The real validator lives with the schema it enforces, in the ops-repo-meta
+# skill (skills/ops-repo-meta/scripts/, in ops-engine), because the data seam and its check
+# belong together.
 # But this skill's own instructions say "run scripts/validate-repo-meta.sh", and from an
 # INSTALLED ops-install that path did not exist — each plugin is cached in its own directory, so
 # a sibling plugin's script is not reachable by a relative path. An operator hit exactly that
@@ -26,7 +27,7 @@ real="$(find "$search_root" -type f -path '*/ops-repo-meta/scripts/validate-repo
 
 if [ -z "$real" ]; then
   echo "ERROR: cannot find the real validate-repo-meta.sh." >&2
-  echo "  It ships in the ops-capabilities plugin, alongside the schema it enforces." >&2
+  echo "  It ships in the ops-repo-meta skill (ops-engine plugin), alongside the schema it enforces." >&2
   echo "  Install it:  /plugin install ops-engine@umbraco-ai-ops" >&2
   echo "  Searched under: $search_root" >&2
   exit 2

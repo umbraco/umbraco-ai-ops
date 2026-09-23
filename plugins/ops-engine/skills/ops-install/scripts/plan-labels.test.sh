@@ -173,7 +173,7 @@ if [ -f "$SCHEMA" ] && [ -f "$IDENTITY" ]; then
   done
   check "identity's label table lists every planned purpose" "" "$(printf '%s' "$missing" | sed 's/ *$//')"
 else
-  check "the ops-capabilities plugin is on disk for the cross-check" "found" "missing"
+  check "the ops-repo-meta skill is on disk for the cross-check" "found" "missing"
 fi
 
 printf '\n%s: %d passed, %d failed\n' "$(basename "$0")" "$pass" "$fail"

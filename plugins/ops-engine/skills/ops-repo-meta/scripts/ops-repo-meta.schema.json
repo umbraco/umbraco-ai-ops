@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/umbraco/umbraco-ai-ops/ops-capabilities/ops-repo-meta.schema.json",
+  "$id": "https://github.com/umbraco/umbraco-ai-ops/ops-repo-meta/ops-repo-meta.schema.json",
   "title": "Declared repo facts",
   "description": "A consumer's `.claude/ops-repo-meta.json`: the facts about a repo that CANNOT be detected and have no other owner. Read by the framework-default `ops-repo-meta`, and by `route-event.sh` at the edge to resolve a cross-repo target. Written by `ops-install`. This is NOT the retired `ai-ops.yml` in JSON — it is a strict subset. Everything that file also held has exactly one owner elsewhere now: branch model, base, release base and merge strategy are private to `ops-branching`; the CI provider is internal to `ops-ci`; skill pointers are gone because a capability is found by its name. `additionalProperties: false` at every level is deliberate, so an attempt to put any of that back fails loudly instead of drifting. Every key is optional except `version`: a single-repo project on one line needs no file at all.",
   "type": "object",

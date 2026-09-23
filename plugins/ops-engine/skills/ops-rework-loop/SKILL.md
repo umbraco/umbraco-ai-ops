@@ -108,7 +108,8 @@ Immediately after `verify` passes, with **no CI wait**:
 ## Running as a routine
 
 Trigger: a PR labelled `ops/auto-rework`, routed by `loop-dispatch`, on an environment carrying
-this skill, `github-ops`, `ops-capabilities` and the repo's own `ops-change`. One PR per fire.
+this skill, `github-ops`, the rest of the `ops-engine` plugin and the repo's own `ops-change`.
+One PR per fire.
 Use a capable coding model. State cloud vs local explicitly in the routine prompt.
 
 > **Capture is automatic.** The `ops-learnings` hooks analyse the transcript off the critical

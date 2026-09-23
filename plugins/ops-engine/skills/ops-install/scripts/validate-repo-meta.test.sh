@@ -2,7 +2,7 @@
 # Tests for the validate-repo-meta.sh WRAPPER in ops-install. Hermetic: bash + jq only.
 #
 # The wrapper exists because this skill's instructions name `scripts/validate-repo-meta.sh`
-# while the real validator ships in the ops-capabilities plugin. From an installed ops-install
+# while the real validator ships in the ops-repo-meta skill. From an installed ops-install
 # that relative path resolved to nothing and an operator hand-checked the file instead. What is
 # under test is therefore only the plumbing — that it finds the real one, passes arguments and
 # exit codes straight through, and says something useful when it cannot find it.
@@ -49,11 +49,11 @@ none="$TMP/none"; mkdir -p "$none"
 bash "$W" "$none" >/dev/null 2>&1
 check "a repo with no file passes" 0 $?
 
-# --- when ops-capabilities is absent, say so instead of failing opaquely ---
-# ENGINE_ROOT points somewhere with a catalog but no ops-capabilities plugin.
+# --- when ops-repo-meta is absent, say so instead of failing opaquely ---
+# ENGINE_ROOT points somewhere with a catalog but no ops-repo-meta skill.
 fake="$TMP/fake"; mkdir -p "$fake/plugins/ops-engine"; : > "$fake/catalog.json"
 out="$(ENGINE_ROOT="$fake" bash "$W" "$good" 2>&1)"; rc=$?
-check "a missing ops-capabilities exits 2" 2 $rc
+check "a missing ops-repo-meta exits 2" 2 $rc
 check "  and names the plugin to install" 1 "$(printf '%s' "$out" | grep -c 'ops-engine@umbraco-ai-ops')"
 
 printf '\n%s: %d passed, %d failed\n' "$(basename "$0")" "$pass" "$fail"

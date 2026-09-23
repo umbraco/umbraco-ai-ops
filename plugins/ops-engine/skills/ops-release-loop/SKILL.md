@@ -195,5 +195,5 @@ On any **BLOCK**: do not publish. Then, in order:
 
 `loop-dispatch` routes `issues.labeled` + `ops/auto-release` here, so labelling a
 `release <version>` issue fires it. The version comes from the issue, so nothing else needs
-configuring per run. The environment needs this skill, `github-ops`, `ops-capabilities`, and
-the repo's own `ops-release`. *(The label must exist on the target repo.)*
+configuring per run. The environment needs this skill, `github-ops`, the rest of the `ops-engine`
+plugin, and the repo's own `ops-release`. *(The label must exist on the target repo.)*

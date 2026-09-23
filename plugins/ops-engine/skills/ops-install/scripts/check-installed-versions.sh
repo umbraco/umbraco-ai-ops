@@ -19,8 +19,8 @@
 #
 #   behind         you have this plugin, at an older version than the marketplace offers. That is
 #                  the invisible failure above: stale behaviour, no error. Exit 1.
-#   not installed  you do not have it. Often deliberate: onboarding needs only ops-install,
-#                  ops-capabilities and github-ops, and the loops are installed later. Exit 0,
+#   not installed  you do not have it. Often deliberate: onboarding needs only ops-engine,
+#                  and ops-preflight and ops-learnings are optional. Exit 0,
 #                  and list them so the operator can install what they are about to need.
 #
 # Conflating the two made this script exit 1 on every fresh onboarding, at a step whose

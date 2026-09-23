@@ -102,7 +102,7 @@ Ask about exactly those, and only those. Do not ask about anything detection alr
 ## Step 2 — write the declared facts
 
 Write what the human just told you to **`.claude/ops-repo-meta.json`**, shaped by
-`ops-repo-meta.schema.json` in the `ops-capabilities` plugin. This is the file every loop and
+`ops-repo-meta.schema.json` in the `ops-repo-meta` skill. This is the file every loop and
 the edge router read, so getting it right is the whole of onboarding's data half.
 
 Ask with `AskUserQuestion`, **batched and seeded** per the two rules above. Everything below fits
@@ -154,11 +154,11 @@ It enforces the rule a JSON Schema cannot: **`primary` must be a member of `live
 rejects any retired config key, so an attempt to put `ci.provider` or a base branch back fails
 here rather than being silently ignored later.
 
-> **It needs the `ops-capabilities` plugin.** The script here is a thin wrapper; the real
-> validator ships beside the schema it enforces, in `ops-capabilities`. If that plugin is not
+> **It needs the `ops-repo-meta` skill.** The script here is a thin wrapper; the real
+> validator ships beside the schema it enforces, in `ops-repo-meta`. If that skill is not
 > installed the wrapper exits 2 and tells you so. **Do not hand-check the file instead** — the
 > cross-field rule above is the one a human reading JSON is most likely to miss, and a wrong
-> primary line silently sends every change to the wrong branch. Install the plugin and re-run.
+> primary line silently sends every change to the wrong branch. Install `ops-engine` and re-run.
 
 ## Step 3 — report coverage
 

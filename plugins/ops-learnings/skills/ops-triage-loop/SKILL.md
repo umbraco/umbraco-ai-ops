@@ -172,6 +172,7 @@ Schedule this **weekly** as a cloud routine. It wakes, runs Steps 1–5 against 
 routes up to 10 clusters, and stops — the issues sit in their owning repos and any shared PR sits
 for review. `ops/triaged` keeps the next run from re-doing the same work.
 
-It needs this skill, `github-ops`, and `ops-capabilities`. The three labels
-(`ops/proto-learning`, `ops/triaged`, `ops/loop-improvement`) must exist on the inbox repo before
-the first sweep — the filter is label-based, and `ops/triaged` is written by this loop.
+It needs this skill and the `ops-engine` plugin, for `github-ops`, `ops-repo-meta` and
+`ops-notify`. The three labels (`ops/proto-learning`, `ops/triaged`, `ops/loop-improvement`) must
+exist on the inbox repo before the first sweep — the filter is label-based, and `ops/triaged` is
+written by this loop.
