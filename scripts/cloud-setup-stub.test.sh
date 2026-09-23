@@ -28,6 +28,13 @@ check "the rebuild line is present" 1 "$(grep -c '^# rebuild: [0-9]' "$STUB")"
 check "it explains that only this field's text busts the cache" 1 \
   "$(grep -c 'busted ONLY by the text of this field' "$STUB")"
 
+# --- the domains the environment must allow are in the header ---------------
+# Without the two .NET ones the SDK install gets HTTP 403 and the build carries on regardless,
+# so the only warning a human gets before pasting is this list. It must not quietly go.
+for d in builds.dotnet.microsoft.com ci.dot.net myget.org www.myget.org dev.azure.com; do
+  check "the header asks for $d" 1 "$(grep -c "^#   .*\b${d//./\\.}\b" "$STUB" | awk '{print ($1 > 0)}')"
+done
+
 # --- it must stay short ---------------------------------------------------
 # A human pastes this. The moment it grows logic, that logic is unversioned in a web form.
 lines="$(grep -vc '^\s*#\|^\s*$' "$STUB")"

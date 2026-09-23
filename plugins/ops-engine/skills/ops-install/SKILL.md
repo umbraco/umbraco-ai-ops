@@ -434,12 +434,31 @@ List these **in this order**, and say why the order matters; do not try to do th
    - **`PROVIDER`** — `sqlite` unless the human wants CI-parity SQL Server sessions. Ask; it
      decides whether the environment caches a 2.3 GB image.
 
+   **And tell them to allow these domains in the environment's network settings**, in the same
+   breath as the paste. The stub's header lists them too, but a header is what gets skipped:
+
+   ```
+   builds.dotnet.microsoft.com
+   ci.dot.net
+   myget.org
+   www.myget.org
+   dev.azure.com
+   ```
+
+   The first two are where the .NET SDK comes from; `myget.org` carries Umbraco's prerelease and
+   nightly feeds; `dev.azure.com` is where Azure Pipelines CI lives. **Without the .NET two, the
+   build does not fail** — the install gets HTTP 403, the setup carries on, and every session
+   has no SDK. That happened on the first real build (23-09-2026), and the only place it showed
+   was the manifest. Changing the allowlist does not rebuild the snapshot on its own, so bump
+   `# rebuild:` as well.
+
    Then say which of the two cases applies:
 
-   - **No environment yet** → a human creates one and pastes the stub into **Setup script**.
-     **That is all of it: two settings, no token.** The engine is public, so the clone is
-     anonymous. Do not ask for `OPS_TOKEN`; nothing reads it any more, and sending someone to
-     set one costs them a detour and teaches them a rule that is no longer true.
+   - **No environment yet** → a human creates one, allows the domains above, and pastes the
+     stub into **Setup script**. **That is all of it: two settings, five domains, no token.**
+     The engine is public, so the clone is anonymous. Do not ask for `OPS_TOKEN`; nothing reads
+     it any more, and sending someone to set one costs them a detour and teaches them a rule
+     that is no longer true.
    - **An environment already exists** → it is almost certainly serving an **older snapshot**.
      Tell them to **bump the `# rebuild:` number in the stub and re-save**. This is the entire
      mechanism and it is not guessable: the snapshot is busted **only** by the text of that

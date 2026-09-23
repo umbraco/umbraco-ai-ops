@@ -148,8 +148,41 @@ DBEOF
   else
     db_section="Only **SQLite** is available (no mssql image). Use \`--provider sqlite\`."
   fi
+
+  # The heading and the SDK row say what is TRUE, not what was asked for. The first build of
+  # this script said "ready" and "on PATH" over an SDK that had failed to install, and the
+  # session reading it called that out as the manifest contradicting itself.
+  # "Has the channel it asked for" is the same test install_dotnet uses. An SDK from another
+  # channel is not a pass: global.json would refuse it and the build would fail anyway.
+  local sdk_version status sdk_line warning=""
+  sdk_version="$(dotnet --version 2>/dev/null || true)"
+  if dotnet --list-sdks 2>/dev/null | grep -q "^${DOTNET_CHANNEL%.*}\."; then
+    status="ready"
+    sdk_line="$sdk_version (requested channel $DOTNET_CHANNEL; on PATH via $BIN_DIR)"
+  else
+    status="NOT ready — no .NET SDK for channel $DOTNET_CHANNEL"
+    if [ -n "$sdk_version" ]; then
+      sdk_line="**channel $DOTNET_CHANNEL NOT installed** (only $sdk_version is)"
+    else
+      sdk_line="**NOT installed** (requested channel $DOTNET_CHANNEL)"
+    fi
+    warning="$(cat <<WARNEOF
+> **No .NET $DOTNET_CHANNEL SDK. \`dotnet build\`, \`dotnet test\` and run-umbraco.sh will
+> fail in this session.** The install failed at env build; the reason is in $LOG. The usual cause is the
+> environment's network allowlist — it must allow \`builds.dotnet.microsoft.com\` and
+> \`ci.dot.net\` (see the stub's header). Report any build or test gate as **blocked**, not
+> failed, until the environment is fixed: nothing here tested the change.
+WARNEOF
+)"
+  fi
+  if [ "$PROVIDER" = "sqlserver" ] && [ "$has_mssql" != "1" ] && [ "$status" = "ready" ]; then
+    status="ready on SQLite only — SQL Server was requested and is not available"
+  fi
+
   cat > "$MANIFEST" <<EOF
-# Umbraco worker environment — ready ($(date -u +%FT%TZ 2>/dev/null || echo 'time n/a'))
+# Umbraco worker environment — $status ($(date -u +%FT%TZ 2>/dev/null || echo 'time n/a'))
+
+$warning
 
 **Agent: read this first.** Written on every env build (initial or cached rebuild) so you
 don't need to probe. There is **no pre-baked Umbraco instance and no auto-boot** — bring one
@@ -158,7 +191,7 @@ up yourself with run-umbraco.sh when you need it.
 | What        | State |
 |-------------|-------|
 | Provider    | $PROVIDER |
-| .NET SDK    | $(dotnet --version 2>/dev/null || echo 'NOT installed') (requested channel $DOTNET_CHANNEL; on PATH via $BIN_DIR) |
+| .NET SDK    | $sdk_line |
 | SQL Server image | $docker_line |
 | Skills      | delivered to ~/.claude/skills |
 | Ops scripts | $OPS_SCRIPTS_DIR (run-umbraco.sh) |

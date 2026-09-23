@@ -14,6 +14,14 @@
 # DOTNET_CHANNEL: the major.minor of the SDK in the repo's global.json (10.0.102 → 10.0).
 # If one environment serves several repos, use the channel they share.
 #
+# NETWORK ACCESS — ADD THESE TO THE ENVIRONMENT'S ALLOWED DOMAINS before saving. Without them
+# the SDK install fails with HTTP 403, the build carries on, and every session has no .NET:
+#   builds.dotnet.microsoft.com   the .NET SDK itself
+#   ci.dot.net                    the .NET installer's fallback source
+#   myget.org, www.myget.org      Umbraco's prerelease and nightly NuGet feeds
+#   dev.azure.com                 CI builds and logs, for repos whose CI is Azure Pipelines
+# Changing the allowlist does NOT rebuild the environment by itself — bump `rebuild:` as well.
+#
 # NO TOKEN. `umbraco/umbraco-ai-ops` is public, so the clone is anonymous. This stub used to
 # require OPS_TOKEN and said so in three places, because the repo was private; that is no longer
 # true and the support is gone rather than left as a knob nobody needs. If the engine is ever

@@ -60,6 +60,8 @@ check "  and installs run-umbraco.sh"           "yes" "$( [ -f "$H/.umbraco-ops/
 check "  downloads no SDK it already has"       0 "$(count '^curl' "$H/fake.log")"
 check "  and never touches docker"              0 "$(count '^docker' "$H/fake.log")"
 check "  and logs the run"                      1 "$(count 'cloud-env-setup done' "$H/env-setup.log")"
+check "  its heading says ready"                1 "$(man "$H" | grep -c '^# Umbraco worker environment — ready (')"
+check "  with no missing-SDK warning"           0 "$(man "$H" | grep -c 'No .NET')"
 
 # --- no --provider at all: the same lean env -----------------------------------
 H="$TMP/default"; run "$H"
@@ -75,6 +77,7 @@ check "  and does not pull a cached image"      0 "$(count '^docker pull' "$H/fa
 H="$TMP/uncached"; run "$H" --provider sqlserver
 check "an uncached image is pulled"             1 "$(count "^docker pull mcr.microsoft.com/mssql/server:2022-latest" "$H/fake.log")"
 check "  and the manifest does not claim it"    1 "$(man "$H" | grep -c 'requested but image NOT cached')"
+check "  nor that the env is fully ready"       1 "$(man "$H" | grep -c '— ready on SQLite only — SQL Server was requested')"
 
 # --- an unknown provider falls back, loudly --------------------------------------
 H="$TMP/unknown"; run "$H" --provider postgres; rc=$?
@@ -88,11 +91,20 @@ check "a failed SDK install still exits 0"      0 "$rc"
 check "  it tried the raw GitHub installer"     1 "$(count 'raw.githubusercontent.com/dotnet/install-scripts' "$H/fake.log")"
 check "  and logs the failure"                  1 "$(count 'could not download dotnet-install.sh' "$H/env-setup.log")"
 check "  and still writes the manifest"         "yes" "$( [ -f "$H/env-manifest.md" ] && echo yes || echo no)"
-check "  naming the channel it asked for"       1 "$(man "$H" | grep -c 'requested channel 9.0')"
+# An SDK from another channel is not the one asked for, and global.json would refuse it.
+check "  and does not call itself ready"        1 "$(man "$H" | grep -c '— NOT ready — no .NET SDK for channel 9.0')"
+check "  naming what is there instead"          1 "$(man "$H" | grep -c 'channel 9.0 NOT installed\*\* (only 10.0.102 is)')"
 
 # --- no SDK on the machine at all ------------------------------------------------
+# The first real build (23-09-2026) wrote "ready" and "on PATH" over a failed install.
 H="$TMP/nosdk"; run "$H" FAKE_SDKS= --provider sqlite
 check "with no SDK the manifest says so"        1 "$(man "$H" | grep -c 'NOT installed')"
+check "  its heading says NOT ready"            1 "$(man "$H" | grep -c '^# Umbraco worker environment — NOT ready')"
+check "  its SDK row claims no PATH"            0 "$(man "$H" | grep '^| .NET SDK' | grep -c 'on PATH')"
+check "  it warns before anything else"         1 "$(man "$H" | grep -c '^> \*\*No .NET 10.0 SDK')"
+check "  naming both domains to allow"          1 "$(man "$H" | grep -c 'builds.dotnet.microsoft.com. and$')"
+check "  and ci.dot.net"                        1 "$(man "$H" | grep -c 'ci.dot.net')"
+check "  and says a build gate is blocked, not failed" 1 "$(man "$H" | grep -c 'as \*\*blocked\*\*, not')"
 
 printf '\n%s: %d passed, %d failed\n' "$(basename "$0")" "$pass" "$fail"
 [ "$fail" -eq 0 ]
