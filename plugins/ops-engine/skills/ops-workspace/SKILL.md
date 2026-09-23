@@ -56,10 +56,25 @@ A cloud environment is **built once and reused**, and its build step may already
 the SDK, cached a container image, or started a service. A `prepare` that probes blindly or
 reinstalls wastes minutes of every run and can end up with two versions of the same thing.
 
-So **read first, provision second**. If the environment records what it provides — a manifest
-file its setup script writes is the usual shape — read that and treat it as authoritative. If
-there is no manifest, say so and fall back to the repo's own documented setup rather than
-guessing. Report the difference in `notes`: what was already there, and what you had to create.
+So **read first, provision second**. In a cloud environment built by the engine's stub, that
+record is **`$HOME/env-manifest.md`**, written by `cloud-env-setup.sh` on every build: the .NET
+SDK it installed, whether the SQL Server image is cached, and where the session script lives.
+Read that and treat it as authoritative. If there is no manifest, say so and fall back to the
+repo's own documented setup rather than guessing. Report the difference in `notes`: what was
+already there, and what you had to create.
+
+**To bring Umbraco up**, a repo's `prepare` calls the script the manifest names:
+
+```
+bash $HOME/.umbraco-ops/run-umbraco.sh --provider <sqlite|sqlserver> --boot "<this repo's start command>"
+```
+
+`--boot` is the one thing only the repo knows — how its site starts — and it must honour
+`ASPNETCORE_URLS` (for `dotnet run`, pass `--no-launch-profile`). For `sqlserver` the script
+starts the container and hands the site `ConnectionStrings__umbracoDbDSN` through its
+environment; for `sqlite` the site keeps its own default. Choose the provider by `fidelity`
+below: `sqlserver` where the manifest says the image is cached, because that is what CI tests
+against; `sqlite` is `reduced`.
 
 "Available but not running" is not "unavailable". A cached container image with a stopped
 daemon means **startable** — start it. Reinstalling because a service was not already running
