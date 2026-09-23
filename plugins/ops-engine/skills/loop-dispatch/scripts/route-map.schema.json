@@ -37,6 +37,10 @@
           "type": "string",
           "pattern": "^[a-z][a-z0-9-]*$",
           "description": "The framework loop this rule dispatches to. MUST resolve to an installed skill, and MUST be one of catalog.json's reserved_skill_names unless the repo ships a loop skill of its own name. `none` is reserved for the no-match outcome and is not a legal value here."
+        },
+        "defer_while_open_to": {
+          "$ref": "#/$defs/label",
+          "description": "Optional. A label this rule YIELDS to while the PR is open: when the event's own payload shows the PR still open AND already carrying this label, the rule resolves to none instead of firing, because that label's loop hands off to this one once it lands. The port rule yields to the landing label, so putting `ops/port` and `ops/auto-merge` on an open PR together means land-then-port through one path, not two ports of the same change (22-09-2026). Decided from the payload — the PR's state when the label went on — so it cannot race the merge. A merged PR, or a payload that does not say, fires the rule as before."
         }
       }
     }

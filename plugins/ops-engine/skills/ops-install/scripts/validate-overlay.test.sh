@@ -37,6 +37,14 @@ status "an extra top-level key"   1 "$(mk xtra '{"version":2,"routes":[],"extra"
 status "routes not an array"      1 "$(mk nota '{"version":2,"routes":{}}')"
 status "a missing rule key"       1 "$(mk nokey '{"version":2,"routes":[{"event":"issues.labeled","loop":"ops-issue-loop"}]}')"
 status "an extra rule key"        1 "$(mk xkey '{"version":2,"routes":[{"event":"issues.labeled","label":"a","loop":"ops-issue-loop","note":"x"}]}')"
+# defer_while_open_to is the one optional rule key: a repo that renamed its landing label names
+# it here, or its overlay port rule never defers and a land-and-port PR is ported twice.
+status "a port rule deferring to a renamed landing label" 0 \
+  "$(mk defer '{"version":2,"routes":[{"event":"pull_request.labeled","label":"ops/port","loop":"ops-port-loop","defer_while_open_to":"land-me"}]}')"
+status "an empty defer_while_open_to"   1 \
+  "$(mk deferempty '{"version":2,"routes":[{"event":"pull_request.labeled","label":"ops/port","loop":"ops-port-loop","defer_while_open_to":""}]}')"
+status "a non-string defer_while_open_to" 1 \
+  "$(mk defernum '{"version":2,"routes":[{"event":"pull_request.labeled","label":"ops/port","loop":"ops-port-loop","defer_while_open_to":7}]}')"
 status "a non-string label"       1 "$(mk numlbl '{"version":2,"routes":[{"event":"issues.labeled","label":7,"loop":"ops-issue-loop"}]}')"
 status "a loop with a capital"    1 "$(mk shout '{"version":2,"routes":[{"event":"issues.labeled","label":"a","loop":"Ops-Issue-Loop"}]}')"
 status "the reserved none sentinel" 1 "$(mk none '{"version":2,"routes":[{"event":"issues.labeled","label":"a","loop":"none"}]}')"

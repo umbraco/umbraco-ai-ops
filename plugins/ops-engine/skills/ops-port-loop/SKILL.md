@@ -43,10 +43,12 @@ Read the PR: its merge state, its base branch, and the issue it closes.
   may be deleted by the time you run.
 
 **Merged is not the same as yours to port.** This loop has two entry points — the label event
-and `ops-merge-loop`'s handoff — and a PR given the landing label and the port label together
-fires **both**, for the same change. Neither is wrong and neither is removable, so the
-arbitration is per target line and lives in step 2's claim rule. Reaching this point is not
-permission to start.
+and `ops-merge-loop`'s handoff. A PR given the landing label and the port label together used
+to fire **both** for the same change. The edge now settles that case before any session
+starts: the port row defers to the landing label while the PR is open, so only the handoff
+arrives. **Step 2's claim rule stays as the backstop** for what the edge cannot see — labels
+put on one at a time, a payload that did not carry the PR's state, a re-applied label.
+Reaching this point is not permission to start.
 
 ## Step 2 — work out the target lines
 

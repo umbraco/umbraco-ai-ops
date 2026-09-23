@@ -48,8 +48,10 @@ check "top-level keys must be exactly version and routes" \
   '(keys_unsorted | sort) == ["routes","version"]'
 check "version must be 2, matching the base table's rule shape" '.version == 2'
 check "routes must be an array" '.routes | type == "array"'
-check "every rule must carry exactly event, label and loop" \
-  '.routes | all((keys_unsorted | sort) == ["event","label","loop"])'
+check "every rule must carry event, label and loop, and nothing else but defer_while_open_to" \
+  '.routes | all(((keys_unsorted - ["defer_while_open_to"]) | sort) == ["event","label","loop"])'
+check "defer_while_open_to, where present, must be a non-empty string" \
+  '.routes | all((has("defer_while_open_to") | not) or ((.defer_while_open_to | type == "string") and (.defer_while_open_to | length > 0)))'
 check "event and label must be strings" \
   '.routes | all((.event | type == "string") and (.label | type == "string"))'
 check "loop must be a string or null" \

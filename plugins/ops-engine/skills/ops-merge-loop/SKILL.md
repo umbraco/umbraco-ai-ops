@@ -128,7 +128,10 @@ has to ask a human.
 
 - **This is the normal way a port starts.** The merge is the moment: a port is cut from the
   merge commit, so it cannot begin before one exists. The route row on the port label exists
-  only to catch the other case — a human labelling a PR that has *already* merged.
+  only to catch the other case — a human labelling a PR that has *already* merged — and the
+  edge enforces it: an `ops/port` label on an open PR that carries the landing label routes to
+  none, so this handoff is the only port that starts. Do not skip it on the theory that the
+  label already fired a port; for a PR labelled for both, it did not.
 - **Hand off, do not port here.** This loop schedules landings. It does not resolve lines, and
   it must never call `ops-change · implement`. Everything about which lines and in which
   direction lives in `ops-port-loop` and `ops-repo-meta · lines`.

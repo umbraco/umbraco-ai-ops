@@ -248,6 +248,55 @@ while IFS=$'\t' read -r lbl loop; do
   done
 done < <(jq -r '.routes[] | "\(.label)\t\(.loop)"' "$BASE" | tr -d '\r')
 
+# --- the port rule defers to the landing label while the PR is open ---------
+# 22-09-2026: a maintainer put `ops/auto-merge` and `ops/port` on an open PR in the same second.
+# Two labelled events, so two loops fired: the merge loop, which landed the PR and handed it to
+# the port loop as designed, AND the port loop straight from the label. The same change was
+# ported twice and two v17 PRs were opened, for each of two PRs. The check inside the port loop
+# ("not merged yet, stop") could not catch it, because the session read the PR after the merge.
+# So the decision moved to the edge, where the payload says what the PR looked like when the
+# label went on. These cases are that contract.
+pr_event() { # pr_event <label-that-fired> <merged:true|false> <labels on the PR...>
+  local fired="$1" merged="$2"; shift 2
+  jq -nc --arg f "$fired" --argjson m "$merged" --args '{
+    action: "labeled", label: {name: $f},
+    pull_request: {number: 309, merged: $m, labels: ($ARGS.positional | map({name: .}))},
+    repository: {full_name: "o/r"} }' "$@"
+}
+expect_json "open PR, port + landing label: port DEFERS to the merge loop" \
+  "loop=none repo=o/r number=309" "$(pr_event ops/port false ops/auto-merge ops/port)" pull_request_target
+expect_json "  the landing label on the same PR still fires the merge loop" \
+  "loop=ops-merge-loop repo=o/r number=309" "$(pr_event ops/auto-merge false ops/auto-merge ops/port)" pull_request_target
+expect_json "  and the order the labels went on does not matter" \
+  "loop=none repo=o/r number=309" "$(pr_event ops/port false ops/port ops/auto-merge)" pull_request_target
+expect_json "open PR, port label alone: the port loop fires (and waits for the merge itself)" \
+  "loop=ops-port-loop repo=o/r number=309" "$(pr_event ops/port false ops/port)" pull_request_target
+# The case the port rule exists for: a human labels a PR that has already landed. The landing
+# label stays on after a merge, so its presence alone must not defer.
+expect_json "MERGED PR carrying the landing label: port still fires" \
+  "loop=ops-port-loop repo=o/r number=309" "$(pr_event ops/port true ops/auto-merge ops/port)" pull_request_target
+
+err="$(pr_event ops/port false ops/auto-merge ops/port | bash "$SCRIPT" --event pull_request_target 2>&1 >/dev/null)"
+if printf '%s' "$err" | grep -q 'deferred: PR #309 is open and carries ops/auto-merge'; then pass=$((pass+1))
+else fail=$((fail+1)); echo "FAIL: a deferral does not say why on stderr — got [$err]"; fi
+
+# By hand, the same rule, and an UNKNOWN state never defers: better one port too many, caught by
+# the port loop's own claim, than a port silently dropped.
+expect_loop "flags, open + landing label: defers"   none          -- --event pull_request --action labeled --label ops/port --number 9 --repo o/r --pr-merged false --pr-label ops/auto-merge
+expect_loop "flags, no PR state given: fires"       ops-port-loop -- --event pull_request --action labeled --label ops/port --number 9 --repo o/r --pr-label ops/auto-merge
+expect_loop "flags, merged: fires"                  ops-port-loop -- --event pull_request --action labeled --label ops/port --number 9 --repo o/r --pr-merged true --pr-label ops/auto-merge
+
+# An overlay rule replaces the base rule whole, including this field. Documented in the overlay
+# schema; asserted here so the behaviour is a decision, not an accident.
+printf '{"routes":[{"event":"pull_request.labeled","label":"ops/port","loop":"ops-port-loop"}]}' > "$TMP/port-nodefer.json"
+out="$(pr_event ops/port false ops/auto-merge ops/port | bash "$SCRIPT" --event pull_request_target --overlay "$TMP/port-nodefer.json")"
+if [ "$out" = "loop=ops-port-loop repo=o/r number=309" ]; then pass=$((pass+1))
+else fail=$((fail+1)); echo "FAIL: an overlay without defer_while_open_to should fire — got [$out]"; fi
+printf '{"routes":[{"event":"pull_request.labeled","label":"ops/port","loop":"ops-port-loop","defer_while_open_to":"land-me"}]}' > "$TMP/port-renamed.json"
+out="$(pr_event ops/port false land-me ops/port | bash "$SCRIPT" --event pull_request_target --overlay "$TMP/port-renamed.json")"
+if [ "$out" = "loop=none repo=o/r number=309" ]; then pass=$((pass+1))
+else fail=$((fail+1)); echo "FAIL: an overlay naming a renamed landing label should defer to it — got [$out]"; fi
+
 echo "----"
 echo "route-event tests: $pass passed, $fail failed"
 [ "$fail" -eq 0 ]

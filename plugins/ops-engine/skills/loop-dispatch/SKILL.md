@@ -103,7 +103,10 @@ specific issue/PR, and **follow that skill's instructions verbatim**:
 - `ops/auto-rework` PR → **`ops-rework-loop`** for that PR.
 - `ops/port` PR → **`ops-port-loop`** for that PR. This row exists for the case where a human
   labels a PR that has **already merged**; the normal way a port starts is `ops-merge-loop`
-  handing over the moment it lands, which needs no event.
+  handing over the moment it lands, which needs no event. **The edge enforces that split:**
+  the row carries `defer_while_open_to: ops/auto-merge`, so an `ops/port` label on a PR that
+  is still open and already carries the landing label routes to none — the merge loop will
+  hand it over. That is what makes putting both labels on at once land and port exactly once.
 - `ops/auto-release` issue → **`ops-release-loop`**, version taken from the issue title.
 
 All five are real skill names — nothing to translate.

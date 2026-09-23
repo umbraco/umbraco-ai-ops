@@ -30,6 +30,11 @@
             "type": ["string", "null"],
             "pattern": "^[a-z][a-z0-9-]*$",
             "description": "The loop to dispatch to, overriding the base rule with this (event, label). NULL disables the base rule entirely, which is how a repo opts out of one of the framework loops without forking the base table."
+          },
+          "defer_while_open_to": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Optional. A label this rule yields to while the PR is open — see route-map.schema.json. An overlay rule REPLACES the base rule with the same (event, label), so an overlay that re-routes `ops/port` and leaves this out never defers, and brings back two ports for a PR labelled for landing and porting at once. A repo that renamed its landing label names its own label here."
           }
         }
       }

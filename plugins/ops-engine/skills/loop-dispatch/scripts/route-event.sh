@@ -45,6 +45,10 @@ set -uo pipefail
 
 event="" action="" label="" number="" repo="" target="${TARGET_REPO:-}" overlay="${ROUTE_OVERLAY:-}"
 repo_meta="${REPO_META:-}"
+# The PR's state AT THE MOMENT THE EVENT FIRED, from the payload (or --pr-merged / --pr-label
+# by hand). Only a rule carrying `defer_while_open_to` reads them. Empty pr_merged means
+# "not known", and an unknown state never defers: the rule then fires as it always did.
+pr_merged="" pr_labels=""
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -56,6 +60,8 @@ while [ $# -gt 0 ]; do
     --target)    target="${2:-}";    shift 2 ;;
     --overlay)   overlay="${2:-}";   shift 2 ;;
     --repo-meta) repo_meta="${2:-}"; shift 2 ;;
+    --pr-merged) pr_merged="${2:-}"; shift 2 ;;
+    --pr-label)  pr_labels="${pr_labels}${2:-}"$'\n'; shift 2 ;;
     *) shift ;;
   esac
 done
@@ -80,6 +86,8 @@ if [ -z "$action" ]; then
     label="$(printf '%s'  "$payload" | jq -r '.label.name // empty' 2>/dev/null)"
     number="$(printf '%s' "$payload" | jq -r '(.issue.number // .pull_request.number // .number) // empty' 2>/dev/null)"
     repo="$(printf '%s'   "$payload" | jq -r '.repository.full_name // empty' 2>/dev/null)"
+    pr_merged="$(printf '%s' "$payload" | jq -r 'if .pull_request then (.pull_request.merged // false | tostring) else empty end' 2>/dev/null)"
+    pr_labels="$(printf '%s' "$payload" | jq -r '.pull_request.labels[]?.name // empty' 2>/dev/null)"
   fi
 fi
 
@@ -123,9 +131,31 @@ loop="$(jq -nr --arg ev "$key" --arg lb "$label" --argjson ov "$ov_json" --slurp
   | ($ov   | check($vocab)) as $overlay
   | (INDEX($base | rules[]; ident) + INDEX($overlay | rules[]; ident)) as $effective
   | ($effective[$want] // null) as $hit
-  | if $hit == null or $hit.loop == null then "none" else $hit.loop end
+  | if $hit == null or $hit.loop == null then "none"
+    else $hit.loop + "\t" + ($hit.defer_while_open_to // "") end
 ' 2>&1)" || die "$(printf '%s' "$loop" | sed 's/^jq: error[^:]*: //')"
+defer=""
+case "$loop" in *$'\t'*) defer="${loop#*$'\t'}"; loop="${loop%%$'\t'*}" ;; esac
 [ -z "$loop" ] && loop="none"
+
+# DEFER TO THE LOOP THAT WILL HAND OFF. A rule can name a label it yields to while the PR is
+# open. The port rule yields to the landing label: a maintainer who puts `ops/port` and
+# `ops/auto-merge` on an open PR at once has asked for "land it, then port it", and the merge
+# loop does exactly that — it hands the landed PR to the port loop itself, with the line it
+# landed on. Firing the port loop from the label as well started a second port of the same
+# change, and on 22-09-2026 that opened two v17 PRs for each of two changes.
+#
+# This is decided from the payload, the PR's state at the instant the label went on, so it
+# cannot race the merge the way a check inside the loop session did. Only a positively open PR
+# that positively carries the label defers; a merged PR, or a state the payload did not carry,
+# fires the rule as before — a human labelling an already-landed PR is exactly what the port
+# rule exists for.
+if [ -n "$defer" ] && [ "$loop" != "none" ] && [ "$pr_merged" = "false" ] \
+   && printf '%s\n' "$pr_labels" | grep -qxF -- "$defer"; then
+  printf 'route-event.sh: %s deferred: PR #%s is open and carries %s, whose loop hands off once it lands\n' \
+    "$loop" "$number" "$defer" >&2
+  loop="none"
+fi
 
 # Derive the cross-repo target from the repo's DECLARED facts when it was not passed in.
 #
