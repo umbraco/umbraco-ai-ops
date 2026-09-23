@@ -41,7 +41,8 @@ check "the stub is under 25 lines of actual code" 1 "$( [ "$lines" -lt 25 ] && e
 code() { grep -v '^\s*#\|^\s*$' "$STUB"; }
 check "no token variable is read" 0 "$(code | grep -c 'OPS_TOKEN\|GH_TOKEN\|GITHUB_TOKEN')"
 check "no credential is spliced into the clone URL" 0 "$(code | grep -c 'x-access-token')"
-check "it clones \$REPO directly" 1 "$(grep -c 'git clone --depth 1 "\$REPO"' "$STUB")"
+check "it clones \$REPO directly, at \$REF" 1 "$(grep -c 'git clone --depth 1 --branch "\$REF" "\$REPO"' "$STUB")"
+check "REF defaults to main" 1 "$(grep -c '^REF="\${OPS_REF:-main}"$' "$STUB")"
 
 # --- a failed clone fails loudly, and blames the right thing ---------------
 out="$(nonet bash "$STUB" 2>&1)"; rc=$?
@@ -65,12 +66,29 @@ out="$(nonet env OPS_REPO="file:///nonexistent-$$" bash "$STUB" 2>&1)"
 check "OPS_REPO is honoured in the failure message" 1 \
   "$(printf '%s' "$out" | grep -c "nonexistent-$$")"
 
+out="$(nonet env OPS_REF="no-such-branch-$$" bash "$STUB" 2>&1)"
+check "OPS_REF is named in the failure message" 1 \
+  "$(printf '%s' "$out" | grep -c "no-such-branch-$$")"
+
+# --- the two lines a human edits ------------------------------------------
+# PROVIDER and DOTNET_CHANNEL are what a human sets per environment, as in the mcp-ops stub.
+# They default to the lean env and the SDK channel both current products pin.
+check "PROVIDER defaults to sqlite"        1 "$(grep -c '^PROVIDER=sqlite ' "$STUB")"
+check "DOTNET_CHANNEL defaults to 10.0"    1 "$(grep -c '^DOTNET_CHANNEL=10.0 ' "$STUB")"
+check "  and both are passed to the setup" 1 \
+  "$(grep -c '^DOTNET_CHANNEL="\$DOTNET_CHANNEL" bash .* --provider "\$PROVIDER"$' "$STUB")"
+
 # --- it hands off to the real script, and by the right name ---------------
-# Match the invocation line only — the filename also appears in the comments.
-check "it execs cloud-skill-sync.sh" 1 \
-  "$(grep -c '^OPS_SRC=/tmp/ops-boot bash /tmp/ops-boot/scripts/cloud-skill-sync.sh$' "$STUB")"
-check "it passes OPS_SRC so nothing clones twice" 1 "$(grep -c 'OPS_SRC=/tmp/ops-boot' "$STUB")"
-check "the script it hands off to exists" 1 "$( [ -f "$HERE/cloud-skill-sync.sh" ] && echo 1 || echo 0)"
+# Match the invocation line only — the filename also appears in the comments. It runs the
+# setup FROM the clone, so the skills it delivers come from that same clone and nothing is
+# cloned twice (cloud-env-setup.sh points cloud-skill-sync.sh at its own checkout).
+check "it runs cloud-env-setup.sh from the clone" 1 \
+  "$(grep -c 'bash /tmp/ops-boot/scripts/cloud-env-setup.sh --provider' "$STUB")"
+check "the script it hands off to exists" 1 "$( [ -f "$HERE/cloud-env-setup.sh" ] && echo 1 || echo 0)"
+check "  and so does the session script it installs" 1 "$( [ -f "$HERE/run-umbraco.sh" ] && echo 1 || echo 0)"
+# An environment pasted before this stub existed still calls cloud-skill-sync.sh directly.
+# It must keep working on its own, or every old environment breaks on its next rebuild.
+check "cloud-skill-sync.sh still exists for older stubs" 1 "$( [ -f "$HERE/cloud-skill-sync.sh" ] && echo 1 || echo 0)"
 
 printf '\n%s: %d passed, %d failed\n' "$(basename "$0")" "$pass" "$fail"
 [ "$fail" -eq 0 ]

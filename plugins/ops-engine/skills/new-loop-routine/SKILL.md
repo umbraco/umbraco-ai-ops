@@ -50,7 +50,8 @@ Never use `fable`. Never put secrets in the prompt or config.
    were all missing — and cited a `self-learning-system.md` that does not exist in this repo. A
    copy of a list is a list that rots; the planner is the source.)
 2. **Skills reach the env** — paste `scripts/cloud-setup-stub.sh` into the environment's **Setup
-   script** field. No variables and no token: the engine is public, so the clone is anonymous.
+   script** field, with `PROVIDER` (`sqlite` or `sqlserver`) and `DOTNET_CHANNEL` (from the
+   repo's `global.json`) set at the top. No token: the engine is public, so the clone is anonymous.
    On an environment that already exists, **bump the `# rebuild:` number** as well, or it keeps
    serving its cached snapshot. There is no list to add a skill to: `cloud-skill-sync.sh` delivers
    **every** skill and agent in the repo, precisely so that adding one needs no second edit.

@@ -423,14 +423,21 @@ List these **in this order**, and say why the order matters; do not try to do th
    **Print the stub inline, in a fenced block, ready to copy.** Read
    `scripts/cloud-setup-stub.sh` from the engine root (resolve it the way the other scripts do)
    and output its contents. It is ~15 lines and it clones the engine and runs
-   `cloud-skill-sync.sh` itself, so the paste never changes even as the real script does. If
+   `cloud-env-setup.sh` itself, so the paste never changes even as the real script does. If
    you genuinely cannot read it, say so and give the resolved path — a wrong path is worse than
    an honest "I could not find it".
+
+   **Fill in its two settings before printing it**, so the human copies a stub that is right:
+
+   - **`DOTNET_CHANNEL`** — the major.minor of `sdk.version` in the repo's `global.json`
+     (`10.0.102` → `10.0`). No `global.json` → say so and ask; do not guess an SDK.
+   - **`PROVIDER`** — `sqlite` unless the human wants CI-parity SQL Server sessions. Ask; it
+     decides whether the environment caches a 2.3 GB image.
 
    Then say which of the two cases applies:
 
    - **No environment yet** → a human creates one and pastes the stub into **Setup script**.
-     **That is all of it: no variables, no token.** The engine is public, so the clone is
+     **That is all of it: two settings, no token.** The engine is public, so the clone is
      anonymous. Do not ask for `OPS_TOKEN`; nothing reads it any more, and sending someone to
      set one costs them a detour and teaches them a rule that is no longer true.
    - **An environment already exists** → it is almost certainly serving an **older snapshot**.

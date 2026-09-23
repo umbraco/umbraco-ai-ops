@@ -173,9 +173,12 @@ because there is no pointer.
 - **Locally:** run `/plugin marketplace add umbraco/umbraco-ai-ops`, then install the plugins. A
   repo's own skills load on their own.
 - **Web routines**, which is the main way it runs: paste **`scripts/cloud-setup-stub.sh`** into the
-  environment's **Setup script** box. That is the whole setup. No variables and no token. The stub
-  clones the engine and runs `scripts/cloud-skill-sync.sh`, which delivers every skill and agent to
-  `$HOME/.claude` and wires up the capture hooks. A routine picks up the checked-out repo's own
+  environment's **Setup script** box, with its two settings at the top: `PROVIDER` (`sqlite`, or
+  `sqlserver` for CI-parity sessions) and `DOTNET_CHANNEL` (from the repo's `global.json`). No
+  token. The stub clones the engine and runs `scripts/cloud-env-setup.sh`, which delivers every
+  skill and agent to `$HOME/.claude`, wires up the capture hooks, installs the .NET SDK, caches
+  SQL Server for a `sqlserver` env, and writes `$HOME/env-manifest.md`. A session boots Umbraco
+  with `$HOME/.umbraco-ops/run-umbraco.sh`. A routine picks up the checked-out repo's own
   `.claude/skills/` and hooks by itself.
 
   > **To pick up a newer engine, change the `# rebuild:` number in the stub and save it again.** The
@@ -371,7 +374,9 @@ scripts/                   # engine-wide scripts, each with its own *.test.sh
   validate-capability-skills.sh  # nothing in a capability blocks the Skill tool
   check-plugin-versions.sh # fail the build if a plugin changed without a version bump
   cloud-setup-stub.sh      # the thing you paste into a cloud environment's Setup script box
-  cloud-skill-sync.sh      # what the stub runs: delivers every skill and agent into the environment
+  cloud-env-setup.sh       # what the stub runs: skills, the .NET SDK, SQL Server if asked, the manifest
+  cloud-skill-sync.sh      # delivers every skill and agent into the environment (older stubs call it direct)
+  run-umbraco.sh           # per session: start the chosen database and boot the repo's own site
 ```
 
 ## Status
