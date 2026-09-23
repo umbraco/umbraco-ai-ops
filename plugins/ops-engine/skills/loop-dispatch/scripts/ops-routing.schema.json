@@ -19,7 +19,7 @@
         "properties": {
           "event": {
             "type": "string",
-            "enum": ["issues.labeled", "pull_request.labeled", "issues.opened", "pull_request.opened"],
+            "enum": ["issues.labeled", "pull_request.labeled", "issues.opened", "pull_request.opened", "check_suite.completed"],
             "description": "Must come from the framework event vocabulary. Inventing a string here is a conformance violation and route-event.sh rejects it loudly rather than never firing."
           },
           "label": {
@@ -35,6 +35,16 @@
             "type": "string",
             "minLength": 1,
             "description": "Optional. A label this rule yields to while the PR is open — see route-map.schema.json. An overlay rule REPLACES the base rule with the same (event, label), so an overlay that re-routes `ops/port` and leaves this out never defers, and brings back two ports for a PR labelled for landing and porting at once. A repo that renamed its landing label names its own label here."
+          },
+          "require_pr_label": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Optional. Fire only when the PR carries this label — see route-map.schema.json. A repo that renamed its landing label overrides the `check_suite.completed` rule and names its own label here, or builds finishing never wake its merge loop."
+          },
+          "require_conclusion": {
+            "type": "string",
+            "enum": ["success", "failure", "neutral", "cancelled", "skipped", "timed_out", "action_required", "stale"],
+            "description": "Optional. Fire only when the check suite finished with this conclusion — see route-map.schema.json."
           }
         }
       }

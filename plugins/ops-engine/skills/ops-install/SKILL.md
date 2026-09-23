@@ -374,15 +374,21 @@ Copy the caller workflow template (see
 routine wiring and the locked templates) to `.github/workflows/` — and get the topology right,
 because this is the step that silently half-works:
 
-- **Single repo** — issues and PRs together. One workflow, subscribing to both `issues` and
-  `pull_request_target`. No `target_repo`.
+- **Single repo** — issues and PRs together. One workflow, subscribing to `issues`,
+  `pull_request_target` and `check_suite`. No `target_repo`.
 - **Split topology** — issues in a separate repo from the code. **The workflow goes on BOTH
   repos**, wired differently:
   - on the **issues** repo: subscribe to `issues`. No `target_repo`: that repo's
     `ops-repo-meta.json` declares `topology.code`, and the router reads it. Which means the
     issues repo needs a copy of that file too — it is the repo the workflow runs in.
-  - on the **code** repo: subscribe to `pull_request_target` — those events fire where the PRs
-    live, and the work is already there.
+  - on the **code** repo: subscribe to `pull_request_target` **and `check_suite`** — those
+    events fire where the PRs live, and the work is already there.
+
+**`check_suite` and `pull-requests: read` are what let a PR labelled to land while its build is
+still running land when the build finishes**, instead of waiting for another label. Both are in
+the template. A repo onboarded before they were added (before 0.21.0) has neither, and its merge
+loop still stops waiting after 15 minutes: re-copy the template onto the code repo's default
+branch. GitHub only fires `check_suite` from the default branch's copy of the workflow.
 
   `with.target_repo` still exists but is **deprecated**: it was a second hand-written copy of a
   fact the file already holds, in a different file in a different repo, with nothing to catch

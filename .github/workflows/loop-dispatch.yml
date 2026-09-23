@@ -40,8 +40,13 @@ on:
       LOOP_DISPATCH_TOKEN:
         required: true
 
-permissions:
-  contents: read
+# NO `permissions:` BLOCK HERE, deliberately. The token's scope is set by the CALLER's job
+# (the template grants `contents: read` and `pull-requests: read`). A called workflow that asks
+# for a scope its caller does not allow is refused by GitHub before any job starts — "the nested
+# job is requesting 'pull-requests: read', but is only allowed 'none'" — so asking here would
+# have broken every consumer still on an older caller, at once, the moment this landed on main.
+# The PR-label lookup below is the only thing that needs `pull-requests: read`; with a caller
+# that does not grant it, the lookup warns and the CI-finished route resolves to none.
 
 jobs:
   dispatch:
@@ -68,6 +73,9 @@ jobs:
           # route-event.sh reads $TARGET_REPO and emits target= only when it differs
           # from the event repo. Empty (same-repo consumers) -> no target emitted.
           TARGET_REPO: ${{ inputs.target_repo }}
+          # For the check_suite label lookup only. The caller's token, capped by the permissions
+          # above and by the caller's own.
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -uo pipefail
           # An overlay is optional: most repos run the base table unchanged. A PRESENT but
@@ -89,8 +97,31 @@ jobs:
           # $GITHUB_EVENT_PATH / $GITHUB_EVENT_NAME are the CALLER repo's triggering event.
           # route-event.sh reads the payload for action/label/repo/number (the event NAME
           # is a header, not body, so it is passed explicitly).
-          out="$(bash ops/plugins/ops-engine/skills/loop-dispatch/scripts/route-event.sh \
-                   --event "$GITHUB_EVENT_NAME" ${overlay:+--overlay "$overlay"} ${meta:+--repo-meta "$meta"})"
+          router() {
+            bash ops/plugins/ops-engine/skills/loop-dispatch/scripts/route-event.sh \
+              --event "$GITHUB_EVENT_NAME" ${overlay:+--overlay "$overlay"} ${meta:+--repo-meta "$meta"} "$@"
+          }
+          if [ "$GITHUB_EVENT_NAME" = "check_suite" ]; then
+            # A CI run finished. Its payload lists the PRs on that commit but not their labels,
+            # and the route only fires for a PR labelled to land — so read each PR's labels here
+            # and hand them to the router, which stays offline. The first PR that routes wins:
+            # the merge loop sweeps every labelled PR, so one wake-up covers them all.
+            out="loop=none"
+            repo_full="$(jq -r '.repository.full_name' "$GITHUB_EVENT_PATH")"
+            for n in $(jq -r '.check_suite.pull_requests[]?.number' "$GITHUB_EVENT_PATH"); do
+              args=(--number "$n")
+              if labels="$(gh api "repos/$repo_full/pulls/$n" --jq '.labels[].name' 2>&1)"; then
+                while IFS= read -r l; do [ -n "$l" ] && args+=(--pr-label "$l"); done <<<"$labels"
+              else
+                # Say so, rather than route on no labels and look like an ordinary no-op.
+                echo "::warning::could not read the labels of PR #$n ($labels). Does the caller grant pull-requests: read?"
+              fi
+              out="$(router "${args[@]}")"
+              case "$out" in loop=none*) ;; *) break ;; esac
+            done
+          else
+            out="$(router)"
+          fi
           echo "route-event: $out"
           loop="${out#loop=}"; loop="${loop%% *}"
           {

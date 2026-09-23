@@ -18,13 +18,18 @@
   "$defs": {
     "event": {
       "type": "string",
-      "enum": ["issues.labeled", "pull_request.labeled", "issues.opened", "pull_request.opened"],
-      "description": "The event vocabulary. `<github event>.<action>`, collapsed into one string. `pull_request_target.labeled` is normalised to `pull_request.labeled` before matching. A repo MUST NOT invent a string outside this list; route-event.sh rejects one rather than silently never firing."
+      "enum": ["issues.labeled", "pull_request.labeled", "issues.opened", "pull_request.opened", "check_suite.completed"],
+      "description": "The event vocabulary. `<github event>.<action>`, collapsed into one string. `pull_request_target.labeled` is normalised to `pull_request.labeled` before matching. `check_suite.completed` is a CI run finishing; it carries no label. A repo MUST NOT invent a string outside this list; route-event.sh rejects one rather than silently never firing."
     },
     "label": {
       "type": "string",
+      "pattern": "^(ops/[a-z][a-z0-9-]*)?$",
+      "description": "The label that fired. Matched exactly. Every label the engine owns is namespaced `ops/` — the prefix says at a glance that a label drives automation, and keeps our labels out of a repo's existing triage vocabulary. Enforced here because this table is engine-owned; a consumer's overlay is only asked to follow the convention, not held to the pattern (see ops-routing.schema.json). The empty string is the one exception, for an event that carries no label at all (`check_suite.completed`)."
+    },
+    "ops_label": {
+      "type": "string",
       "pattern": "^ops/[a-z][a-z0-9-]*$",
-      "description": "The label that fired. Matched exactly. Every label the engine owns is namespaced `ops/` — the prefix says at a glance that a label drives automation, and keeps our labels out of a repo's existing triage vocabulary. Enforced here because this table is engine-owned; a consumer's overlay is only asked to follow the convention, not held to the pattern (see ops-routing.schema.json)."
+      "description": "A label the engine owns, named by a rule as a condition. Never empty: a condition on no label is no condition."
     },
     "rule": {
       "type": "object",
@@ -38,8 +43,17 @@
           "pattern": "^[a-z][a-z0-9-]*$",
           "description": "The framework loop this rule dispatches to. MUST resolve to an installed skill, and MUST be one of catalog.json's reserved_skill_names unless the repo ships a loop skill of its own name. `none` is reserved for the no-match outcome and is not a legal value here."
         },
+        "require_pr_label": {
+          "$ref": "#/$defs/ops_label",
+          "description": "Optional. The rule fires only when the PR carries this label. For an event whose payload has no PR labels — `check_suite.completed` — the edge workflow looks them up and passes them in. Labels that were not passed count as absent, so the rule does not fire: waking a loop on a guess is the cost this exists to avoid."
+        },
+        "require_conclusion": {
+          "type": "string",
+          "enum": ["success", "failure", "neutral", "cancelled", "skipped", "timed_out", "action_required", "stale"],
+          "description": "Optional. The rule fires only when the check suite finished with this conclusion. The CI-finished rule requires `success`: a red build lands nothing, and the label event already covers telling the author."
+        },
         "defer_while_open_to": {
-          "$ref": "#/$defs/label",
+          "$ref": "#/$defs/ops_label",
           "description": "Optional. A label this rule YIELDS to while the PR is open: when the event's own payload shows the PR still open AND already carrying this label, the rule resolves to none instead of firing, because that label's loop hands off to this one once it lands. The port rule yields to the landing label, so putting `ops/port` and `ops/auto-merge` on an open PR together means land-then-port through one path, not two ports of the same change (22-09-2026). Decided from the payload — the PR's state when the label went on — so it cannot race the merge. A merged PR, or a payload that does not say, fires the rule as before."
         }
       }

@@ -36,7 +36,7 @@ command -v jq >/dev/null 2>&1 || { echo "ERROR: jq required" >&2; exit 2; }
 [ -f "$overlay" ] || { fail "no overlay at $overlay"; exit 1; }
 jq empty "$overlay" 2>/dev/null || { fail "$overlay is not valid JSON"; exit 1; }
 
-VOCAB='["issues.labeled","pull_request.labeled","issues.opened","pull_request.opened"]'
+VOCAB='["issues.labeled","pull_request.labeled","issues.opened","pull_request.opened","check_suite.completed"]'
 
 check() { # check <description> <jq filter yielding true>
   local got; got="$(jq -r "$2" "$overlay" 2>/dev/null | tr -d '\r')"
@@ -48,10 +48,14 @@ check "top-level keys must be exactly version and routes" \
   '(keys_unsorted | sort) == ["routes","version"]'
 check "version must be 2, matching the base table's rule shape" '.version == 2'
 check "routes must be an array" '.routes | type == "array"'
-check "every rule must carry event, label and loop, and nothing else but defer_while_open_to" \
-  '.routes | all(((keys_unsorted - ["defer_while_open_to"]) | sort) == ["event","label","loop"])'
+check "every rule must carry event, label and loop, and nothing else but the three optional conditions" \
+  '.routes | all(((keys_unsorted - ["defer_while_open_to","require_pr_label","require_conclusion"]) | sort) == ["event","label","loop"])'
 check "defer_while_open_to, where present, must be a non-empty string" \
   '.routes | all((has("defer_while_open_to") | not) or ((.defer_while_open_to | type == "string") and (.defer_while_open_to | length > 0)))'
+check "require_pr_label, where present, must be a non-empty string" \
+  '.routes | all((has("require_pr_label") | not) or ((.require_pr_label | type == "string") and (.require_pr_label | length > 0)))'
+check "require_conclusion, where present, must be a check-suite conclusion" \
+  '.routes | all((has("require_conclusion") | not) or (.require_conclusion as $c | ["success","failure","neutral","cancelled","skipped","timed_out","action_required","stale"] | index($c) != null))'
 check "event and label must be strings" \
   '.routes | all((.event | type == "string") and (.label | type == "string"))'
 check "loop must be a string or null" \

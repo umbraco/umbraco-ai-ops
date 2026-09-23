@@ -70,6 +70,9 @@ For each candidate, in order:
 
 1. **`ops-ci · status`.** If `pending`, wait and re-read on a sane cadence, up to a
    **15-minute cap for the whole run**. Still pending at the cap → leave it for the next run.
+   **The next run comes by itself:** when that build finishes green, the edge routes the
+   `check_suite.completed` event back here for any PR carrying the landing label. So stopping
+   at the cap is safe, and waiting longer to avoid it only burns a session.
    This poll is an **optimisation, not a gate**: it stops the loop paying for a full gate run
    on a PR whose CI has not finished.
 2. **`ops-integrate · land`** with `{ pr: { repo, number } }`.
@@ -169,10 +172,13 @@ notify daily. A successful merge is not notification-worthy; the comment is the 
 
 ## Running as a routine
 
-**Primary: event-triggered.** `loop-dispatch` routes `pull_request.labeled` +
-`ops/auto-merge` here, so labelling a PR fires it immediately. The loop sweeps *all* labelled
-PRs, so a single-PR event just runs one pass of the same loop.
+**Primary: event-triggered, twice over.** `loop-dispatch` routes `pull_request.labeled` +
+`ops/auto-merge` here, so labelling a PR fires it immediately. It also routes
+`check_suite.completed` here when a build finishes green on a PR carrying the landing label,
+so a PR labelled while a long build ran lands when the build finishes. The loop sweeps *all*
+labelled PRs, so either event just runs one pass of the same loop.
 
-**Optional backstop:** a low-frequency poll (once or twice a weekday) catches a PR whose CI
-went green *after* its event run hit the 15-minute cap. Not needed if you label after CI is
-green.
+**Optional backstop:** a low-frequency poll (once or twice a weekday). With the CI-finished
+route it should find nothing. It is only worth having where the caller workflow predates that
+route (no `check_suite` trigger), or where a CI provider does not report through a GitHub
+check suite at all.

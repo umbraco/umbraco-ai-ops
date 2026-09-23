@@ -31,6 +31,11 @@
 #
 # EVENT VOCABULARY (conformance spec section 6.2) — `<github event>.<action>`, collapsed:
 #   issues.labeled . pull_request.labeled . issues.opened . pull_request.opened
+#   check_suite.completed
+# `check_suite.completed` is a CI run finishing. It carries no label and its payload does not
+# carry the PR's labels either, so the edge workflow looks them up and passes them as
+# --pr-label; this script stays hermetic. It exists so a PR labelled to land while its build
+# is still running is woken when the build finishes, rather than waiting for another label.
 # `pull_request_target.labeled` is normalised to `pull_request.labeled`: the PR-label
 # triggers use pull_request_target because it runs from the base repo's DEFAULT branch
 # with secrets, so it reaches dev-based loop PRs that plain `pull_request` does not.
@@ -49,6 +54,9 @@ repo_meta="${REPO_META:-}"
 # by hand). Only a rule carrying `defer_while_open_to` reads them. Empty pr_merged means
 # "not known", and an unknown state never defers: the rule then fires as it always did.
 pr_merged="" pr_labels=""
+# A check suite's outcome (`success`, `failure`, …). Only a rule carrying `require_conclusion`
+# reads it.
+conclusion=""
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -62,6 +70,7 @@ while [ $# -gt 0 ]; do
     --repo-meta) repo_meta="${2:-}"; shift 2 ;;
     --pr-merged) pr_merged="${2:-}"; shift 2 ;;
     --pr-label)  pr_labels="${pr_labels}${2:-}"$'\n'; shift 2 ;;
+    --conclusion) conclusion="${2:-}"; shift 2 ;;
     *) shift ;;
   esac
 done
@@ -84,10 +93,14 @@ if [ -z "$action" ]; then
     event="${event:-${GITHUB_EVENT_NAME:-}}"
     action="$(printf '%s' "$payload" | jq -r '.action // empty' 2>/dev/null)"
     label="$(printf '%s'  "$payload" | jq -r '.label.name // empty' 2>/dev/null)"
-    number="$(printf '%s' "$payload" | jq -r '(.issue.number // .pull_request.number // .number) // empty' 2>/dev/null)"
     repo="$(printf '%s'   "$payload" | jq -r '.repository.full_name // empty' 2>/dev/null)"
-    pr_merged="$(printf '%s' "$payload" | jq -r 'if .pull_request then (.pull_request.merged // false | tostring) else empty end' 2>/dev/null)"
-    pr_labels="$(printf '%s' "$payload" | jq -r '.pull_request.labels[]?.name // empty' 2>/dev/null)"
+    # A flag the caller passed wins over the payload. That is how the edge hands over what the
+    # payload cannot carry: a check suite names its PRs but not their labels, so the workflow
+    # looks them up and passes --number and --pr-label alongside the raw event.
+    [ -n "$number" ] || number="$(printf '%s' "$payload" | jq -r '(.issue.number // .pull_request.number // .number // .check_suite.pull_requests[0].number) // empty' 2>/dev/null)"
+    [ -n "$pr_merged" ] || pr_merged="$(printf '%s' "$payload" | jq -r 'if .pull_request then (.pull_request.merged // false | tostring) else empty end' 2>/dev/null)"
+    [ -n "$pr_labels" ] || pr_labels="$(printf '%s' "$payload" | jq -r '.pull_request.labels[]?.name // empty' 2>/dev/null)"
+    [ -n "$conclusion" ] || conclusion="$(printf '%s' "$payload" | jq -r '.check_suite.conclusion // empty' 2>/dev/null)"
   fi
 fi
 
@@ -125,18 +138,40 @@ loop="$(jq -nr --arg ev "$key" --arg lb "$label" --argjson ov "$ov_json" --slurp
     then error("rule event is outside the vocabulary: \($r.event)")
     else . end);
 
-  ["issues.labeled", "pull_request.labeled", "issues.opened", "pull_request.opened"] as $vocab
+  ["issues.labeled", "pull_request.labeled", "issues.opened", "pull_request.opened",
+   "check_suite.completed"] as $vocab
   | ([$ev, $lb] | tojson) as $want
   | ($b[0] | check($vocab)) as $base
   | ($ov   | check($vocab)) as $overlay
   | (INDEX($base | rules[]; ident) + INDEX($overlay | rules[]; ident)) as $effective
   | ($effective[$want] // null) as $hit
   | if $hit == null or $hit.loop == null then "none"
-    else $hit.loop + "\t" + ($hit.defer_while_open_to // "") end
+    else [$hit.loop, ($hit.defer_while_open_to // ""), ($hit.require_pr_label // ""),
+          ($hit.require_conclusion // "")] | join("\u001f") end
 ' 2>&1)" || die "$(printf '%s' "$loop" | sed 's/^jq: error[^:]*: //')"
-defer=""
-case "$loop" in *$'\t'*) defer="${loop#*$'\t'}"; loop="${loop%%$'\t'*}" ;; esac
+defer="" need_label="" need_conclusion=""
+# Unit separator, not tab: tab is IFS whitespace, so `read` would merge an empty field into its
+# neighbour, and a rule with no defer would read its label requirement as the defer.
+case "$loop" in
+  *$'\x1f'*) IFS=$'\x1f' read -r loop defer need_label need_conclusion <<<"$loop" ;;
+esac
 [ -z "$loop" ] && loop="none"
+
+# A RULE CAN REQUIRE THINGS OF THE EVENT BEFORE IT FIRES. The CI-finished rule needs both: a
+# build that finished green, on a PR that carries the landing label. Without them every CI run
+# on every branch would start a routine session to sweep for nothing. A requirement the event
+# cannot show — no conclusion in the payload, no labels passed — is NOT met: waking a loop on a
+# guess is exactly the cost these fields exist to avoid, and the label event still fires anyway.
+if [ "$loop" != "none" ] && [ -n "$need_conclusion" ] && [ "$conclusion" != "$need_conclusion" ]; then
+  printf 'route-event.sh: %s skipped: conclusion is "%s", the rule needs "%s"\n' \
+    "$loop" "${conclusion:-unknown}" "$need_conclusion" >&2
+  loop="none"
+fi
+if [ "$loop" != "none" ] && [ -n "$need_label" ] \
+   && ! printf '%s\n' "$pr_labels" | grep -qxF -- "$need_label"; then
+  printf 'route-event.sh: %s skipped: PR #%s does not carry %s\n' "$loop" "${number:-?}" "$need_label" >&2
+  loop="none"
+fi
 
 # DEFER TO THE LOOP THAT WILL HAND OFF. A rule can name a label it yields to while the PR is
 # open. The port rule yields to the landing label: a maintainer who puts `ops/port` and

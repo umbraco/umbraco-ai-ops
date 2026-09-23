@@ -206,14 +206,23 @@ check_base() { # check_base <name> <jq filter yielding true>
 }
 check_base "version is 2" '.version == 2'
 check_base "every event is in the vocabulary" \
-  '[.routes[].event] | all(. as $e | ["issues.labeled","pull_request.labeled","issues.opened","pull_request.opened"] | index($e) != null)'
+  '[.routes[].event] | all(. as $e | ["issues.labeled","pull_request.labeled","issues.opened","pull_request.opened","check_suite.completed"] | index($e) != null)'
 check_base "every rule has event, label and loop" \
   '.routes | all(has("event") and has("label") and has("loop"))'
 check_base "(event,label) is unique" \
   '([.routes[] | [.event, .label]] | length) == ([.routes[] | [.event, .label]] | unique | length)'
 check_base 'no rule targets the "none" sentinel' '.routes | all(.loop != "none")'
-check_base "every trigger label is namespaced ops/" '.routes | all(.label | startswith("ops/"))'
-check_base "it has exactly five rows, because triage is scheduled rather than routed" '(.routes | length) == 5'
+# A label event's label is ours and namespaced; an event that carries no label (a CI run
+# finishing) has "" and must say, by `require_pr_label`, which ops/ label it is for.
+check_base "every trigger label is namespaced ops/" \
+  '.routes | all(if .label == "" then .event == "check_suite.completed" else (.label | startswith("ops/")) end)'
+check_base "a label-less rule names the ops/ label it acts for" \
+  '.routes | map(select(.label == "")) | all(.require_pr_label | type == "string" and startswith("ops/"))'
+check_base "every rule-named condition label is namespaced ops/" \
+  '.routes | all(([.defer_while_open_to, .require_pr_label] | map(select(. != null))) | all(startswith("ops/")))'
+# Five label routes plus one that wakes the merge loop when CI finishes. Triage is still
+# scheduled rather than routed, which is why there is no sixth label.
+check_base "it has exactly six rows: five labels and one CI-finished wake-up" '(.routes | length) == 6'
 
 # Every loop in the base table must be a name the CATALOG reserves. That cross-check is
 # the point of catalog.json carrying reserved_skill_names as data instead of prose.
@@ -247,6 +256,27 @@ while IFS=$'\t' read -r lbl loop; do
     fi
   done
 done < <(jq -r '.routes[] | "\(.label)\t\(.loop)"' "$BASE" | tr -d '\r')
+
+# --- every routed event is one the caller workflow actually subscribes to ---
+# A rule for an event the caller never listens for is a rule that never fires, and nothing
+# errors: GitHub simply does not run the workflow. Adding the CI-finished route meant adding
+# `check_suite` to the caller template; this keeps the two from drifting apart again.
+CALLER="$HERE/../../new-loop-routine/references/loop-dispatch.yml.template"
+if [ -f "$CALLER" ]; then
+  while IFS= read -r ev; do
+    case "${ev%%.*}" in
+      issues)       trig="issues" ;;
+      pull_request) trig="pull_request_target" ;;  # labels use _target; see the template header
+      *)            trig="${ev%%.*}" ;;
+    esac
+    if grep -qE "^  ${trig}:" "$CALLER"; then pass=$((pass+1))
+    else fail=$((fail+1)); echo "FAIL: the caller template does not subscribe to '$trig', so rule event $ev never fires"; fi
+  done < <(jq -r '[.routes[].event] | unique[]' "$BASE" | tr -d '\r')
+  if grep -qE '^ +pull-requests: read' "$CALLER"; then pass=$((pass+1))
+  else fail=$((fail+1)); echo "FAIL: the caller template does not grant pull-requests: read, so the CI-finished route can never see a PR's labels"; fi
+else
+  fail=$((fail+1)); echo "FAIL: caller template not found at $CALLER"
+fi
 
 # --- the port rule defers to the landing label while the PR is open ---------
 # 22-09-2026: a maintainer put `ops/auto-merge` and `ops/port` on an open PR in the same second.
@@ -296,6 +326,57 @@ printf '{"routes":[{"event":"pull_request.labeled","label":"ops/port","loop":"op
 out="$(pr_event ops/port false land-me ops/port | bash "$SCRIPT" --event pull_request_target --overlay "$TMP/port-renamed.json")"
 if [ "$out" = "loop=none repo=o/r number=309" ]; then pass=$((pass+1))
 else fail=$((fail+1)); echo "FAIL: an overlay naming a renamed landing label should defer to it — got [$out]"; fi
+
+# --- a CI run finishing wakes the merge loop, but only for a labelled, green PR -
+# The merge loop waits at most 15 minutes for CI in one run, and a Forms build takes longer, so a
+# PR labelled while its build ran sat green and labelled until something else woke the loop. The
+# check suite finishing is that something. Its payload names the PR but not the PR's labels; the
+# edge workflow looks them up and passes --number / --pr-label, which win over the payload.
+suite() { # suite <conclusion> [pr-number...]
+  local c="$1"; shift
+  jq -nc --arg c "$c" --args '{action: "completed",
+    check_suite: {conclusion: $c, app: {slug: "azure-pipelines"},
+                  pull_requests: ($ARGS.positional | map({number: (. | tonumber)}))},
+    repository: {full_name: "o/r"}}' "$@"
+}
+check() { # check <name> <want> <got>
+  if [ "$2" = "$3" ]; then pass=$((pass+1)); else fail=$((fail+1)); echo "FAIL: $1 — want [$2] got [$3]"; fi
+}
+route_suite() { # route_suite <payload> [flags...]
+  local p="$1"; shift
+  printf '%s' "$p" | bash "$SCRIPT" --event check_suite "$@" 2>/dev/null
+}
+got="$(route_suite "$(suite success 1540)" --number 1540 --pr-label ops/auto-merge)"
+check "green build on a PR labelled to land wakes the merge loop" "loop=ops-merge-loop repo=o/r number=1540" "$got"
+got="$(route_suite "$(suite success 1540)" --pr-label ops/auto-merge)"
+check "  the PR number comes from the payload when not passed" "loop=ops-merge-loop repo=o/r number=1540" "$got"
+got="$(route_suite "$(suite success 1540)" --number 77 --pr-label ops/auto-merge)"
+check "  and a passed --number wins over it" "loop=ops-merge-loop repo=o/r number=77" "$got"
+got="$(route_suite "$(suite success 1540)" --number 1540 --pr-label ops/port)"
+check "green build on a PR NOT labelled to land wakes nothing" "loop=none repo=o/r number=1540" "$got"
+got="$(route_suite "$(suite success 1540)" --number 1540)"
+check "  nor does one whose labels were never passed" "loop=none repo=o/r number=1540" "$got"
+got="$(route_suite "$(suite failure 1540)" --number 1540 --pr-label ops/auto-merge)"
+check "a RED build wakes nothing, even on a labelled PR" "loop=none repo=o/r number=1540" "$got"
+got="$(route_suite "$(suite success)")"
+check "a build on a branch with no PR wakes nothing" "loop=none repo=o/r number=" "$got"
+
+err="$(suite failure 1540 | bash "$SCRIPT" --event check_suite --number 1540 --pr-label ops/auto-merge 2>&1 >/dev/null)"
+check "  a red build says why on stderr" 1 "$(printf '%s' "$err" | grep -c 'conclusion is "failure", the rule needs "success"')"
+err="$(suite success 1540 | bash "$SCRIPT" --event check_suite --number 1540 2>&1 >/dev/null)"
+check "  and so does a missing label" 1 "$(printf '%s' "$err" | grep -c 'PR #1540 does not carry ops/auto-merge')"
+
+# A label event is untouched by the new conditions: it has none.
+expect_loop "the ops/auto-merge label still wakes the merge loop on its own" ops-merge-loop \
+  -- --event pull_request --action labeled --label ops/auto-merge --number 42 --repo o/r
+
+# A repo that renamed its landing label overrides the rule and names its own.
+printf '{"routes":[{"event":"check_suite.completed","label":"","loop":"ops-merge-loop","require_conclusion":"success","require_pr_label":"land-me"}]}' > "$TMP/suite-renamed.json"
+got="$(route_suite "$(suite success 5)" --overlay "$TMP/suite-renamed.json" --pr-label land-me)"
+check "an overlay's renamed landing label is honoured" "loop=ops-merge-loop repo=o/r number=5" "$got"
+printf '{"routes":[{"event":"check_suite.completed","label":"","loop":null}]}' > "$TMP/suite-off.json"
+got="$(route_suite "$(suite success 5)" --overlay "$TMP/suite-off.json" --pr-label ops/auto-merge)"
+check "  and an overlay can switch the wake-up off" "loop=none repo=o/r number=5" "$got"
 
 echo "----"
 echo "route-event tests: $pass passed, $fail failed"

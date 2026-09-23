@@ -45,6 +45,15 @@ status "an empty defer_while_open_to"   1 \
   "$(mk deferempty '{"version":2,"routes":[{"event":"pull_request.labeled","label":"ops/port","loop":"ops-port-loop","defer_while_open_to":""}]}')"
 status "a non-string defer_while_open_to" 1 \
   "$(mk defernum '{"version":2,"routes":[{"event":"pull_request.labeled","label":"ops/port","loop":"ops-port-loop","defer_while_open_to":7}]}')"
+# The CI-finished wake-up: a repo that renamed its landing label overrides it with its own.
+status "a CI-finished rule for a renamed landing label" 0 \
+  "$(mk suite '{"version":2,"routes":[{"event":"check_suite.completed","label":"","loop":"ops-merge-loop","require_conclusion":"success","require_pr_label":"land-me"}]}')"
+status "switching the CI-finished wake-up off" 0 \
+  "$(mk suiteoff '{"version":2,"routes":[{"event":"check_suite.completed","label":"","loop":null}]}')"
+status "an unknown conclusion" 1 \
+  "$(mk badconc '{"version":2,"routes":[{"event":"check_suite.completed","label":"","loop":"ops-merge-loop","require_conclusion":"green"}]}')"
+status "an empty require_pr_label" 1 \
+  "$(mk emptyreq '{"version":2,"routes":[{"event":"check_suite.completed","label":"","loop":"ops-merge-loop","require_pr_label":""}]}')"
 status "a non-string label"       1 "$(mk numlbl '{"version":2,"routes":[{"event":"issues.labeled","label":7,"loop":"ops-issue-loop"}]}')"
 status "a loop with a capital"    1 "$(mk shout '{"version":2,"routes":[{"event":"issues.labeled","label":"a","loop":"Ops-Issue-Loop"}]}')"
 status "the reserved none sentinel" 1 "$(mk none '{"version":2,"routes":[{"event":"issues.labeled","label":"a","loop":"none"}]}')"

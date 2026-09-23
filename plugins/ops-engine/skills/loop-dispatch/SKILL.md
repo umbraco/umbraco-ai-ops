@@ -44,11 +44,19 @@ The base table, rendered:
 | `pull_request.labeled` | `ops/auto-merge` | **`ops-merge-loop`** |
 | `pull_request.labeled` | `ops/auto-rework` | **`ops-rework-loop`** |
 | `pull_request.labeled` | `ops/port` | **`ops-port-loop`** |
+| `check_suite.completed` | *(none)* — only a **green** run on a PR carrying `ops/auto-merge` | **`ops-merge-loop`** |
 
 **The event vocabulary is closed**: `issues.labeled`, `pull_request.labeled`,
-`issues.opened`, `pull_request.opened`. `pull_request_target.labeled` normalises to
-`pull_request.labeled`. A rule using anything else is a **hard error**, not a rule that
-quietly never fires.
+`issues.opened`, `pull_request.opened`, `check_suite.completed`. `pull_request_target.labeled`
+normalises to `pull_request.labeled`. A rule using anything else is a **hard error**, not a rule
+that quietly never fires.
+
+**`check_suite.completed` is a CI run finishing**, and it exists because the merge loop waits at
+most 15 minutes for CI in one run. A PR labelled to land while a longer build ran used to sit
+green and labelled until something else woke the loop. The edge now wakes it when the build
+finishes — but only for a green run on a PR that carries the landing label, so an ordinary
+build costs nothing. A dispatch from this row is the same `ops-merge-loop` sweep as one from
+the label; nothing downstream needs to tell them apart.
 
 **`ops-triage-loop` is deliberately absent.** It is a *scheduled* sweep of the learnings
 inbox, not an event route, so it has no row here.
