@@ -181,7 +181,9 @@ Work targets nearest first, measured as distance from the source line in `live`.
    to work around by opening the PR here.
 4. **Drive CI green** — `ops-ci · status`, then `log` on red. **Cap: 8 attempts**, the same as
    the issue loop.
-5. **Comment the port PR link on the issue**, saying which line it targets.
+5. **Comment on the issue** saying the change is being ported and which line it targets. The
+   link to the port PR follows the `github-ops` rule for the issues repo: none on a split
+   topology, after the sentence on a single repo.
 
 **Sequential, not parallel.** Ports of one change touch the same code on adjacent lines, and a
 fix found on the first target usually applies to the next. Running them at once means finding
@@ -197,8 +199,9 @@ target: one bad line must not strand the others.
 **Never apply the landing label to a port.** Each port PR goes through the same human gate as
 anything else. A loop that approves its own work has removed the gate.
 
-**Never close the issue.** `ops-change · close-issue` owns that, and it waits until every target
-line has landed — which is exactly what this loop is creating the work for.
+**Never close the issue.** `ops-change · close-issue` owns that. It waits at least until every
+target line has landed, which is the work this loop creates, and on most repos until a release
+ships.
 
 Report: which lines were targeted, which have a green PR, which failed and why.
 
