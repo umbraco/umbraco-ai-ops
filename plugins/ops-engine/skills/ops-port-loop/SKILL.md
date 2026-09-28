@@ -34,7 +34,17 @@ nobody was watching.
 
 ## Step 1 — check it actually landed
 
-Read the PR: its merge state, its base branch, and the issue it closes.
+Read the PR: its merge state, its base branch, and the issue it closes, **if it has one**.
+
+**No issue is not a reason to stop.** A change can land without one, and a maintainer who puts
+the port label on it still wants it ported. The **source PR** is what identifies the change from
+here on: the idempotency check, the claim and `ops-change`'s branch all key on it. **Never invent
+an issue** to fill the gap, and never go looking for a "close enough" one.
+
+> **Why (28-09-2026, `umbraco/Umbraco.Automate` #348).** A merged PR with no linked issue
+> reached this loop carrying the port label. Every step keyed on "the issue", nothing said what
+> to do without one, and the run correctly refused to invent a number, so the port never
+> started. The gap was here, not in the repo.
 
 - **Not merged yet.** Comment *"this will be ported once it lands"* and **stop**. Do not port
   from an open PR: review can still change it, and you would be copying something that never
@@ -126,12 +136,13 @@ Then:
     round can spot it. A reversed `live`, or a `port_order` pointing away from the rest of the
     repo, sends every change on the primary line straight down this path and nothing ever errors
     (a real onboarding did exactly that on 29-07-2026).
-- **Skip any line that already has a port** for this issue — open or merged. A re-fired label
+- **Skip any line that already has a port** of this change — open or merged. A re-fired label
   MUST NOT open a second PR. This is the idempotency requirement and it is the one most likely
   to bite, because labels get re-applied by hand.
 - **Then claim the line before you work it, and honour another run's claim.** The rule above is
   a check with no claim, and two runs in flight both pass it. Per target line, in this order:
-  1. A port PR already exists for this issue on that line → **skip**, and say so.
+  1. A port PR already exists for this change on that line → **skip**, and say so. "This
+     change" is the issue when there is one, and the source PR when there is not.
   2. Otherwise read the source PR's comments for a claim marker for that line —
      `<!-- ops-port-claim: <line> -->` — posted in the **last 30 minutes**. Found → another run
      owns this line right now. **Skip**, naming the line and saying a twin has it.
@@ -170,8 +181,11 @@ Announce the target list before doing anything.
 
 Work targets nearest first, measured as distance from the source line in `live`. For each:
 
-1. **`ops-change · implement`** with `{ issue, line, port: { from_line, commit } }`. The `port`
-   block is what tells the repo it is porting and from where. **How** it ports — cherry-pick
+1. **`ops-change · implement`** with `{ issue, line, port: { from_line, commit, pr } }`, where
+   `pr` is the source PR number and `issue` is `null` when the source PR had none. The `port`
+   block is what tells the repo it is porting and from where, and `port.pr` is what the repo
+   names the branch from when there is no issue — so both entry points, the label and the
+   handoff, hand over the same key and land on the same branch. **How** it ports — cherry-pick
    then adapt, or re-implement — is the repo's business, inside its own `ops-change`. The
    engine never learns the mechanism.
 2. **`ops-change · verify`**. A port can fail on a line the original passed on; that is the
@@ -183,7 +197,8 @@ Work targets nearest first, measured as distance from the source line in `live`.
    the issue loop.
 5. **Comment on the issue** saying the change is being ported and which line it targets. The
    link to the port PR follows the `github-ops` rule for the issues repo: none on a split
-   topology, after the sentence on a single repo.
+   topology, after the sentence on a single repo. **No issue → comment on the source PR
+   instead**, with the link; it is in the code repo, so the split-topology rule does not apply.
 
 **Sequential, not parallel.** Ports of one change touch the same code on adjacent lines, and a
 fix found on the first target usually applies to the next. Running them at once means finding
@@ -213,6 +228,8 @@ Report: which lines were targeted, which have a green PR, which failed and why.
   learned a product fact.
 - **Never guess the source line.** Take it from the caller, or match it exactly once against the
   declared live set, or stop and ask. Everything else here depends on it.
+- **The source PR identifies the change when there is no issue.** Port it anyway; never invent
+  an issue to have something to key on.
 - **Idempotent.** Same PR labelled twice must not open a second port. Check for an existing one
   before implementing, not after.
 - **Never land a port.** Not even a green one.

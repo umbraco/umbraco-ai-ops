@@ -21,11 +21,11 @@
       "operations": [
         {
           "action": "implement",
-          "description": "Make the change the issue asks for on a work branch, push it, AND open the PR onto that line's base by calling `ops-branching · open-pr`. Opening it is part of this action, not the caller's job: `ops-branching` is `supporting`, so no loop may call it, and an `implement` that stops at a pushed branch leaves the change with nowhere to go and the loop with nothing to track. Idempotent on the PR as well as the branch: an existing open PR for the branch is returned, never a second one. Where the context carries a port source this is a port, not a replay: adapt the change to the target line, because a port that needs adapting is a real change.",
+          "description": "Make the change the issue asks for on a work branch, push it, AND open the PR onto that line's base by calling `ops-branching · open-pr`. Opening it is part of this action, not the caller's job: `ops-branching` is `supporting`, so no loop may call it, and an `implement` that stops at a pushed branch leaves the change with nowhere to go and the loop with nothing to track. Idempotent on the PR as well as the branch: an existing open PR for the branch is returned, never a second one. Where the context carries a port source this is a port, not a replay: adapt the change to the target line, because a port that needs adapting is a real change. A port may arrive with no issue, because the change it copies landed without one: the source PR (`port.pr`) then identifies the change and is what the branch, and so the idempotency, derives from. MUST NOT invent an issue to fill the gap.",
           "input": {
-            "issue": "object — the issue being worked, including the repo that holds it",
+            "issue": "object|null — the issue being worked, including the repo that holds it. Null only on a port whose source PR had no issue",
             "line": "string — the line to implement on, e.g. v17",
-            "port": "object|null — the source line and commit when this is a port of an already-landed change"
+            "port": "object|null — the source line, merge commit and source PR number (`from_line`, `commit`, `pr`) when this is a port of an already-landed change"
           },
           "output": {
             "branch": "string — the branch the work was pushed to",
