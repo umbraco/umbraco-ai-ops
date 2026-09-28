@@ -97,3 +97,15 @@ These are policy, not mechanism — they apply whichever reference you use:
 - **Never resolve a base branch here.** Branch knowledge is private to **`ops-branching`**;
   this skill takes the base it is given. The old `detect-base-branch` operation was removed
   for exactly this reason — it was a fourth place base knowledge lived.
+- **No code-repo links on a split issues repo.** When `ops-repo-meta · topology` names an
+  `issues` repo that is not the `code` repo, a comment, issue body or close note written there
+  carries **no link or reference into the code repo** — no PR, branch, commit, release, build
+  or `owner/code-repo#N`. Say what happened in words: what changed, on which line, and in which
+  version once one is known. The split topology is the signal. Nothing needs to detect a
+  repo's visibility. Every loop that writes to the issues repo follows this rule instead of
+  keeping its own copy.
+
+  An earlier rule said "put the link after the sentence, never instead of it". That still
+  put a private repo's PR URLs on a public tracker: the reporter gets a 404, and anyone
+  reading sees internal repo and branch names. On a single-repo topology this rule does not
+  apply, and a link is fine.

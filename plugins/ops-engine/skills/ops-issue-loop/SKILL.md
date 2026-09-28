@@ -128,16 +128,18 @@ Each subagent, for its issue:
    Conflating them is what left a live run's issue looking untouched (29-07-2026).
 
    **Comment as soon as the PR exists** (step 3), not here. A run that dies while CI is still
-   building must still leave the issue pointing at its PR.
+   building must still leave the issue saying a fix is in review.
 
    **Write the comment for whoever reads the issue, not for the loop.** Say what was done and
-   which line it is on, in words, and put the PR link after it. **The link is the extra, never
-   the message.** Where a repo's issues are public and its code is not, the link is a 404 to
-   the person who filed the issue — a comment that is only a link tells them nothing at all,
-   and the loop cannot tell the difference because it can see the PR perfectly well. The same
-   rule costs nothing on a single public repo, so it is not conditional on the topology and
-   nothing needs to detect a repo's visibility. The same boundary is why `Closes #N` cannot be
-   leaned on either (`ops-change · close-issue`).
+   which line it is on, in words. **Whether it may link the PR is a topology fact**, and
+   `github-ops` holds the rule: on a split topology (`issues` ≠ `code`) the comment carries no
+   link or reference into the code repo at all. The PR already links the issue, so people who
+   can see the code can still find the PR. On a single repo, put the PR link after the sentence.
+   The same boundary is why `Closes #N` cannot be relied on either (`ops-change · close-issue`).
+
+   **This comment never says the issue is fixed or released.** A merged PR is not a shipped
+   fix. Closing the issue belongs to `ops-change · close-issue`, and on most repos it waits for
+   a release.
 
 Track `{issue, branch, pr_number, model, attempts}`. A subagent is done at a green PR.
 

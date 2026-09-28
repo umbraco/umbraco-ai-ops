@@ -62,15 +62,17 @@
         },
         {
           "action": "close-issue",
-          "description": "Told that a PR has landed, work out which issue it was for and close that issue only once EVERY target line has landed. One logical change lands N times at N moments. The caller passes the PR, not the issue, because how a PR references its issue and which lines are targets are both repo facts. MUST close explicitly: a `Closes #N` keyword does not cross repos. MUST tolerate an already-closed issue, and MUST report `closed: false` with the lines still outstanding rather than closing early.",
+          "description": "Told that a PR has landed (`landed`, from the merge loop) or that a release has shipped (`released`, from the release loop), work out which issue or issues that covers and close each one only when the repo's close condition is met. That condition is never earlier than EVERY target line having landed, and on a repo whose reporters wait for a shipped version it is the release, not the merge. One logical change lands N times at N moments. The caller passes the PR or the release units, not the issue, because how a PR references its issue, which lines are targets and when an issue closes are all repo facts. MUST close explicitly: a `Closes #N` keyword does not cross repos. MUST tolerate an already-closed issue, and MUST report `closed: false` with what is still outstanding rather than closing early. A comment written to a split issues repo carries no code-repo links (see github-ops).",
           "input": {
             "landed": "object — the PR that just landed: repo, pr_number, and its line as reported by the merge. The caller does not derive the line; it passes on what `integrate`/`branching` returned.",
+            "released": "object — instead of `landed`, after a publish: the line, the version, and the `units` that `release · plan` returned. The capability resolves the issues from the units.",
             "issue": "object — optional, when the caller already knows which issue it was"
           },
           "output": {
             "closed": "boolean",
-            "issue": "object — the issue this resolved to, so the caller can report it",
-            "waiting_on": "array — target lines not yet landed; empty when closed is true"
+            "issue": "object — the issue this resolved to, so the caller can report it (for `landed`)",
+            "issues": "array — for `released`: each issue the release covered, with whether it closed",
+            "waiting_on": "array — what is still outstanding: target lines not yet landed, and/or `release` when the repo closes on release; empty when closed is true"
           },
           "example": {
             "landed": {

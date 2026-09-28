@@ -34,7 +34,7 @@ the strategy live in that service.
 | Capability · action | Why | Visibility |
 |---|---|---|
 | **`ops-integrate · land`** | the command this loop exists to issue | service |
-| **`ops-change · close-issue`** | after a merge only — the issue behind the PR closes when its last line lands | service |
+| **`ops-change · close-issue`** | after a merge. The capability decides whether the issue closes now or waits, usually for a release | service |
 | **`ops-port-loop`** | after a merge, when the PR carries `labels.port` — the normal way a port starts | framework loop |
 | `ops-ci · status` | poll before handing over, so a pending PR costs one cheap read instead of a full gate run | cross-cutting (read) |
 | `ops-repo-meta · identity` | the landing label, **by purpose** (`labels.land`) — never a hard-coded name | cross-cutting (read) |
@@ -111,10 +111,15 @@ knows both.
 that holds the branch-to-line mapping. Reading `v18` out of a base ref here would be this loop
 learning a product fact, and it would be wrong on the first repo whose lines are not named `vN`.
 
-It returns `closed: false` with `waiting_on` when other lines are still outstanding — **that is
-the normal case on a multi-line repo, not a failure.** One logical change lands N times at N
-moments, and the issue closes when the last one does. Report what it says and move on; do not
-retry, and never close an issue yourself.
+It returns `closed: false` with `waiting_on` when something is still outstanding. That can be
+other lines, or `release` on a repo that closes issues only once the fix ships. **This is the
+normal case, not a failure.** One logical change lands N times at N moments, and the issue closes
+when the repo's condition is met. That may happen in `ops-release-loop`, not here. Report what it
+says and move on; do not retry, and never close an issue yourself.
+
+**Write the confirming comment on the PR, not the issue.** This loop's comments go to the code
+repo. On a split topology, anything it wrote to the issues repo would follow the `github-ops`
+no-code-links rule, and it has nothing to tell the reporter until the fix ships.
 
 This is here for one reason: this is the moment a landing becomes known, and nothing else is
 watching for it.

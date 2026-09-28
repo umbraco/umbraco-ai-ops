@@ -5,7 +5,8 @@ description: >-
   green CI, then an Opus pre-publish review against a repo-overridable checklist. When an
   issue titled `release <version>` is labelled `ops/auto-release`, it commands
   `ops-release · plan / cut`, drives CI green, runs the review (a BLOCK stops it), then
-  `publish` and `sync`, and comments + closes the triggering issue. All release mechanics
+  `publish` and `sync`, asks `ops-change · close-issue` to close the issues the release fixed,
+  and comments + closes the triggering issue. All release mechanics
   live in the repo's `ops-release`; this loop only orchestrates and gates, and never touches
   `ops-branching`. Requires github-ops. Trigger from a routine on Issue: Labeled =
   ops/auto-release, or run manually as "release <version>".
@@ -48,6 +49,7 @@ that is correct: the engine has no business guessing how a product ships.
 | **`ops-release · publish`** | tag, push artifacts, publish notes | service |
 | **`ops-release · sync`** | put the line's branches back in step | service |
 | **`ops-change · implement` / `verify`** | only to fix a red release branch — see Step 2 | service |
+| **`ops-change · close-issue`** | after publish, with `released`, so the issues this release fixed close now that the fix has shipped | service |
 | `ops-ci · status` / `log` | the CI gate, and the failing log to act on | cross-cutting (read) |
 | `ops-repo-meta · identity` / `topology` | the release and release-blocked labels by purpose (`labels.release`, `labels.release_blocked`); which repo holds issues | cross-cutting (read) |
 | `ops-notify · send` | start, block, completion | cross-cutting (infra) |
@@ -156,11 +158,12 @@ On any **BLOCK**: do not publish. Then, in order:
 
 1. **Open an issue** titled `Release <version> blocked by pre-publish review`, detailing every
    BLOCK finding (which check, what is wrong, why) and linking the release PR and the trigger
-   issue. Label it with **`labels.release_blocked`** from `ops-repo-meta · identity`, by purpose
+   issue. Open it on the **code** repo, because it links the release PR. Label it with **`labels.release_blocked`** from `ops-repo-meta · identity`, by purpose
    and never the literal name, if that label exists on the repo.
 2. **Notify** (`ops-notify · send`, `urgency: high`, key `release-blocked-<repo>-<version>`) —
    a human is now blocking a release.
-3. **Comment on the trigger issue** pointing at the blocked issue and the PR, and **remove the
+3. **Comment on the trigger issue** saying the release is blocked by the pre-publish review. Link
+   the blocked issue and the PR only where the `github-ops` rule allows, and **remove the
    release label** so the loop does not re-fire until a human fixes the cause and re-labels.
 
 **WARN** findings → proceed, and include them in the completion comment.
@@ -171,9 +174,16 @@ On any **BLOCK**: do not publish. Then, in order:
    artifacts and publishes the notes, marking a prerelease where the version says so.
 2. **`ops-release · sync`** for that line. **The `/goal` is not met until this has run** — see
    [`references/sync-contract.md`](references/sync-contract.md) for what it owes.
-3. **Comment the outcome** on the trigger issue (release link, tag, "line synced") and
-   **close it**, on the `issues` repo from `topology`.
-4. **Notify** (key `release-done-<repo>-<version>`): released `<version>`, line synced.
+3. **`ops-change · close-issue`** with `{ released: { line, version, units } }`, taking
+   `units` from `plan`. The capability works out which issues those units fixed, comments on
+   each one with the version, and closes it. This loop does not know how a unit refers to an
+   issue and does not try to find out. A failure here does **not** undo the release: report it in
+   the completion comment and notify, then carry on.
+4. **Comment the outcome** on the trigger issue (version, tag, "line synced", and how many issues
+   were closed) and **close it**, on the `issues` repo from `topology`. Follow the `github-ops`
+   rule for the issues repo: on a split topology, give no release link, and name the version in
+   words.
+5. **Notify** (key `release-done-<repo>-<version>`): released `<version>`, line synced.
 
 ## Guardrails
 
